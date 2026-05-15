@@ -1,0 +1,22 @@
+[project]
+name = "mem"
+description = """
+A command-line utility for managing project context, specifications, tasks, and work logs in AI-assisted development workflows.
+"""
+
+# Files to include in onboard output
+[[files]]
+path = "README.md"
+description = "Project overview and setup instructions"
+
+# Directories whose tree structure is included in onboard output
+# [[tree_dirs]]
+# path = "src"
+# description = "Source code"
+
+[worktree]
+symlink_paths = [".agent_core/docs/data", ".claude"]
+
+[branches]
+main = "main"
+test = "test"

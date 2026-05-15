@@ -1,0 +1,149 @@
+from __future__ import annotations
+
+from typing import Any
+
+from src.config.paths import PROJECT_PATHS
+from src.models.frontmatter import create_todo_frontmatter, now_iso
+from src.utils.markdown import read_markdown, slugify, write_markdown
+
+
+def _claimed_dir():
+    return PROJECT_PATHS.todos_dir / "claimed"
+
+
+def _open_path(slug: str):
+    return PROJECT_PATHS.todos_dir / f"{slug}.md"
+
+
+def _claimed_path(slug: str):
+    return _claimed_dir() / f"{slug}.md"
+
+
+def _item_path(slug: str):
+    open_path = _open_path(slug)
+    if open_path.exists():
+        return open_path
+
+    claimed_path = _claimed_path(slug)
+    if claimed_path.exists():
+        return claimed_path
+
+    return open_path
+
+
+def _to_record(slug: str, metadata: dict[str, Any], body: str) -> dict[str, Any]:
+    return {"slug": slug, "body": body, **metadata}
+
+
+def create(
+    title: str,
+    description: str = "",
+    issue_id: int | None = None,
+    issue_url: str | None = None,
+):
+    slug = slugify(title)
+    path = _item_path(slug)
+    if path.exists():
+        raise ValueError(f"Todo '{slug}' already exists")
+
+    metadata = create_todo_frontmatter(title, issue_id=issue_id, issue_url=issue_url)
+    write_markdown(path, metadata.to_dict(), description)
+    return path
+
+
+def create_with_metadata(title: str, metadata: dict[str, Any], description: str = ""):
+    slug = slugify(title)
+    path = _item_path(slug)
+    if path.exists():
+        return path
+    write_markdown(path, metadata, description)
+    return path
+
+
+def get(slug: str) -> dict[str, Any] | None:
+    path = _item_path(slug)
+    if not path.exists():
+        return None
+    metadata, body = read_markdown(path)
+    return _to_record(slug, metadata, body)
+
+
+def list_all(status: str | None = None) -> list[dict[str, Any]]:
+    records = []
+    for directory in [PROJECT_PATHS.todos_dir, _claimed_dir()]:
+        if not directory.exists():
+            continue
+        for path in directory.iterdir():
+            if not path.is_file() or path.suffix != ".md":
+                continue
+            metadata, body = read_markdown(path)
+            if status is not None and metadata.get("status") != status:
+                continue
+            records.append(_to_record(path.stem, metadata, body))
+
+    records.sort(key=lambda item: item.get("created_at", ""), reverse=True)
+    return records
+
+
+def update(slug: str, **updates) -> None:
+    path = _item_path(slug)
+    if not path.exists():
+        raise ValueError(f"Todo '{slug}' not found")
+    metadata, body = read_markdown(path)
+    metadata.update(updates)
+    write_markdown(path, metadata, body)
+
+
+def update_issue(slug: str, issue_id: int, issue_url: str) -> None:
+    update(slug, issue_id=issue_id, issue_url=issue_url)
+
+
+def claim(slug: str, claimed_by: str):
+    path = _item_path(slug)
+    if not path.exists():
+        raise ValueError(f"Todo '{slug}' not found")
+
+    update(slug, status="claimed", claimed_by=claimed_by, claimed_at=now_iso())
+    _claimed_dir().mkdir(parents=True, exist_ok=True)
+    destination = _claimed_path(slug)
+    if path != destination:
+        path.rename(destination)
+    return destination
+
+
+def delete(slug: str) -> None:
+    path = _item_path(slug)
+    if not path.exists():
+        raise ValueError(f"Todo '{slug}' not found")
+    path.unlink()
+
+
+def resolve(prefix: str) -> tuple[str | None, list[str]]:
+    normalized = slugify(prefix)
+    if not normalized:
+        return None, []
+
+    open_slugs = [
+        path.stem
+        for path in PROJECT_PATHS.todos_dir.glob("*.md")
+        if path.is_file()
+    ]
+    claimed_slugs = [
+        path.stem
+        for path in _claimed_dir().glob("*.md")
+        if path.is_file()
+    ]
+    all_slugs = open_slugs + claimed_slugs
+
+    if normalized in all_slugs:
+        return normalized, [normalized]
+
+    open_matches = [slug for slug in open_slugs if slug.startswith(normalized)]
+    claimed_matches = [slug for slug in claimed_slugs if slug.startswith(normalized)]
+    matches = sorted(open_matches + claimed_matches)
+
+    if len(matches) == 1:
+        return matches[0], matches
+    if len(open_matches) == 1 and len(matches) > 1:
+        return open_matches[0], matches
+    return None, matches

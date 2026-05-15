@@ -1,0 +1,86 @@
+from __future__ import annotations
+
+import re
+
+from helpers import HARNESS_ROOT, install_harness, read_toml, run_command
+
+
+def test_template_setup_preserves_state_and_avoids_removed_surfaces(tmp_path):
+    target = tmp_path / "project"
+    target.mkdir()
+
+    install_harness(target)
+
+    assert (target / ".agent_core" / "harness").is_dir()
+    assert (target / ".agent_core" / "config.toml").is_file()
+    assert (target / ".agent_core" / "user_mappings.toml").is_file()
+    assert not (target / ".agent_core" / "tmp").exists()
+    assert (target / "AGENTS.md").read_text().strip()
+
+    (target / ".agent_core" / "specs" / "keep.md").write_text("state\n")
+    config_path = target / ".agent_core" / "config.toml"
+    config_path.write_text('[project]\nname = "Custom"\n\n[branches]\nmain = "prod"\n')
+    stale_file = target / ".agent_core" / "harness" / "stale.txt"
+    stale_file.write_text("stale\n")
+
+    install_harness(target)
+
+    config = read_toml(config_path)
+    assert config["project"]["name"] == "Custom"
+    assert config["branches"]["main"] == "prod"
+    assert config["branches"]["test"] == "test"
+    assert not stale_file.exists()
+    assert (target / ".agent_core" / "specs" / "keep.md").read_text() == "state\n"
+    assert not (target / ".agent_core" / "tmp").exists()
+
+    harness_text = "\n".join(
+        path.read_text(errors="ignore")
+        for path in (HARNESS_ROOT / ".agent_core" / "harness").rglob("*")
+        if path.is_file()
+    )
+    removed_patterns = [
+        r"\badr\b",
+        r"\badrs\b",
+        r"architecture decision",
+        r"\bchromadb\b",
+        r"\bagno\b",
+        r"\bopenai\b",
+        r"\bvoyage\b",
+        r"\bunstructured\b",
+        r"\btextual\b",
+        r"global_config",
+        r"~/\.config",
+    ]
+    lowered = harness_text.lower()
+    for pattern in removed_patterns:
+        assert re.search(pattern, lowered) is None
+
+
+def test_setup_optional_docs_commands_manage_project_local_docs(tmp_path):
+    target = tmp_path / "project"
+    target.mkdir()
+
+    available = run_command([str(HARNESS_ROOT / "setup.sh"), "docs", "list"], cwd=target)
+    expected_slugs = sorted(path.stem for path in (HARNESS_ROOT / "optional_docs").glob("*.md"))
+    assert available.stdout.splitlines() == expected_slugs
+
+    run_command([str(HARNESS_ROOT / "setup.sh"), "docs", "add", "python", "testing"], cwd=target)
+    docs_dir = target / ".agent_core" / "docs"
+    assert (docs_dir / "python.md").read_text() == (
+        HARNESS_ROOT / "optional_docs" / "python.md"
+    ).read_text()
+    assert (docs_dir / "testing.md").read_text() == (
+        HARNESS_ROOT / "optional_docs" / "testing.md"
+    ).read_text()
+
+    (docs_dir / "python.md").write_text("stale\n")
+    run_command([str(HARNESS_ROOT / "setup.sh"), "docs", "update"], cwd=target)
+    assert (docs_dir / "python.md").read_text() == (
+        HARNESS_ROOT / "optional_docs" / "python.md"
+    ).read_text()
+
+    (docs_dir / "testing.md").write_text("stale\n")
+    run_command([str(HARNESS_ROOT / "setup.sh"), "docs", "update", "testing"], cwd=target)
+    assert (docs_dir / "testing.md").read_text() == (
+        HARNESS_ROOT / "optional_docs" / "testing.md"
+    ).read_text()
