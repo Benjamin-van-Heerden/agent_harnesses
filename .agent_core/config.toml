@@ -5,9 +5,9 @@ Project scoped agent harnesses used to guide coding agents in different contexts
 """
 
 # Files to include in onboard output
-# [[files]]
-# path = "README.md"
-# description = "Project overview and setup instructions"
+[[files]]
+path = "README.md"
+description = "Project overview and setup instructions"
 
 # Directories whose tree structure is included in onboard output
 # [[tree_dirs]]

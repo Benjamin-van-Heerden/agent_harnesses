@@ -13,6 +13,11 @@ def test_template_setup_preserves_state_and_avoids_removed_surfaces(tmp_path):
     assert (target / ".agent_core" / "harness").is_dir()
     assert (target / ".agent_core" / "config.toml").is_file()
     assert (target / ".agent_core" / "user_mappings.toml").is_file()
+    gitignore_lines = (target / ".gitignore").read_text().splitlines()
+    assert ".agent_core/docs/data" in gitignore_lines
+    assert ".agent_core/docs/data/" in gitignore_lines
+    assert ".claude" in gitignore_lines
+    assert ".claude/" in gitignore_lines
     assert not (target / ".agent_core" / "tmp").exists()
     assert (target / "AGENTS.md").read_text().strip()
     assert (target / ".agent_core" / "docs" / "general.md").read_text() == (
@@ -40,6 +45,11 @@ def test_template_setup_preserves_state_and_avoids_removed_surfaces(tmp_path):
     assert not stale_file.exists()
     assert (target / ".agent_core" / "specs" / "keep.md").read_text() == "state\n"
     assert (target / ".agent_core" / "docs" / "general.md").read_text() == "project notes\n"
+    gitignore_lines = (target / ".gitignore").read_text().splitlines()
+    assert gitignore_lines.count(".agent_core/docs/data") == 1
+    assert gitignore_lines.count(".agent_core/docs/data/") == 1
+    assert gitignore_lines.count(".claude") == 1
+    assert gitignore_lines.count(".claude/") == 1
     assert not (target / ".agent_core" / "tmp").exists()
 
     harness_text = "\n".join(
@@ -82,6 +92,105 @@ def test_setup_creates_missing_configured_protected_branches(tmp_path):
     branches = run_command(["git", "branch", "--list"], cwd=target).stdout
     assert "dev" in branches
     assert "test" in branches
+
+
+def test_setup_does_not_activate_commented_files_config(tmp_path):
+    target = tmp_path / "project"
+    target.mkdir()
+    init_git_project(target)
+
+    config_path = target / ".agent_core" / "config.toml"
+    config_path.parent.mkdir(parents=True)
+    config_path.write_text(
+        '''[project]
+name = "Commented Files"
+description = """
+Project description.
+"""
+
+# Files to include in onboard output
+# [[files]]
+# path = "README.md"
+# description = "Project overview and setup instructions"
+
+[branches]
+dev = "dev"
+test = "test"
+main = "main"
+'''
+    )
+
+    install_harness(target)
+
+    content = config_path.read_text()
+    assert "# [[files]]" in content
+    assert "\n[[files]]" not in content
+
+
+def test_setup_does_not_activate_commented_required_config(tmp_path):
+    target = tmp_path / "project"
+    target.mkdir()
+    init_git_project(target)
+
+    config_path = target / ".agent_core" / "config.toml"
+    config_path.parent.mkdir(parents=True)
+    config_path.write_text(
+        '''# [project]
+# name = "Commented Project"
+# description = "Commented description"
+
+# [worktree]
+# symlink_paths = [".custom_link"]
+
+# [branches]
+# dev = "develop"
+# test = "staging"
+# main = "production"
+'''
+    )
+
+    result = run_command([str(HARNESS_ROOT / "setup.sh")], cwd=target, check=False)
+
+    assert result.returncode == 1
+    content = config_path.read_text()
+    assert "# [project]" in content
+    assert "\n[project]" not in content
+    assert "# [worktree]" in content
+    assert "\n[worktree]" not in content
+    assert "# [branches]" in content
+    assert "\n[branches]" not in content
+
+
+def test_setup_ignores_configured_symlink_paths(tmp_path):
+    target = tmp_path / "project"
+    target.mkdir()
+    init_git_project(target)
+
+    config_path = target / ".agent_core" / "config.toml"
+    config_path.parent.mkdir(parents=True)
+    config_path.write_text(
+        '''[project]
+name = "Symlink Ignores"
+description = "Project description."
+
+[worktree]
+symlink_paths = [".custom_link", "nested/cache/"]
+
+[branches]
+dev = "dev"
+test = "test"
+main = "main"
+'''
+    )
+    (target / ".gitignore").write_text(".custom_link\n")
+
+    install_harness(target)
+
+    lines = (target / ".gitignore").read_text().splitlines()
+    assert lines.count(".custom_link") == 1
+    assert lines.count(".custom_link/") == 1
+    assert lines.count("nested/cache") == 1
+    assert lines.count("nested/cache/") == 1
 
 
 def test_setup_optional_docs_commands_manage_project_local_docs(tmp_path):

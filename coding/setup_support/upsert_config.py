@@ -10,9 +10,10 @@ description = """
 Add your project description here.
 """
 
-[[files]]
-path = "README.md"
-description = "Project overview and setup instructions"
+# Files to include in onboard output
+# [[files]]
+# path = "README.md"
+# description = "Project overview and setup instructions"
 
 [worktree]
 symlink_paths = [".agent_core/docs/data", ".claude"]
@@ -30,8 +31,12 @@ def section_exists(content: str, section: str) -> bool:
     return re.search(rf"^\[{re.escape(section)}\]\s*$", content, re.MULTILINE) is not None
 
 
-def array_section_exists(content: str, section: str) -> bool:
-    return re.search(rf"^\[\[{re.escape(section)}\]\]\s*$", content, re.MULTILINE) is not None
+def section_declared(content: str, section: str) -> bool:
+    return re.search(
+        rf"^\s*#?\s*\[{re.escape(section)}\]\s*$",
+        content,
+        re.MULTILINE,
+    ) is not None
 
 
 def key_exists(content: str, section: str, key: str) -> bool:
@@ -52,24 +57,31 @@ def key_exists(content: str, section: str, key: str) -> bool:
     return False
 
 
+def key_declared(content: str, section: str, key: str) -> bool:
+    lines = content.splitlines()
+    in_section = False
+    section_header = f"[{section}]"
+
+    for line in lines:
+        stripped = line.strip()
+        uncommented = stripped[1:].strip() if stripped.startswith("#") else stripped
+        if uncommented == section_header:
+            in_section = True
+            continue
+        if in_section and uncommented.startswith("["):
+            return False
+        if in_section and re.match(rf"^{re.escape(key)}\s*=", uncommented):
+            return True
+
+    return False
+
+
 def append_if_missing(content: str, chunk: str) -> str:
     if content and not content.endswith("\n"):
         content += "\n"
     if content.strip():
         content += "\n"
     return content + chunk.rstrip() + "\n"
-
-
-def uncomment_files_placeholder(content: str) -> str | None:
-    updated = re.sub(
-        r'''(?m)^# \[\[files\]\]\n# path = "README\.md"\n# description = "Project overview and setup instructions"''',
-        '[[files]]\npath = "README.md"\ndescription = "Project overview and setup instructions"',
-        content,
-        count=1,
-    )
-    if updated == content:
-        return None
-    return updated
 
 
 def insert_after_section(content: str, section: str, chunk: str) -> str:
@@ -118,7 +130,7 @@ def upsert_config(path: Path, project_name: str) -> None:
 
     content = path.read_text()
 
-    if not section_exists(content, "project"):
+    if not section_declared(content, "project"):
         content = append_if_missing(
             content,
             f'''[project]
@@ -128,39 +140,29 @@ Add your project description here.
 """''',
         )
     else:
-        if not key_exists(content, "project", "name"):
+        if section_exists(content, "project") and not key_declared(content, "project", "name"):
             content = insert_key(content, "project", f'name = "{project_name}"')
-        if not key_exists(content, "project", "description"):
+        if section_exists(content, "project") and not key_declared(content, "project", "description"):
             content = insert_key(
                 content,
                 "project",
                 'description = """\nAdd your project description here.\n"""',
             )
 
-    if not array_section_exists(content, "files"):
-        uncommented = uncomment_files_placeholder(content)
-        content = uncommented or insert_after_section(
-            content,
-            "project",
-            '''[[files]]
-path = "README.md"
-description = "Project overview and setup instructions"''',
-        )
-
-    if not section_exists(content, "worktree"):
+    if not section_declared(content, "worktree"):
         content = append_if_missing(
             content,
             '''[worktree]
 symlink_paths = [".agent_core/docs/data", ".claude"]''',
         )
-    elif not key_exists(content, "worktree", "symlink_paths"):
+    elif section_exists(content, "worktree") and not key_declared(content, "worktree", "symlink_paths"):
         content = insert_key(
             content,
             "worktree",
             'symlink_paths = [".agent_core/docs/data", ".claude"]',
         )
 
-    if not section_exists(content, "branches"):
+    if not section_declared(content, "branches"):
         content = append_if_missing(
             content,
             '''[branches]
@@ -171,11 +173,11 @@ test = "test"
 # company_xyz = "main"''',
         )
     else:
-        if not key_exists(content, "branches", "dev"):
+        if section_exists(content, "branches") and not key_declared(content, "branches", "dev"):
             content = insert_key(content, "branches", 'dev = "dev"')
-        if not key_exists(content, "branches", "main"):
+        if section_exists(content, "branches") and not key_declared(content, "branches", "main"):
             content = insert_key(content, "branches", 'main = "main"')
-        if not key_exists(content, "branches", "test"):
+        if section_exists(content, "branches") and not key_declared(content, "branches", "test"):
             content = insert_key(content, "branches", 'test = "test"')
 
     path.write_text(content)

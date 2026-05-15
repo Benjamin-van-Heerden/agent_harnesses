@@ -93,6 +93,53 @@ ensure_config() {
     "$PYTHON_BIN" -B "$SUPPORT_DIR/upsert_config.py" "$config_file" "$project_name"
 }
 
+ensure_symlink_paths_ignored() {
+    local config_file="$STATE_DIR/config.toml"
+    local gitignore_file="$TARGET_ROOT/.gitignore"
+    "$PYTHON_BIN" -B - "$config_file" "$gitignore_file" <<'PY'
+import sys
+import tomllib
+from pathlib import Path
+
+config_path = Path(sys.argv[1])
+gitignore_path = Path(sys.argv[2])
+
+try:
+    config = tomllib.loads(config_path.read_text())
+except (OSError, tomllib.TOMLDecodeError):
+    raise SystemExit(0)
+
+symlink_paths = config.get("worktree", {}).get("symlink_paths", [])
+if not isinstance(symlink_paths, list):
+    raise SystemExit(0)
+
+entries: list[str] = []
+for value in symlink_paths:
+    if not isinstance(value, str):
+        continue
+    path = value.strip().strip("/")
+    if not path:
+        continue
+    entries.extend([path, f"{path}/"])
+
+if not entries:
+    raise SystemExit(0)
+
+existing = gitignore_path.read_text().splitlines() if gitignore_path.exists() else []
+seen = {line.strip() for line in existing}
+missing = [entry for entry in entries if entry not in seen]
+if not missing:
+    raise SystemExit(0)
+
+lines = existing[:]
+if lines and lines[-1].strip():
+    lines.append("")
+lines.append("# Agent Core worktree symlinks")
+lines.extend(missing)
+gitignore_path.write_text("\n".join(lines).rstrip() + "\n")
+PY
+}
+
 branch_names() {
     "$PYTHON_BIN" -B - "$STATE_DIR/config.toml" <<'PY'
 import sys
@@ -563,6 +610,7 @@ fi
 
 ensure_state_dirs
 ensure_config
+ensure_symlink_paths_ignored
 ensure_branches_exist
 ensure_update_branch
 install_harness
