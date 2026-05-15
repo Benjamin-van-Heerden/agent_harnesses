@@ -63,6 +63,7 @@ def test_migrate_original_state_to_project_local_harness(tmp_path):
 
     config = read_toml(target / ".agent_core" / "config.toml")
     assert config["project"]["name"] == "Legacy Project"
+    assert config["branches"]["dev"] == "dev"
     assert config["branches"]["main"] == "prod"
     assert config["branches"]["test"] == "stage"
     assert "generic_templates" not in config["project"]

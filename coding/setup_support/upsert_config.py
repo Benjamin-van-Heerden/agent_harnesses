@@ -20,6 +20,7 @@ description = "Project overview and setup instructions"
 symlink_paths = [".agent_core/docs/data", ".claude"]
 
 [branches]
+dev = "dev"
 main = "main"
 test = "test"
 # [branches.noswitch_branches]
@@ -130,12 +131,15 @@ symlink_paths = [".agent_core/docs/data", ".claude"]''',
         content = append_if_missing(
             content,
             '''[branches]
+dev = "dev"
 main = "main"
 test = "test"
 # [branches.noswitch_branches]
 # company_xyz = "main"''',
         )
     else:
+        if not key_exists(content, "branches", "dev"):
+            content = insert_key(content, "branches", 'dev = "dev"')
         if not key_exists(content, "branches", "main"):
             content = insert_key(content, "branches", 'main = "main"')
         if not key_exists(content, "branches", "test"):

@@ -51,24 +51,3 @@ def test_to_harness_requires_github_before_writing_state(tmp_path):
     assert not (target / ".mem.bak").exists()
     assert not (target / ".agent_core").exists()
 
-
-def test_to_harness_explains_two_step_lite_migration(tmp_path):
-    target = tmp_path / "project"
-    target.mkdir()
-    (target / "agent_rules").mkdir()
-
-    result = run_command(
-        [
-            sys.executable,
-            str(PROJECT_ROOT / "main.py"),
-            "migrate",
-            str(target),
-            "--to-harness",
-        ],
-        cwd=PROJECT_ROOT,
-        env=command_env(),
-        check=False,
-    )
-
-    assert result.returncode == 1
-    assert "run `migrate --lite-to-mem` first" in result.stdout

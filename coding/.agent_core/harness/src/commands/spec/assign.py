@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import typer
 
+from src.config.branches import get_branch_names
 from src.state import specs
 from src.utils import git, worktrees
 from src.utils.errors import GitError, GitHubError
@@ -17,7 +18,7 @@ def run(slug: str) -> None:
 
     try:
         username = authenticated_username()
-        branch = record.get("branch") or f"dev-{slugify(username)}-{slug}"
+        branch = record.branch or f"{get_branch_names().dev}-{slugify(username)}-{slug}"
         specs.update_assignment(slug, username)
         specs.update_branch(slug, branch)
 
@@ -35,9 +36,9 @@ def run(slug: str) -> None:
         path = worktrees.create(slug, branch)
         git.push(branch, cwd=path, set_upstream=True)
 
-        if record.get("issue_id"):
+        if record.issue_id:
             repo = repository()
-            update_issue(repo, record["issue_id"], assignees=[username])
+            update_issue(repo, record.issue_id, assignees=[username])
 
     except (GitError, GitHubError, ValueError) as error:
         typer.echo(str(error), err=True)

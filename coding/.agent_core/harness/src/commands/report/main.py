@@ -21,7 +21,7 @@ def week(username: str | None = None) -> None:
     records = [
         record
         for record in logs.list_all(limit=500, username=username)
-        if start <= datetime.fromisoformat(record["created_at"]).date() <= end
+        if start <= datetime.fromisoformat(record.created_at).date() <= end
     ]
 
     typer.echo(f"# Week Report: {start} to {end}")
@@ -32,7 +32,7 @@ def week(username: str | None = None) -> None:
         return
 
     for record in records:
-        typer.echo(f"## {record['filename']}")
+        typer.echo(f"## {record.filename}")
         typer.echo("")
-        typer.echo(record.get("body", "").strip())
+        typer.echo(record.body.strip())
         typer.echo("")

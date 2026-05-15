@@ -57,6 +57,7 @@ def show_config() -> None:
 
     typer.echo(f"Project: {result.config.project.name}")
     typer.echo(f"Description: {result.config.project.description}")
+    typer.echo(f"Dev branch: {result.config.branches.dev}")
     typer.echo(f"Main branch: {result.config.branches.main}")
     typer.echo(f"Test branch: {result.config.branches.test}")
 

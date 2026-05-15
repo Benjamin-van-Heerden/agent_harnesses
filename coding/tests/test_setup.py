@@ -2,12 +2,13 @@ from __future__ import annotations
 
 import re
 
-from helpers import HARNESS_ROOT, install_harness, read_toml, run_command
+from helpers import HARNESS_ROOT, init_git_project, install_harness, read_toml, run_command
 
 
 def test_template_setup_preserves_state_and_avoids_removed_surfaces(tmp_path):
     target = tmp_path / "project"
     target.mkdir()
+    init_git_project(target)
 
     install_harness(target)
 
@@ -19,6 +20,7 @@ def test_template_setup_preserves_state_and_avoids_removed_surfaces(tmp_path):
 
     (target / ".agent_core" / "specs" / "keep.md").write_text("state\n")
     config_path = target / ".agent_core" / "config.toml"
+    run_command(["git", "branch", "prod"], cwd=target)
     config_path.write_text('[project]\nname = "Custom"\n\n[branches]\nmain = "prod"\n')
     stale_file = target / ".agent_core" / "harness" / "stale.txt"
     stale_file.write_text("stale\n")
@@ -27,6 +29,7 @@ def test_template_setup_preserves_state_and_avoids_removed_surfaces(tmp_path):
 
     config = read_toml(config_path)
     assert config["project"]["name"] == "Custom"
+    assert config["branches"]["dev"] == "dev"
     assert config["branches"]["main"] == "prod"
     assert config["branches"]["test"] == "test"
     assert not stale_file.exists()
@@ -54,6 +57,20 @@ def test_template_setup_preserves_state_and_avoids_removed_surfaces(tmp_path):
     lowered = harness_text.lower()
     for pattern in removed_patterns:
         assert re.search(pattern, lowered) is None
+
+
+def test_setup_requires_configured_protected_branches(tmp_path):
+    target = tmp_path / "project"
+    target.mkdir()
+    run_command(["git", "init", "-b", "main"], cwd=target)
+    run_command(["git", "config", "user.name", "Harness Test User"], cwd=target)
+    run_command(["git", "config", "user.email", "harness@example.com"], cwd=target)
+    run_command(["git", "commit", "--allow-empty", "-m", "initial commit"], cwd=target)
+
+    result = run_command([str(HARNESS_ROOT / "setup.sh")], cwd=target, check=False)
+
+    assert result.returncode == 1
+    assert not (target / ".agent_core" / "harness").exists()
 
 
 def test_setup_optional_docs_commands_manage_project_local_docs(tmp_path):

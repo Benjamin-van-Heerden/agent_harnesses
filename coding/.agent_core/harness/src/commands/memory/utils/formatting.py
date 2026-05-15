@@ -1,15 +1,16 @@
 from __future__ import annotations
 
-
-def format_summary(record: dict) -> str:
-    title = record.get("title", record["slug"])
-    return f"- {title} ({record['slug']})"
+from src.state.models import Memory
 
 
-def format_detail(record: dict) -> str:
+def format_summary(record: Memory) -> str:
+    return f"- {record.title} ({record.slug})"
+
+
+def format_detail(record: Memory) -> str:
     lines = [
-        f"# {record.get('title', record['slug'])}",
+        f"# {record.title}",
         "",
-        record.get("body", "").strip(),
+        record.body.strip(),
     ]
     return "\n".join(lines).rstrip()

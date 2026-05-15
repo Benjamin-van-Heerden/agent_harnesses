@@ -1,0 +1,10 @@
+GitPython>=3.1.45
+PyGithub>=2.8.1
+PyYAML>=6.0.3
+pydantic>=2.12.5
+python-dotenv>=1.2.1
+typer>=0.20.0
+typing-extensions>=4.15.0
+ty>=0.0.36
+ruff>=0.15.13
+pytest>=9.0.3

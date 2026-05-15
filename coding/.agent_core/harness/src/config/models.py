@@ -1,9 +1,9 @@
 from __future__ import annotations
 
+from collections.abc import Mapping
 from dataclasses import dataclass, field
-from typing import Any
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 
 class ProjectConfig(BaseModel):
@@ -39,13 +39,53 @@ class WorktreeConfig(BaseModel):
     )
 
 
+class NoSwitchBranch(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    child: str
+    parent: str
+
+
+class NoSwitchBranches(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    entries: tuple[NoSwitchBranch, ...] = Field(default_factory=tuple)
+
+    @model_validator(mode="before")
+    @classmethod
+    def parse_toml_mapping(cls, value: object) -> object:
+        if isinstance(value, Mapping):
+            return {
+                "entries": tuple(
+                    NoSwitchBranch(child=str(child), parent=str(parent))
+                    for child, parent in value.items()
+                )
+            }
+        return value
+
+    def parent_for(self, child: str | None) -> str | None:
+        if child is None:
+            return None
+        for entry in self.entries:
+            if entry.child == child:
+                return entry.parent
+        return None
+
+    def has_child(self, child: str | None) -> bool:
+        return self.parent_for(child) is not None
+
+    def as_toml_items(self) -> tuple[NoSwitchBranch, ...]:
+        return self.entries
+
+
 class BranchConfig(BaseModel):
     model_config = ConfigDict(extra="ignore")
 
-    main: str = Field(default="main", description="Production branch")
-    test: str = Field(default="test", description="Staging branch")
-    noswitch_branches: dict[str, str] = Field(
-        default_factory=dict,
+    dev: str = Field(..., description="Development branch")
+    test: str = Field(..., description="Staging branch")
+    main: str = Field(..., description="Production branch")
+    noswitch_branches: NoSwitchBranches = Field(
+        default_factory=NoSwitchBranches,
         description="Branches that should not auto-switch to dev",
     )
 
@@ -57,7 +97,7 @@ class AgentCoreConfig(BaseModel):
     files: list[ImportantFileConfig] = Field(default_factory=list)
     tree_dirs: list[TreeDirConfig] = Field(default_factory=list)
     worktree: WorktreeConfig = Field(default_factory=WorktreeConfig)
-    branches: BranchConfig = Field(default_factory=BranchConfig)
+    branches: BranchConfig
 
 
 @dataclass(frozen=True)
@@ -65,17 +105,8 @@ class BranchNames:
     dev: str
     test: str
     main: str
-    noswitch_branches: dict[str, str] = field(default_factory=dict)
+    noswitch_branches: NoSwitchBranches = field(default_factory=NoSwitchBranches)
 
     @property
     def protected(self) -> list[str]:
         return [self.dev, self.test, self.main]
-
-
-def get_model_field_names(model: type[BaseModel]) -> set[str]:
-    return set(model.model_fields.keys())
-
-
-def is_known_freeform_mapping_type(annotation: Any) -> bool:
-    _ = annotation
-    return False

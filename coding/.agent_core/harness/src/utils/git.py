@@ -33,6 +33,11 @@ def has_uncommitted_changes(cwd: Path | None = None) -> bool:
     return bool(result.stdout.strip())
 
 
+def has_tracked_changes(cwd: Path | None = None) -> bool:
+    result = run_git(["status", "--porcelain", "--untracked-files=no"], cwd=cwd, check=False)
+    return bool(result.stdout.strip())
+
+
 def fetch(cwd: Path | None = None) -> None:
     run_git(["fetch", "--prune"], cwd=cwd)
 
@@ -45,17 +50,100 @@ def checkout(branch: str, cwd: Path | None = None) -> None:
     run_git(["checkout", branch], cwd=cwd)
 
 
+def local_branch_exists(branch: str, cwd: Path | None = None) -> bool:
+    result = run_git(["show-ref", "--verify", f"refs/heads/{branch}"], cwd=cwd, check=False)
+    return result.returncode == 0
+
+
+def remote_branch_exists(branch: str, cwd: Path | None = None) -> bool:
+    result = run_git(
+        ["show-ref", "--verify", f"refs/remotes/origin/{branch}"],
+        cwd=cwd,
+        check=False,
+    )
+    return result.returncode == 0
+
+
+def local_ahead_of_remote(branch: str, cwd: Path | None = None) -> bool:
+    result = run_git(
+        ["rev-list", "--count", f"origin/{branch}..{branch}"],
+        cwd=cwd,
+        check=False,
+    )
+    try:
+        return result.returncode == 0 and int(result.stdout.strip()) > 0
+    except ValueError:
+        return False
+
+
+def remote_ahead_of_local(branch: str, cwd: Path | None = None) -> bool:
+    result = run_git(
+        ["rev-list", "--count", f"{branch}..origin/{branch}"],
+        cwd=cwd,
+        check=False,
+    )
+    try:
+        return result.returncode == 0 and int(result.stdout.strip()) > 0
+    except ValueError:
+        return False
+
+
+def assert_protected_branches_available(branches: BranchNames, cwd: Path | None = None) -> None:
+    missing: list[str] = []
+    for branch in branches.protected:
+        if not local_branch_exists(branch, cwd):
+            missing.append(f"{branch} (local)")
+        if not remote_branch_exists(branch, cwd):
+            missing.append(f"origin/{branch}")
+    if missing:
+        joined = ", ".join(missing)
+        raise GitError(f"Required protected branch(es) missing: {joined}")
+
+
 def protected_branch_sync(branches: BranchNames, cwd: Path | None = None) -> None:
-    if has_uncommitted_changes(cwd):
-        raise GitError("Working tree has uncommitted changes.")
+    if has_tracked_changes(cwd):
+        raise GitError("Working tree has uncommitted tracked changes.")
 
     original = current_branch(cwd)
     fetch(cwd)
+    assert_protected_branches_available(branches, cwd)
     for branch in branches.protected:
         checkout(branch, cwd)
-        pull_ff_only(branch, cwd)
-    if original:
-        checkout(original, cwd)
+        if local_ahead_of_remote(branch, cwd):
+            rebase_onto(f"origin/{branch}", cwd)
+        elif remote_ahead_of_local(branch, cwd):
+            run_git(["merge", "--ff-only", f"origin/{branch}"], cwd=cwd)
+    return_branch = original if original is not None and branches.noswitch_branches.has_child(original) else branches.dev
+    checkout(return_branch, cwd)
+
+
+def sync_current_branch(branches: BranchNames, cwd: Path | None = None) -> None:
+    branch = current_branch(cwd)
+    if branch is None:
+        raise GitError("Could not determine current branch.")
+    if has_tracked_changes(cwd):
+        raise GitError("Working tree has uncommitted tracked changes.")
+
+    fetch(cwd)
+    assert_protected_branches_available(branches, cwd)
+
+    parent = branches.noswitch_branches.parent_for(branch)
+    if parent is not None:
+        if not remote_branch_exists(parent, cwd):
+            raise GitError(f"Configured parent branch does not exist on origin: {parent}")
+        rebase_onto(f"origin/{parent}", cwd)
+        return
+
+    if branch.startswith(f"{branches.dev}-"):
+        rebase_onto(f"origin/{branches.dev}", cwd)
+        push_force_with_lease(branch, cwd)
+        return
+
+    if branch in branches.protected:
+        protected_branch_sync(branches, cwd)
+        return
+
+    pull_ff_only(branch, cwd)
 
 
 def delete_local_branch(branch: str, force: bool = False, cwd: Path | None = None) -> None:

@@ -10,4 +10,4 @@ def run(filename: str) -> None:
     if record is None:
         typer.echo(f"Log not found: {filename}", err=True)
         raise typer.Exit(code=1)
-    typer.echo(record.get("body", "").strip())
+    typer.echo(record.body.strip())

@@ -1,17 +1,17 @@
 from __future__ import annotations
 
-
-def format_summary(record: dict) -> str:
-    status = record.get("status", "open")
-    title = record.get("title", record["slug"])
-    return f"- [{status}] {title}"
+from src.state.models import Todo
 
 
-def format_detail(record: dict) -> str:
+def format_summary(record: Todo) -> str:
+    return f"- [{record.status}] {record.title}"
+
+
+def format_detail(record: Todo) -> str:
     lines = [
-        f"# {record.get('title', record['slug'])}",
-        f"Status: {record.get('status', 'open')}",
+        f"# {record.title}",
+        f"Status: {record.status}",
         "",
-        record.get("body", "").strip(),
+        record.body.strip(),
     ]
     return "\n".join(lines).rstrip()

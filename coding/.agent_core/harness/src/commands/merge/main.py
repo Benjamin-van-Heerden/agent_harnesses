@@ -28,7 +28,7 @@ def run(
     if record is None:
         typer.echo(f"Spec not found: {spec_slug}", err=True)
         raise typer.Exit(code=1)
-    pull_number = parse_pull_number(record.get("pr_url", ""))
+    pull_number = parse_pull_number(record.pr_url or "")
     if pull_number is None:
         typer.echo("Spec has no pull request URL.", err=True)
         raise typer.Exit(code=1)
@@ -41,15 +41,15 @@ def run(
             raise typer.Exit(code=1)
 
         specs.update_status(spec_slug, "completed")
-        if record.get("issue_id"):
+        if record.issue_id:
             update_issue(
                 repo,
-                record["issue_id"],
+                record.issue_id,
                 state="closed",
                 labels=issue_labels("spec", "completed"),
             )
 
-        branch = record.get("branch")
+        branch = record.branch
         if branch:
             delete_remote_branch(repo, branch)
             try:

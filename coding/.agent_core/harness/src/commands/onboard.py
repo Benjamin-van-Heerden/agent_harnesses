@@ -7,7 +7,9 @@ import typer
 
 from src.config.main import load_project_config, summarize_validation_error
 from src.config.paths import PROJECT_PATHS
+from src.commands.sync.main import sync_all
 from src.state import logs, memories, specs, tasks, todos
+from src.state.models import Spec, WorkLog
 
 
 app = typer.Typer(help="Build local project context")
@@ -106,44 +108,97 @@ def _docs_section() -> list[str]:
     return lines
 
 
+def _spec_summary(record: Spec) -> str:
+    lines = [f"- [{record.status}] {record.title}"]
+    if record.branch:
+        lines.append(f"  Branch: {record.branch}")
+    return "\n".join(lines)
+
+
+def _log_entry(record: WorkLog) -> str:
+    lines = [
+        f"### {record.filename} ({record.created_at})",
+        "",
+    ]
+    body = record.body.strip()
+    lines.append(body if body else "[Empty work log]")
+    return "\n".join(lines)
+
+
+def _recent_log_records() -> list[WorkLog]:
+    current_username = logs.current_username()
+    selected: list[WorkLog] = []
+    seen: set[str] = set()
+
+    for record in logs.list_all(limit=3, username=current_username):
+        selected.append(record)
+        seen.add(record.filename)
+
+    general_count = 0
+    for record in logs.list_all(limit=20):
+        if record.username == current_username:
+            continue
+        if record.filename in seen:
+            continue
+        selected.append(record)
+        seen.add(record.filename)
+        general_count += 1
+        if general_count >= 5:
+            break
+
+    selected.sort(key=lambda item: item.created_at, reverse=True)
+    return selected
+
+
 def _state_section() -> list[str]:
     lines = ["-" * 70, "PROJECT STATE", "-" * 70, ""]
 
     records = specs.list_all()
     if records:
         lines.append("## Specs")
-        for record in records:
-            lines.append(f"- [{record.get('status', 'todo')}] {record.get('title', record['slug'])}")
-            task_records = tasks.list_all(record["slug"])
+        active_records = [record for record in records if record.status != "completed"]
+        completed_records = [record for record in records if record.status == "completed"][:3]
+
+        for record in active_records:
+            lines.append(f"- [{record.status}] {record.title}")
+            task_records = tasks.list_all(record.slug)
             for task_record in task_records:
                 lines.append(
-                    f"  - [{task_record.get('status', 'todo')}] "
-                    f"{task_record.get('title', task_record['slug'])}"
+                    f"  - [{task_record.status}] "
+                    f"{task_record.title}"
                 )
+
+        if completed_records:
+            if active_records:
+                lines.append("")
+            lines.append("### Recently Completed Specs")
+            for record in completed_records:
+                lines.append(_spec_summary(record))
         lines.append("")
 
     todo_records = todos.list_all(status="open")
     if todo_records:
         lines.append("## Open Todos")
         for record in todo_records:
-            lines.append(f"- {record.get('title', record['slug'])}")
+            lines.append(f"- {record.title}")
         lines.append("")
 
     memory_records = memories.list_all()
     if memory_records:
         lines.append("## Memories")
         for record in memory_records:
-            lines.append(f"### {record.get('title', record['slug'])}")
-            body = record.get("body", "").strip()
+            lines.append(f"### {record.title}")
+            body = record.body.strip()
             if body:
                 lines.append(body)
             lines.append("")
 
-    log_records = logs.list_all(limit=5)
+    log_records = _recent_log_records()
     if log_records:
         lines.append("## Recent Logs")
         for record in log_records:
-            lines.append(f"- {record['filename']} ({record['created_at']})")
+            lines.append(_log_entry(record))
+            lines.append("")
         lines.append("")
 
     if len(lines) == 4:
@@ -203,8 +258,22 @@ def run(
         False,
         "--stdout",
         help="Print full context to stdout.",
-    )
+    ),
+    no_sync: bool = typer.Option(
+        False,
+        "--no-sync",
+        help="Skip default git/GitHub sync before building context.",
+    ),
 ) -> None:
+    if not no_sync:
+        try:
+            sync_all(no_git=False)
+        except typer.Exit:
+            raise
+        except Exception as error:
+            typer.echo(f"Onboard sync failed: {error}", err=True)
+            raise typer.Exit(code=1) from error
+
     try:
         content = _build_context()
     except ValueError as error:

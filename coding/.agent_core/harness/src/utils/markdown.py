@@ -1,13 +1,15 @@
 from __future__ import annotations
 
 import re
+from collections.abc import Mapping
 from pathlib import Path
-from typing import Any
 
 import yaml
 
+Frontmatter = Mapping[str, object]
 
-def parse_frontmatter(content: str) -> tuple[dict[str, Any], str]:
+
+def parse_frontmatter(content: str) -> tuple[Frontmatter, str]:
     if not content.startswith("---"):
         return {}, content
 
@@ -20,13 +22,13 @@ def parse_frontmatter(content: str) -> tuple[dict[str, Any], str]:
     except yaml.YAMLError:
         return {}, content
 
-    if not isinstance(metadata, dict):
+    if not isinstance(metadata, Mapping):
         return {}, content
 
     return metadata, match.group(2)
 
 
-def dump_frontmatter(metadata: dict[str, Any], body: str) -> str:
+def dump_frontmatter(metadata: Frontmatter, body: str) -> str:
     if not metadata:
         return body
 
@@ -41,11 +43,11 @@ def dump_frontmatter(metadata: dict[str, Any], body: str) -> str:
     return f"---\n{frontmatter}---{body}"
 
 
-def read_markdown(path: Path) -> tuple[dict[str, Any], str]:
+def read_markdown(path: Path) -> tuple[Frontmatter, str]:
     return parse_frontmatter(path.read_text())
 
 
-def write_markdown(path: Path, metadata: dict[str, Any], body: str) -> None:
+def write_markdown(path: Path, metadata: Frontmatter, body: str) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(dump_frontmatter(metadata, body))
 

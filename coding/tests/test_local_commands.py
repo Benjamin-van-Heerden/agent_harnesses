@@ -52,7 +52,7 @@ def test_installed_harness_command_smoke(tmp_path):
     assert len(log_files) == 1
     assert not (target / ".mem").exists()
 
-    onboard = run_command(command + ["onboard", "--stdout"], cwd=target, env=env)
+    onboard = run_command(command + ["onboard", "--stdout", "--no-sync"], cwd=target, env=env)
     assert "Smoke Spec" in onboard.stdout
     assert "First Task" in onboard.stdout
     assert "Open Smoke Todo" in onboard.stdout

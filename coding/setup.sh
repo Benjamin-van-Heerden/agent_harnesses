@@ -1,20 +1,55 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-TEMPLATE_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REPO_URL="https://github.com/Benjamin-van-Heerden/agent_harnesses.git"
+TEMPLATE_SUBPATH="coding"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" >/dev/null 2>&1 && pwd || printf '')"
 TARGET_ROOT="$(pwd)"
 STATE_DIR="$TARGET_ROOT/.agent_core"
 HARNESS_TARGET="$STATE_DIR/harness"
-HARNESS_SOURCE="$TEMPLATE_ROOT/.agent_core/harness"
-SUPPORT_DIR="$TEMPLATE_ROOT/setup_support"
-OPTIONAL_DOCS_DIR="$TEMPLATE_ROOT/optional_docs"
 CORE_START_TAG="<AGENT_CORE>"
 CORE_END_TAG="</AGENT_CORE>"
+CLONE_DIR=""
 
 UPDATE=false
 if [[ "${1:-}" == "--update" ]]; then
     UPDATE=true
 fi
+
+cleanup() {
+    if [[ -n "$CLONE_DIR" ]]; then
+        rm -rf "$CLONE_DIR"
+    fi
+}
+trap cleanup EXIT
+
+resolve_template_root() {
+    if [[ -n "$SCRIPT_DIR" && -d "$SCRIPT_DIR/.agent_core/harness" ]]; then
+        printf "%s\n" "$SCRIPT_DIR"
+        return
+    fi
+
+    if ! command -v git >/dev/null 2>&1; then
+        echo "Error: git is required to fetch the agent harness template." >&2
+        exit 1
+    fi
+
+    CLONE_DIR="$(mktemp -d "${TMPDIR:-/tmp}/agent-harnesses-setup-XXXXXX")"
+    echo "Fetching latest agent harness templates..." >&2
+    git clone --depth 1 --quiet "$REPO_URL" "$CLONE_DIR"
+
+    local template_root="$CLONE_DIR/$TEMPLATE_SUBPATH"
+    if [[ ! -d "$template_root/.agent_core/harness" ]]; then
+        echo "Error: template subdirectory '$TEMPLATE_SUBPATH' not found in $REPO_URL." >&2
+        exit 1
+    fi
+    printf "%s\n" "$template_root"
+}
+
+TEMPLATE_ROOT="$(resolve_template_root)"
+HARNESS_SOURCE="$TEMPLATE_ROOT/.agent_core/harness"
+SUPPORT_DIR="$TEMPLATE_ROOT/setup_support"
+OPTIONAL_DOCS_DIR="$TEMPLATE_ROOT/optional_docs"
 
 ensure_state_dirs() {
     local dirs=(
@@ -55,6 +90,67 @@ ensure_config() {
     local project_name
     project_name="$(basename "$TARGET_ROOT")"
     PYTHONDONTWRITEBYTECODE=1 python3 "$SUPPORT_DIR/upsert_config.py" "$config_file" "$project_name"
+}
+
+branch_names() {
+    PYTHONDONTWRITEBYTECODE=1 python3 - "$STATE_DIR/config.toml" <<'PY'
+from __future__ import annotations
+
+import sys
+import tomllib
+from pathlib import Path
+
+config = tomllib.loads(Path(sys.argv[1]).read_text())
+branches = config.get("branches", {})
+missing = [name for name in ("dev", "test", "main") if not branches.get(name)]
+if missing:
+    print(f"Missing required [branches] key(s): {', '.join(missing)}", file=sys.stderr)
+    raise SystemExit(1)
+for name in ("dev", "test", "main"):
+    print(branches[name])
+PY
+}
+
+ensure_branches_exist() {
+    if ! command -v git >/dev/null 2>&1; then
+        echo "Error: git is required but was not found on PATH." >&2
+        exit 1
+    fi
+    if ! git -C "$TARGET_ROOT" rev-parse --git-dir >/dev/null 2>&1; then
+        echo "Error: setup must be run from an initialized git repository." >&2
+        exit 1
+    fi
+
+    local has_origin=false
+    if git -C "$TARGET_ROOT" remote get-url origin >/dev/null 2>&1; then
+        has_origin=true
+        git -C "$TARGET_ROOT" fetch --prune origin >/dev/null 2>&1 || {
+            echo "Error: failed to fetch origin while validating protected branches." >&2
+            exit 1
+        }
+    fi
+
+    local missing=()
+    local branch_output
+    if ! branch_output="$(branch_names)"; then
+        exit 1
+    fi
+    local branch
+    while IFS= read -r branch; do
+        [[ -n "$branch" ]] || continue
+        if ! git -C "$TARGET_ROOT" show-ref --verify --quiet "refs/heads/$branch"; then
+            missing+=("$branch (local)")
+        fi
+        if $has_origin && ! git -C "$TARGET_ROOT" show-ref --verify --quiet "refs/remotes/origin/$branch"; then
+            missing+=("origin/$branch")
+        fi
+    done <<< "$branch_output"
+
+    if [[ "${#missing[@]}" -gt 0 ]]; then
+        echo "Error: required protected branch(es) missing: ${missing[*]}" >&2
+        echo "Create the configured dev/test/main branches before running setup." >&2
+        exit 1
+    fi
 }
 
 ensure_user_mappings() {
@@ -205,8 +301,9 @@ if [[ "${1:-}" == "docs" ]]; then
 fi
 
 ensure_state_dirs
-install_harness
 ensure_config
+ensure_branches_exist
+install_harness
 ensure_user_mappings
 install_agents_file
 ensure_claude_file

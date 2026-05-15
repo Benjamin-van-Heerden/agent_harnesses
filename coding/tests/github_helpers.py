@@ -67,15 +67,18 @@ def prepare_remote_project(project_path: Path, token: str, client: Github):
     configure_git(project_path)
     run_command(["git", "remote", "add", "origin", remote_url], cwd=project_path)
     (project_path / "README.md").write_text("# Harness remote test\n")
-    install_harness(project_path)
     run_command(["git", "add", "."], cwd=project_path)
-    run_command(["git", "commit", "-m", "initial harness state"], cwd=project_path)
+    run_command(["git", "commit", "-m", "initial project state"], cwd=project_path)
     run_command(["git", "push", "--set-upstream", "origin", "main"], cwd=project_path)
     run_command(["git", "checkout", "-b", "dev"], cwd=project_path)
     run_command(["git", "push", "--set-upstream", "origin", "dev"], cwd=project_path)
     run_command(["git", "checkout", "-b", "test"], cwd=project_path)
     run_command(["git", "push", "--set-upstream", "origin", "test"], cwd=project_path)
     run_command(["git", "checkout", "dev"], cwd=project_path)
+    install_harness(project_path)
+    run_command(["git", "add", "."], cwd=project_path)
+    run_command(["git", "commit", "-m", "initial harness state"], cwd=project_path)
+    run_command(["git", "push", "origin", "dev"], cwd=project_path)
     return repo
 
 

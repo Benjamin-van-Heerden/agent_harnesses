@@ -1,29 +1,38 @@
 from __future__ import annotations
 
 import tomllib
+from collections.abc import Mapping
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, get_args, get_origin
+from typing import TypeGuard, get_args, get_origin
 
 from pydantic import BaseModel, ValidationError
 
-from src.config.models import AgentCoreConfig, BranchConfig, ProjectConfig, WorktreeConfig
+from src.config.models import (
+    AgentCoreConfig,
+    BranchConfig,
+    ImportantFileConfig,
+    NoSwitchBranches,
+    ProjectConfig,
+    TreeDirConfig,
+    WorktreeConfig,
+)
 
 
 @dataclass(frozen=True)
 class ConfigLoadResult:
-    raw: dict[str, Any]
+    raw: Mapping[str, object]
     config: AgentCoreConfig | None
     validation_error: ValidationError | None
 
 
-def read_toml(path: Path) -> dict[str, Any]:
+def read_toml(path: Path) -> Mapping[str, object]:
     try:
         if not path.exists():
             return {}
         with open(path, "rb") as f:
             data = tomllib.load(f)
-        if isinstance(data, dict):
+        if isinstance(data, Mapping):
             return data
         return {}
     except Exception:
@@ -42,7 +51,7 @@ def load_project_config(path: Path) -> ConfigLoadResult:
         return ConfigLoadResult(raw=raw, config=None, validation_error=error)
 
 
-def _unwrap_optional(annotation: Any) -> Any:
+def _unwrap_optional(annotation: object) -> object:
     origin = get_origin(annotation)
     if origin is None or origin is list or origin is dict:
         return annotation
@@ -54,14 +63,14 @@ def _unwrap_optional(annotation: Any) -> Any:
     return annotation
 
 
-def _is_model_type(annotation: Any) -> bool:
+def _is_model_type(annotation: object) -> TypeGuard[type[BaseModel]]:
     try:
         return isinstance(annotation, type) and issubclass(annotation, BaseModel)
     except Exception:
         return False
 
 
-def _list_item_model_type(annotation: Any) -> type[BaseModel] | None:
+def _list_item_model_type(annotation: object) -> type[BaseModel] | None:
     annotation = _unwrap_optional(annotation)
     if get_origin(annotation) is not list:
         return None
@@ -74,15 +83,15 @@ def _list_item_model_type(annotation: Any) -> type[BaseModel] | None:
     return None
 
 
-def _nested_model_type(annotation: Any) -> type[BaseModel] | None:
+def _nested_model_type(annotation: object) -> type[BaseModel] | None:
     annotation = _unwrap_optional(annotation)
     if _is_model_type(annotation):
         return annotation
     return None
 
 
-def find_unknown_key_paths(raw: Any, model: type[BaseModel], prefix: str = "") -> list[str]:
-    if not isinstance(raw, dict):
+def find_unknown_key_paths(raw: object, model: type[BaseModel], prefix: str = "") -> list[str]:
+    if not isinstance(raw, Mapping):
         return []
 
     allowed = set(model.model_fields.keys())
@@ -95,6 +104,8 @@ def find_unknown_key_paths(raw: Any, model: type[BaseModel], prefix: str = "") -
         value = raw[field_name]
         nested_model = _nested_model_type(field_info.annotation)
         if nested_model is not None:
+            if nested_model is NoSwitchBranches:
+                continue
             unknown.extend(find_unknown_key_paths(value, nested_model, f"{prefix}{field_name}."))
             continue
 
@@ -103,7 +114,7 @@ def find_unknown_key_paths(raw: Any, model: type[BaseModel], prefix: str = "") -
             continue
 
         for index, item in enumerate(value):
-            if isinstance(item, dict):
+            if isinstance(item, Mapping):
                 unknown.extend(
                     find_unknown_key_paths(item, item_model, f"{prefix}{field_name}[{index}].")
                 )
@@ -111,7 +122,7 @@ def find_unknown_key_paths(raw: Any, model: type[BaseModel], prefix: str = "") -
     return unknown
 
 
-def has_unknown_key_drift(raw: dict[str, Any]) -> bool:
+def has_unknown_key_drift(raw: Mapping[str, object]) -> bool:
     return len(find_unknown_key_paths(raw, AgentCoreConfig)) > 0
 
 
@@ -147,19 +158,20 @@ def _description(model: type[BaseModel], field_name: str) -> str | None:
 def generate_default_config_toml(
     project_name: str,
     project_description: str = "Add your project description here.",
-    important_files: list[dict[str, str]] | None = None,
-    tree_dirs: list[dict[str, str]] | None = None,
+    important_files: list[ImportantFileConfig] | None = None,
+    tree_dirs: list[TreeDirConfig] | None = None,
     symlink_paths: list[str] | None = None,
+    dev_branch: str = "dev",
     main_branch: str = "main",
     test_branch: str = "test",
-    noswitch_branches: dict[str, str] | None = None,
+    noswitch_branches: NoSwitchBranches | None = None,
 ) -> str:
     if important_files is None:
         important_files = [
-            {
-                "path": "README.md",
-                "description": "Project overview and setup instructions",
-            }
+            ImportantFileConfig(
+                path="README.md",
+                description="Project overview and setup instructions",
+            )
         ]
     if symlink_paths is None:
         symlink_paths = WorktreeConfig().symlink_paths
@@ -179,18 +191,18 @@ def generate_default_config_toml(
 
     for item in important_files:
         lines.append("[[files]]")
-        lines.append(f'path = "{_escape_toml_string(item["path"])}"')
-        if item.get("description"):
-            lines.append(f'description = "{_escape_toml_string(item["description"])}"')
+        lines.append(f'path = "{_escape_toml_string(item.path)}"')
+        if item.description:
+            lines.append(f'description = "{_escape_toml_string(item.description)}"')
         lines.append("")
 
     lines.append("# Directories whose tree structure is included in onboard output")
     if tree_dirs:
         for item in tree_dirs:
             lines.append("[[tree_dirs]]")
-            lines.append(f'path = "{_escape_toml_string(item["path"])}"')
-            if item.get("description"):
-                lines.append(f'description = "{_escape_toml_string(item["description"])}"')
+            lines.append(f'path = "{_escape_toml_string(item.path)}"')
+            if item.description:
+                lines.append(f'description = "{_escape_toml_string(item.description)}"')
             lines.append("")
     else:
         lines.append('# [[tree_dirs]]')
@@ -205,6 +217,8 @@ def generate_default_config_toml(
             f"symlink_paths = [{symlinks}]",
             "",
             "[branches]",
+            f"# {_description(BranchConfig, 'dev')}",
+            f'dev = "{_escape_toml_string(dev_branch)}"',
             f"# {_description(BranchConfig, 'main')}",
             f'main = "{_escape_toml_string(main_branch)}"',
             f"# {_description(BranchConfig, 'test')}",
@@ -213,10 +227,10 @@ def generate_default_config_toml(
         ]
     )
 
-    if noswitch_branches:
+    if noswitch_branches is not None and noswitch_branches.entries:
         lines.append("[branches.noswitch_branches]")
-        for child, parent in noswitch_branches.items():
-            lines.append(f'{_escape_toml_string(child)} = "{_escape_toml_string(parent)}"')
+        for entry in noswitch_branches.as_toml_items():
+            lines.append(f'{_escape_toml_string(entry.child)} = "{_escape_toml_string(entry.parent)}"')
     else:
         lines.append("# [branches.noswitch_branches]")
         lines.append('# company_xyz = "main"')
