@@ -1,5 +1,3 @@
-from __future__ import annotations
-
 import typer
 
 from src.config.branches import get_branch_names
@@ -40,6 +38,6 @@ def branch(name: str, force: bool = False) -> None:
 def completed_worktrees(force: bool = False) -> None:
     removed = 0
     for record in specs.list_all(status="completed"):
-        if worktrees.remove(record["slug"], force=force):
+        if worktrees.remove(record.slug, force=force):
             removed += 1
     typer.echo(f"Removed completed worktrees: {removed}")

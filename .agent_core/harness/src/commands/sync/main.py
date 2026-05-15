@@ -1,10 +1,10 @@
-from __future__ import annotations
+from typing import cast
 
 import typer
 
 from src.config.branches import get_branch_names
 from src.config.paths import PROJECT_PATHS
-from src.models.frontmatter import create_spec_frontmatter, create_todo_frontmatter
+from src.models.frontmatter import SpecStatus, TodoStatus, create_spec_frontmatter, create_todo_frontmatter
 from src.state import specs, todos
 from src.utils import git
 from src.utils.errors import GitError, GitHubError
@@ -29,7 +29,7 @@ app = typer.Typer(help="Synchronize repository and remote state")
 def branches() -> None:
     try:
         git.protected_branch_sync(get_branch_names())
-    except GitError as error:
+    except (GitError, ValueError) as error:
         typer.echo(str(error), err=True)
         raise typer.Exit(code=1) from error
     typer.echo("Protected branches synchronized.")
@@ -57,34 +57,32 @@ def _sync_specs(repo) -> int:
     actions = 0
     remote_by_number = {issue.number: issue for issue in list_issues(repo, SPEC_LABEL, state="open")}
     local_by_issue = {
-        record["issue_id"]: record
+        record.issue_id: record
         for record in specs.list_all()
-        if record.get("issue_id") is not None
+        if record.issue_id is not None
     }
 
     for record in specs.list_all():
-        title = record.get("title", record["slug"])
-        status_value = record.get("status", "todo")
-        if record.get("issue_id") is None:
+        if record.issue_id is None:
             issue = create_issue(
                 repo,
-                title,
-                record.get("body", ""),
-                issue_labels("spec", status_value),
-                [record["assigned_to"]] if record.get("assigned_to") else None,
+                record.title,
+                record.body,
+                issue_labels("spec", record.status),
+                [record.assigned_to] if record.assigned_to else None,
             )
-            specs.update_issue(record["slug"], issue.number, issue.html_url)
+            specs.update_issue(record.slug, issue.number, issue.html_url)
             actions += 1
             continue
 
-        issue = remote_by_number.get(record["issue_id"])
+        issue = remote_by_number.get(record.issue_id)
         if issue is not None:
             update_issue(
                 repo,
-                record["issue_id"],
-                title=title,
-                body=record.get("body", ""),
-                labels=issue_labels("spec", status_value),
+                record.issue_id,
+                title=record.title,
+                body=record.body,
+                labels=issue_labels("spec", record.status),
             )
             actions += 1
 
@@ -92,13 +90,13 @@ def _sync_specs(repo) -> int:
         if issue.number in local_by_issue:
             continue
         labels = [label.name for label in issue.labels]
-        status_value = status_from_labels(labels, "spec") or "todo"
+        status_value = cast(SpecStatus, status_from_labels(labels, "spec") or "todo")
         metadata = create_spec_frontmatter(
             issue.title,
             status=status_value,
             issue_id=issue.number,
             issue_url=issue.html_url,
-        ).to_dict()
+        )
         specs.create_with_metadata(issue.title, metadata, issue.body or "")
         actions += 1
 
@@ -109,34 +107,32 @@ def _sync_todos(repo) -> int:
     actions = 0
     remote_by_number = {issue.number: issue for issue in list_issues(repo, TODO_LABEL, state="open")}
     local_by_issue = {
-        record["issue_id"]: record
+        record.issue_id: record
         for record in todos.list_all()
-        if record.get("issue_id") is not None
+        if record.issue_id is not None
     }
 
     for record in todos.list_all():
-        title = record.get("title", record["slug"])
-        status_value = record.get("status", "open")
-        if record.get("issue_id") is None:
+        if record.issue_id is None:
             issue = create_issue(
                 repo,
-                title,
-                record.get("body", ""),
-                issue_labels("todo", status_value),
+                record.title,
+                record.body,
+                issue_labels("todo", record.status),
             )
-            todos.update_issue(record["slug"], issue.number, issue.html_url)
+            todos.update_issue(record.slug, issue.number, issue.html_url)
             actions += 1
             continue
 
-        issue = remote_by_number.get(record["issue_id"])
+        issue = remote_by_number.get(record.issue_id)
         if issue is not None:
             update_issue(
                 repo,
-                record["issue_id"],
-                title=title,
-                body=record.get("body", ""),
-                state="closed" if status_value == "claimed" else "open",
-                labels=issue_labels("todo", status_value),
+                record.issue_id,
+                title=record.title,
+                body=record.body,
+                state="closed" if record.status == "claimed" else "open",
+                labels=issue_labels("todo", record.status),
             )
             actions += 1
 
@@ -144,13 +140,12 @@ def _sync_todos(repo) -> int:
         if issue.number in local_by_issue:
             continue
         labels = [label.name for label in issue.labels]
-        status_value = status_from_labels(labels, "todo") or "open"
+        status_value = cast(TodoStatus, status_from_labels(labels, "todo") or "open")
         metadata = create_todo_frontmatter(
             issue.title,
             issue_id=issue.number,
             issue_url=issue.html_url,
-        ).to_dict()
-        metadata["status"] = status_value
+        ).model_copy(update={"status": status_value})
         todos.create_with_metadata(issue.title, metadata, issue.body or "")
         actions += 1
 
@@ -169,9 +164,18 @@ def issues() -> None:
     typer.echo(f"Issue sync complete. Actions: {count}")
 
 
+def sync_git_state() -> None:
+    git.sync_current_branch(get_branch_names())
+
+
 @app.command("all")
 def sync_all(no_git: bool = False) -> None:
     if not no_git:
+        try:
+            sync_git_state()
+        except (GitError, ValueError) as error:
+            typer.echo(str(error), err=True)
+            raise typer.Exit(code=1) from error
         status()
     issues()
     if not no_git:

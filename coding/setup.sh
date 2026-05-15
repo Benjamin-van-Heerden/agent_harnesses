@@ -152,6 +152,51 @@ ensure_branches_exist() {
     fi
 }
 
+ensure_update_branch() {
+    if ! $UPDATE; then
+        return
+    fi
+
+    local branch_output
+    if ! branch_output="$(branch_names)"; then
+        exit 1
+    fi
+
+    local dev_branch
+    local test_branch
+    local main_branch
+    dev_branch="$(printf "%s\n" "$branch_output" | sed -n '1p')"
+    test_branch="$(printf "%s\n" "$branch_output" | sed -n '2p')"
+    main_branch="$(printf "%s\n" "$branch_output" | sed -n '3p')"
+
+    local current_branch
+    current_branch="$(git -C "$TARGET_ROOT" branch --show-current)"
+    if [[ -z "$current_branch" ]]; then
+        echo "Error: setup --update must run on a named branch, not detached HEAD." >&2
+        exit 1
+    fi
+
+    if [[ "$current_branch" == "$dev_branch" ]]; then
+        return
+    fi
+
+    if [[ "$current_branch" != "$main_branch" && "$current_branch" != "$test_branch" ]]; then
+        return
+    fi
+
+    if [[ -n "$(git -C "$TARGET_ROOT" status --porcelain)" ]]; then
+        echo "Error: setup --update must switch from $current_branch to $dev_branch before changing the managed harness." >&2
+        echo "Your working tree has uncommitted changes. You must commit, stash, or restore them, then rerun setup --update." >&2
+        exit 1
+    fi
+
+    git -C "$TARGET_ROOT" checkout "$dev_branch" >/dev/null 2>&1 || {
+        echo "Error: failed to switch from $current_branch to $dev_branch before updating the managed harness." >&2
+        exit 1
+    }
+    echo "Switched to configured dev branch for harness update: $dev_branch"
+}
+
 ensure_user_mappings() {
     local mappings_file="$STATE_DIR/user_mappings.toml"
     if [[ -f "$mappings_file" ]]; then
@@ -300,6 +345,7 @@ fi
 ensure_state_dirs
 ensure_config
 ensure_branches_exist
+ensure_update_branch
 install_harness
 ensure_user_mappings
 install_agents_file

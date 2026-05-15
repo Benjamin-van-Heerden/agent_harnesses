@@ -1,5 +1,3 @@
-from __future__ import annotations
-
 import typer
 
 from src.commands.log.utils.formatting import format_summary

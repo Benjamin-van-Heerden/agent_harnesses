@@ -1,25 +1,24 @@
-from __future__ import annotations
-
-from typing import Any
+from pathlib import Path
 
 from src.config.paths import PROJECT_PATHS
-from src.models.frontmatter import create_todo_frontmatter, now_iso
+from src.models.frontmatter import TodoFrontmatter, TodoStatus, create_todo_frontmatter, now_iso
+from src.state.models import Todo
 from src.utils.markdown import read_markdown, slugify, write_markdown
 
 
-def _claimed_dir():
+def _claimed_dir() -> Path:
     return PROJECT_PATHS.todos_dir / "claimed"
 
 
-def _open_path(slug: str):
+def _open_path(slug: str) -> Path:
     return PROJECT_PATHS.todos_dir / f"{slug}.md"
 
 
-def _claimed_path(slug: str):
+def _claimed_path(slug: str) -> Path:
     return _claimed_dir() / f"{slug}.md"
 
 
-def _item_path(slug: str):
+def _item_path(slug: str) -> Path:
     open_path = _open_path(slug)
     if open_path.exists():
         return open_path
@@ -31,8 +30,9 @@ def _item_path(slug: str):
     return open_path
 
 
-def _to_record(slug: str, metadata: dict[str, Any], body: str) -> dict[str, Any]:
-    return {"slug": slug, "body": body, **metadata}
+def _to_todo(slug: str, metadata: object, body: str) -> Todo:
+    frontmatter = TodoFrontmatter.model_validate(metadata)
+    return Todo(slug=slug, body=body, frontmatter=frontmatter)
 
 
 def create(
@@ -40,7 +40,7 @@ def create(
     description: str = "",
     issue_id: int | None = None,
     issue_url: str | None = None,
-):
+) -> Path:
     slug = slugify(title)
     path = _item_path(slug)
     if path.exists():
@@ -51,25 +51,25 @@ def create(
     return path
 
 
-def create_with_metadata(title: str, metadata: dict[str, Any], description: str = ""):
+def create_with_metadata(title: str, metadata: TodoFrontmatter, description: str = "") -> Path:
     slug = slugify(title)
     path = _item_path(slug)
     if path.exists():
         return path
-    write_markdown(path, metadata, description)
+    write_markdown(path, metadata.to_dict(), description)
     return path
 
 
-def get(slug: str) -> dict[str, Any] | None:
+def get(slug: str) -> Todo | None:
     path = _item_path(slug)
     if not path.exists():
         return None
     metadata, body = read_markdown(path)
-    return _to_record(slug, metadata, body)
+    return _to_todo(slug, metadata, body)
 
 
-def list_all(status: str | None = None) -> list[dict[str, Any]]:
-    records = []
+def list_all(status: TodoStatus | None = None) -> list[Todo]:
+    records: list[Todo] = []
     for directory in [PROJECT_PATHS.todos_dir, _claimed_dir()]:
         if not directory.exists():
             continue
@@ -77,33 +77,45 @@ def list_all(status: str | None = None) -> list[dict[str, Any]]:
             if not path.is_file() or path.suffix != ".md":
                 continue
             metadata, body = read_markdown(path)
-            if status is not None and metadata.get("status") != status:
+            record = _to_todo(path.stem, metadata, body)
+            if status is not None and record.status != status:
                 continue
-            records.append(_to_record(path.stem, metadata, body))
+            records.append(record)
 
-    records.sort(key=lambda item: item.get("created_at", ""), reverse=True)
+    records.sort(key=lambda item: item.frontmatter.created_at, reverse=True)
     return records
 
 
-def update(slug: str, **updates) -> None:
+def _write_frontmatter(slug: str, frontmatter: TodoFrontmatter) -> None:
     path = _item_path(slug)
     if not path.exists():
         raise ValueError(f"Todo '{slug}' not found")
-    metadata, body = read_markdown(path)
-    metadata.update(updates)
-    write_markdown(path, metadata, body)
+    record = get(slug)
+    if record is None:
+        raise ValueError(f"Todo '{slug}' not found")
+    write_markdown(path, frontmatter.to_dict(), record.body)
 
 
 def update_issue(slug: str, issue_id: int, issue_url: str) -> None:
-    update(slug, issue_id=issue_id, issue_url=issue_url)
+    record = get(slug)
+    if record is None:
+        raise ValueError(f"Todo '{slug}' not found")
+    frontmatter = record.frontmatter.model_copy(update={"issue_id": issue_id, "issue_url": issue_url})
+    _write_frontmatter(slug, frontmatter)
 
 
-def claim(slug: str, claimed_by: str):
+def claim(slug: str, claimed_by: str) -> Path:
     path = _item_path(slug)
     if not path.exists():
         raise ValueError(f"Todo '{slug}' not found")
 
-    update(slug, status="claimed", claimed_by=claimed_by, claimed_at=now_iso())
+    record = get(slug)
+    if record is None:
+        raise ValueError(f"Todo '{slug}' not found")
+    frontmatter = record.frontmatter.model_copy(
+        update={"status": "claimed", "claimed_by": claimed_by, "claimed_at": now_iso()}
+    )
+    _write_frontmatter(slug, frontmatter)
     _claimed_dir().mkdir(parents=True, exist_ok=True)
     destination = _claimed_path(slug)
     if path != destination:

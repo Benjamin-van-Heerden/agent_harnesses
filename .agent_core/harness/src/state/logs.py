@@ -1,12 +1,13 @@
-from __future__ import annotations
-
 import subprocess
 import tomllib
 from datetime import datetime
-from typing import Any
+from pathlib import Path
+
+from pydantic import BaseModel, ConfigDict, TypeAdapter
 
 from src.config.paths import PROJECT_PATHS
-from src.models.frontmatter import create_log_frontmatter
+from src.models.frontmatter import LogFrontmatter, create_log_frontmatter
+from src.state.models import WorkLog
 from src.utils.markdown import read_markdown, slugify, write_markdown
 
 
@@ -30,6 +31,16 @@ DEFAULT_TEMPLATE = """# Work Log - {short title}
 """
 
 
+class UserMapping(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+
+    name: str
+    email: str | None = None
+
+
+USER_MAPPINGS_ADAPTER = TypeAdapter(dict[str, UserMapping])
+
+
 def _git_user_name() -> str:
     try:
         result = subprocess.run(
@@ -50,13 +61,17 @@ def _current_username() -> str:
     if mappings_file.exists():
         try:
             with open(mappings_file, "rb") as f:
-                mappings = tomllib.load(f)
+                mappings = USER_MAPPINGS_ADAPTER.validate_python(tomllib.load(f))
             for username, details in mappings.items():
-                if isinstance(details, dict) and details.get("name") == git_name:
+                if details.name == git_name:
                     return slugify(username)
         except Exception:
             pass
     return slugify(git_name)
+
+
+def current_username() -> str:
+    return _current_username()
 
 
 def _filename(created_at: datetime, username: str) -> str:
@@ -80,21 +95,22 @@ def _parse_filename(filename: str) -> tuple[str, datetime] | None:
 def _to_record(
     username: str,
     created_at: datetime,
-    metadata: dict[str, Any],
+    metadata: object,
     body: str,
     filename: str,
-) -> dict[str, Any]:
-    return {
-        "username": username,
-        "created_at": created_at.isoformat(),
-        "date": created_at.date().isoformat(),
-        "filename": filename,
-        "body": body,
-        **metadata,
-    }
+) -> WorkLog:
+    frontmatter = LogFrontmatter.model_validate(metadata)
+    return WorkLog(
+        username=username,
+        created_at=created_at.isoformat(),
+        date=created_at.date().isoformat(),
+        filename=filename,
+        body=body,
+        frontmatter=frontmatter,
+    )
 
 
-def create(spec_slug: str | None = None):
+def create(spec_slug: str | None = None) -> Path:
     PROJECT_PATHS.logs_dir.mkdir(parents=True, exist_ok=True)
     created_at = datetime.now()
     username = _current_username()
@@ -104,7 +120,7 @@ def create(spec_slug: str | None = None):
     return path
 
 
-def get(filename: str) -> dict[str, Any] | None:
+def get(filename: str) -> WorkLog | None:
     path = PROJECT_PATHS.logs_dir / filename
     parsed = _parse_filename(filename)
     if parsed is None or not path.exists():
@@ -118,11 +134,11 @@ def list_all(
     limit: int = 10,
     spec_slug: str | None = None,
     username: str | None = None,
-) -> list[dict[str, Any]]:
+) -> list[WorkLog]:
     if not PROJECT_PATHS.logs_dir.exists():
         return []
 
-    records = []
+    records: list[WorkLog] = []
     for path in PROJECT_PATHS.logs_dir.iterdir():
         if not path.is_file():
             continue
@@ -131,11 +147,12 @@ def list_all(
             continue
         file_username, created_at = parsed
         metadata, body = read_markdown(path)
-        if spec_slug is not None and metadata.get("spec_slug") != spec_slug:
+        record = _to_record(file_username, created_at, metadata, body, path.name)
+        if spec_slug is not None and record.spec_slug != spec_slug:
             continue
         if username is not None and file_username != username:
             continue
-        records.append(_to_record(file_username, created_at, metadata, body, path.name))
+        records.append(record)
 
-    records.sort(key=lambda item: item.get("created_at", ""), reverse=True)
+    records.sort(key=lambda item: item.created_at, reverse=True)
     return records[:limit]

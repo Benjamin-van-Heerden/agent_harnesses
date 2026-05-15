@@ -1,5 +1,3 @@
-from __future__ import annotations
-
 import typer
 from typing_extensions import Annotated
 
@@ -20,14 +18,14 @@ def run(
         typer.echo(f"Spec not found: {slug}", err=True)
         raise typer.Exit(code=1)
 
-    incomplete = [item for item in tasks.list_all(slug) if item.get("status") != "completed"]
+    incomplete = [item for item in tasks.list_all(slug) if item.status != "completed"]
     if incomplete:
         typer.echo("Cannot complete spec with incomplete tasks:", err=True)
         for item in incomplete:
-            typer.echo(f"  - {item.get('title', item['slug'])}", err=True)
+            typer.echo(f"  - {item.title}", err=True)
         raise typer.Exit(code=1)
 
-    branch = record.get("branch") or git.current_branch()
+    branch = record.branch or git.current_branch()
     if branch is None:
         typer.echo("Could not determine branch for spec.", err=True)
         raise typer.Exit(code=1)
@@ -43,17 +41,17 @@ def run(
         specs.update_status(slug, "merge_ready")
         updated = specs.get(slug) or record
 
-        if updated.get("issue_id"):
+        if updated.issue_id:
             repo = repository()
             update_issue(
                 repo,
-                updated["issue_id"],
+                updated.issue_id,
                 labels=issue_labels("spec", "merge_ready"),
             )
             pull_request = create_pull_request(
                 repo,
-                f"[Complete]: {updated.get('title', slug)}",
-                f"Completes specification: {updated.get('title', slug)}\n\nCloses #{updated['issue_id']}",
+                f"[Complete]: {updated.title}",
+                f"Completes specification: {updated.title}\n\nCloses #{updated.issue_id}",
                 branch,
                 get_branch_names().dev,
             )

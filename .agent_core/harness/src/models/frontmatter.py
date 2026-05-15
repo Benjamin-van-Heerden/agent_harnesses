@@ -1,14 +1,19 @@
-from __future__ import annotations
-
+from collections.abc import Mapping
 from datetime import datetime
 from typing import Literal
 
-from pydantic import BaseModel
+from pydantic import BaseModel, field_validator
 
 
 SpecStatus = Literal["todo", "merge_ready", "completed", "abandoned"]
 TaskStatus = Literal["todo", "completed"]
 TodoStatus = Literal["open", "claimed"]
+
+
+def _iso_string(value: object) -> object:
+    if isinstance(value, datetime):
+        return value.isoformat()
+    return value
 
 
 class SpecFrontmatter(BaseModel):
@@ -26,7 +31,12 @@ class SpecFrontmatter(BaseModel):
     local_content_hash: str | None = None
     remote_content_hash: str | None = None
 
-    def to_dict(self) -> dict:
+    @field_validator("created_at", "updated_at", "completed_at", mode="before")
+    @classmethod
+    def normalize_datetime(cls, value: object) -> object:
+        return _iso_string(value)
+
+    def to_dict(self) -> Mapping[str, object]:
         return self.model_dump()
 
 
@@ -37,7 +47,12 @@ class TaskFrontmatter(BaseModel):
     updated_at: str
     completed_at: str | None = None
 
-    def to_dict(self) -> dict:
+    @field_validator("created_at", "updated_at", "completed_at", mode="before")
+    @classmethod
+    def normalize_datetime(cls, value: object) -> object:
+        return _iso_string(value)
+
+    def to_dict(self) -> Mapping[str, object]:
         return self.model_dump()
 
 
@@ -50,7 +65,12 @@ class TodoFrontmatter(BaseModel):
     claimed_by: str | None = None
     claimed_at: str | None = None
 
-    def to_dict(self) -> dict:
+    @field_validator("created_at", "claimed_at", mode="before")
+    @classmethod
+    def normalize_datetime(cls, value: object) -> object:
+        return _iso_string(value)
+
+    def to_dict(self) -> Mapping[str, object]:
         return self.model_dump()
 
 
@@ -59,7 +79,12 @@ class MemoryFrontmatter(BaseModel):
     created_at: str
     updated_at: str
 
-    def to_dict(self) -> dict:
+    @field_validator("created_at", "updated_at", mode="before")
+    @classmethod
+    def normalize_datetime(cls, value: object) -> object:
+        return _iso_string(value)
+
+    def to_dict(self) -> Mapping[str, object]:
         return self.model_dump()
 
 
@@ -68,7 +93,12 @@ class LogFrontmatter(BaseModel):
     username: str
     spec_slug: str | None = None
 
-    def to_dict(self) -> dict:
+    @field_validator("created_at", mode="before")
+    @classmethod
+    def normalize_datetime(cls, value: object) -> object:
+        return _iso_string(value)
+
+    def to_dict(self) -> Mapping[str, object]:
         return {key: value for key, value in self.model_dump().items() if value is not None}
 
 
