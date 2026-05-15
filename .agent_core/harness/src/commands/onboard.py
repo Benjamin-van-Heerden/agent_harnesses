@@ -171,7 +171,7 @@ def _recent_log_records() -> list[WorkLog]:
         if general_count >= 5:
             break
 
-    selected.sort(key=lambda item: item.created_at, reverse=True)
+    selected.sort(key=lambda item: item.created_at)
     return selected
 
 

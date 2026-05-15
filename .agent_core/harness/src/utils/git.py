@@ -44,6 +44,10 @@ def pull_ff_only(branch: str, cwd: Path | None = None) -> None:
     run_git(["pull", "--ff-only", "origin", branch], cwd=cwd)
 
 
+def merge_ff_only(branch: str, cwd: Path | None = None) -> None:
+    run_git(["merge", "--ff-only", branch], cwd=cwd)
+
+
 def checkout(branch: str, cwd: Path | None = None) -> None:
     run_git(["checkout", branch], cwd=cwd)
 

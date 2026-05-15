@@ -1,2 +1,8 @@
 __pycache__
 .agent_core/tmp
+
+# Agent Core worktree symlinks
+.agent_core/docs/data
+.agent_core/docs/data/
+.claude
+.claude/
