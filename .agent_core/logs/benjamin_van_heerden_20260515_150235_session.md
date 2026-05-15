@@ -37,6 +37,23 @@ changes in the `coding/` harness template.
   holding command and shared logic.
 - Added `git.merge_ff_only()` for fast-forward protected branch promotion.
 - Updated the GitHub flow test command to use the new `merge pr` form.
+- Committed and pushed the merge command workflow changes to `dev` in commit
+  `5febb63`.
+- Investigated why `setup.sh --update` activated a commented README
+  `[[files]]` config entry. Confirmed the updater was not preservation-idempotent:
+  it treated commented config as missing and could activate or insert defaults.
+- Refactored `coding/setup_support/upsert_config.py` so existing configs are
+  updated conservatively: active or commented sections/keys count as declared,
+  and commented config is not activated. Brand-new configs still get a complete
+  default template.
+- Updated `coding/setup.sh` to read configured `worktree.symlink_paths` and
+  ensure each path is present in `.gitignore` both with and without a trailing
+  slash.
+- Added setup regression coverage for commented config staying commented and
+  symlink paths being ignored without duplication.
+- Discussed a transient `ty` unresolved import diagnostic for the new merge
+  utility module. Temporarily switched sibling imports to relative form, then
+  the issue was confirmed to be a caching problem by the user.
 - Verified shell syntax and Python module compilation for touched code, and
   checked merge command help output.
 
@@ -44,6 +61,7 @@ changes in the `coding/` harness template.
 
 - `coding/.agent_core/harness/src/commands/onboard.py`
 - `coding/setup.sh`
+- `coding/setup_support/upsert_config.py`
 - `coding/tests/test_setup.py`
 - `coding/.agent_core/harness/src/commands/merge/main.py`
 - `coding/.agent_core/harness/src/commands/merge/pr.py`
@@ -59,6 +77,9 @@ changes in the `coding/` harness template.
   behavior for configured `test` and `main` branches.
 - Run focused tests when requested, likely setup tests and merge/GitHub flow
   tests if a suitable GitHub test environment is available.
-- Commit and push accepted harness template changes.
+- Decide whether to keep the relative sibling imports in merge subcommands or
+  restore full `src.commands.merge.utils` imports now that the diagnostic appears
+  to have been cache-related.
+- Commit and push the latest setup idempotence and `.gitignore` changes.
 - Install/update the project-local harness from `coding/` when ready so root
   `.agent_core/harness/` receives the template updates.
