@@ -77,7 +77,7 @@ def test_remote_assignment_completion_and_merge_flow(remote_harness_project):
 
     main_spec = project_path / ".agent_core" / "specs" / "remote_lifecycle" / "spec.md"
     shutil.copy2(worktree_spec, main_spec)
-    run_command(command + ["merge", "remote_lifecycle", "merge lifecycle"], cwd=project_path, env=env)
+    run_command(command + ["merge", "pr", "remote_lifecycle", "--message", "merge lifecycle"], cwd=project_path, env=env)
 
     assert (project_path / ".agent_core" / "specs" / "completed" / "remote_lifecycle" / "spec.md").is_file()
     assert not worktree_path.exists()
