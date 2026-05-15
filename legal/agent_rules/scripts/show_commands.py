@@ -10,8 +10,6 @@ Excludes:
                           c_onboard, not needed in routine session context)
 """
 
-from __future__ import annotations
-
 import sys
 
 from _lib import die, praxis_root

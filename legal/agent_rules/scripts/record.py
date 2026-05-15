@@ -4,8 +4,6 @@ Appends a free-text 'note' entry to the matter's info/record.md.
 The first line of <text> becomes the summary; remaining lines (if any) become the body.
 """
 
-from __future__ import annotations
-
 import re
 import sys
 

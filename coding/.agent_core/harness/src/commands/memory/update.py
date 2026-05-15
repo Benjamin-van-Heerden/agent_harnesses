@@ -1,5 +1,3 @@
-from __future__ import annotations
-
 import typer
 
 from src.commands.memory.utils.resolve import resolve_or_exit

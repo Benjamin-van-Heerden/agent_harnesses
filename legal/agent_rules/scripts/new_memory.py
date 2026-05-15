@@ -4,8 +4,6 @@ Creates agent_rules/memories/<slug>.md from skeleton.
 Body is left as $CONTENT placeholder — the agent fills it in via Edit.
 """
 
-from __future__ import annotations
-
 import sys
 
 from _lib import die, praxis_root, render_skeleton, today, validate_slug

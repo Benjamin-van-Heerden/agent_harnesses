@@ -1,5 +1,3 @@
-from __future__ import annotations
-
 import re
 
 from helpers import HARNESS_ROOT, init_git_project, install_harness, read_toml, run_command

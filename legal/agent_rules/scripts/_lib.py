@@ -6,8 +6,6 @@ Conventions:
   - Errors go to stderr with prefix "praxis:". Successful output goes to stdout.
 """
 
-from __future__ import annotations
-
 import re
 import sys
 from datetime import datetime

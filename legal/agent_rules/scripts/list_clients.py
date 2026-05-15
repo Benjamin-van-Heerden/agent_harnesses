@@ -4,8 +4,6 @@ Outputs a TSV table of all clients (open and dormant).
 Columns: slug | display_name | client_type | open_matters | resolved_matters
 """
 
-from __future__ import annotations
-
 import sys
 
 from _lib import frontmatter_get, praxis_root

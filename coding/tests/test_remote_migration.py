@@ -1,5 +1,3 @@
-from __future__ import annotations
-
 import sys
 
 from constants import SPEC_LABEL, TODO_LABEL, TODO_STATUS_LABEL

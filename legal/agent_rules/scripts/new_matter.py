@@ -7,8 +7,6 @@ billing:     free-form (e.g. hourly, fixed, contingent, pro_bono, ...) — defau
 Creates clients/<client>/matters/open/YYYYMMDD-<type>-<slug>/{info/status.md, raw/, reference/}.
 """
 
-from __future__ import annotations
-
 import sys
 from datetime import datetime
 

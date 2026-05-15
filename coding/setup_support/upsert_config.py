@@ -1,5 +1,3 @@
-from __future__ import annotations
-
 import argparse
 import re
 from pathlib import Path
@@ -62,6 +60,39 @@ def append_if_missing(content: str, chunk: str) -> str:
     return content + chunk.rstrip() + "\n"
 
 
+def uncomment_files_placeholder(content: str) -> str | None:
+    updated = re.sub(
+        r'''(?m)^# \[\[files\]\]\n# path = "README\.md"\n# description = "Project overview and setup instructions"''',
+        '[[files]]\npath = "README.md"\ndescription = "Project overview and setup instructions"',
+        content,
+        count=1,
+    )
+    if updated == content:
+        return None
+    return updated
+
+
+def insert_after_section(content: str, section: str, chunk: str) -> str:
+    lines = content.splitlines()
+    section_header = f"[{section}]"
+
+    for index, current in enumerate(lines):
+        if current.strip() != section_header:
+            continue
+
+        insert_at = index + 1
+        while insert_at < len(lines) and not lines[insert_at].strip().startswith("["):
+            insert_at += 1
+        while insert_at > index + 1 and lines[insert_at - 1].strip() == "":
+            insert_at -= 1
+        if insert_at < len(lines) and lines[insert_at].strip() != "":
+            chunk = chunk.rstrip() + "\n"
+        lines[insert_at:insert_at] = ["", *chunk.rstrip().splitlines()]
+        return "\n".join(lines).rstrip() + "\n"
+
+    return append_if_missing(content, chunk)
+
+
 def insert_key(content: str, section: str, line: str) -> str:
     lines = content.splitlines()
     section_header = f"[{section}]"
@@ -107,8 +138,10 @@ Add your project description here.
             )
 
     if not array_section_exists(content, "files"):
-        content = append_if_missing(
+        uncommented = uncomment_files_placeholder(content)
+        content = uncommented or insert_after_section(
             content,
+            "project",
             '''[[files]]
 path = "README.md"
 description = "Project overview and setup instructions"''',

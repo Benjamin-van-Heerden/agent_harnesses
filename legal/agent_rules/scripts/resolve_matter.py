@@ -4,8 +4,6 @@ Closes a matter: sets status to 'resolved' in info/status.md frontmatter and mov
 the directory from matters/open/ to matters/resolved/.
 """
 
-from __future__ import annotations
-
 import shutil
 import sys
 

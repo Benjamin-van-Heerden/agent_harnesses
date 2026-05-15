@@ -3,8 +3,6 @@
 Creates agent_rules/log/<YYYYMMDD-HHMMSS>_log.md from skeleton.
 """
 
-from __future__ import annotations
-
 import sys
 
 from _lib import die, now_stamp, now_time, praxis_root, render_skeleton, resolve_matter, today

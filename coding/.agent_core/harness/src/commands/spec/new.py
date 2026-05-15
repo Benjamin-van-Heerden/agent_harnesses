@@ -1,5 +1,3 @@
-from __future__ import annotations
-
 import typer
 
 from src.commands.spec.models.result import SpecCommandResult

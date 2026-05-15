@@ -4,8 +4,6 @@ Lists open todos scoped to the given matter.
 Output: TSV columns — slug | priority | title
 """
 
-from __future__ import annotations
-
 import re
 import sys
 

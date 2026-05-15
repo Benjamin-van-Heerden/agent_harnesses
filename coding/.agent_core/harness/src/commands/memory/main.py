@@ -1,5 +1,3 @@
-from __future__ import annotations
-
 import typer
 
 from src.commands.memory import delete, list, new, show, update

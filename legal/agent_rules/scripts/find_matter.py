@@ -4,8 +4,6 @@ Substring search across open and resolved matter directory names.
 Outputs matching paths (relative to praxis root), one per line, sorted.
 """
 
-from __future__ import annotations
-
 import sys
 
 from _lib import die, praxis_root

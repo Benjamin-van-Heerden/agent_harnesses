@@ -1,5 +1,3 @@
-from __future__ import annotations
-
 from src.config.main import load_project_config
 from src.config.models import BranchNames
 from src.config.paths import PROJECT_PATHS

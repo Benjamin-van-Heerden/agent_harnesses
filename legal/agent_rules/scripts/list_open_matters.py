@@ -4,8 +4,6 @@ Outputs a TSV table of all open matters across all clients.
 Columns: client | matter | type | priority | next_deadline | open_todos | path
 """
 
-from __future__ import annotations
-
 import sys
 from collections import Counter
 

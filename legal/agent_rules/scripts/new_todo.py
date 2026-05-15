@@ -4,8 +4,6 @@ priority: low | normal | high  (default: normal)
 Creates agent_rules/todos/<slug>.md from skeleton.
 """
 
-from __future__ import annotations
-
 import sys
 
 from _lib import die, praxis_root, render_skeleton, resolve_matter, today, validate_slug

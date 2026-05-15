@@ -4,8 +4,6 @@ Lists files in the matter's raw/ that have no corresponding file in reference/
 (matched by basename without extension).
 """
 
-from __future__ import annotations
-
 import sys
 
 from _lib import die, resolve_matter

@@ -1,5 +1,3 @@
-from __future__ import annotations
-
 import typer
 
 from src.commands.spec import abandon, assign, complete, list, new, show

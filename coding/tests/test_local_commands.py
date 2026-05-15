@@ -1,5 +1,3 @@
-from __future__ import annotations
-
 from helpers import (
     command_env,
     harness_command,

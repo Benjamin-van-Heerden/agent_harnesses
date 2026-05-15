@@ -1,5 +1,3 @@
-from __future__ import annotations
-
 import sys
 
 from helpers import PROJECT_ROOT, command_env, run_command, write_legacy_state

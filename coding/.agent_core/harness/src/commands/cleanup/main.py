@@ -1,5 +1,3 @@
-from __future__ import annotations
-
 import typer
 
 from src.config.branches import get_branch_names

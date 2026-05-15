@@ -6,8 +6,6 @@ Appends an entry to <matter>/info/record.md. Body is left as _TODO_ —
 the agent fills it in afterwards via Edit.
 """
 
-from __future__ import annotations
-
 import re
 import sys
 

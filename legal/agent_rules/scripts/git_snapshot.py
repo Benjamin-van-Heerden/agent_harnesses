@@ -5,8 +5,6 @@ changed. No push is performed; Praxis repositories are local snapshots inside
 cloud-synced folders.
 """
 
-from __future__ import annotations
-
 import shutil
 import subprocess
 import sys

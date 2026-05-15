@@ -1,5 +1,3 @@
-from __future__ import annotations
-
 from pathlib import Path
 
 from src.config.paths import PROJECT_PATHS

@@ -5,8 +5,6 @@ open matters, sorted by date.
 Output: date | matter_path | type | description
 """
 
-from __future__ import annotations
-
 import re
 import sys
 from datetime import datetime, timedelta

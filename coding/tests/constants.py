@@ -1,5 +1,3 @@
-from __future__ import annotations
-
 TEST_REPOSITORY_NAME = "mem-test"
 
 SPEC_LABEL = "spec"

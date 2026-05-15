@@ -1,5 +1,3 @@
-from __future__ import annotations
-
 import typer
 
 from src.commands.todo import claim, delete, list, new, show

@@ -4,8 +4,6 @@ Appends an open deadline to <matter>/info/deadlines.md and updates next_deadline
 in info/status.md to the earliest open deadline.
 """
 
-from __future__ import annotations
-
 import re
 import sys
 

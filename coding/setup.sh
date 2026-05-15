@@ -10,6 +10,7 @@ HARNESS_TARGET="$STATE_DIR/harness"
 CORE_START_TAG="<AGENT_CORE>"
 CORE_END_TAG="</AGENT_CORE>"
 CLONE_DIR=""
+PYTHON_BIN="${PYTHON:-python}"
 
 UPDATE=false
 if [[ "${1:-}" == "--update" ]]; then
@@ -89,13 +90,11 @@ ensure_config() {
     local config_file="$STATE_DIR/config.toml"
     local project_name
     project_name="$(basename "$TARGET_ROOT")"
-    PYTHONDONTWRITEBYTECODE=1 python3 "$SUPPORT_DIR/upsert_config.py" "$config_file" "$project_name"
+    "$PYTHON_BIN" -B "$SUPPORT_DIR/upsert_config.py" "$config_file" "$project_name"
 }
 
 branch_names() {
-    PYTHONDONTWRITEBYTECODE=1 python3 - "$STATE_DIR/config.toml" <<'PY'
-from __future__ import annotations
-
+    "$PYTHON_BIN" -B - "$STATE_DIR/config.toml" <<'PY'
 import sys
 import tomllib
 from pathlib import Path
@@ -171,9 +170,7 @@ install_agents_file() {
         return
     fi
 
-    PYTHONDONTWRITEBYTECODE=1 python3 - "$target_file" "$TEMPLATE_ROOT/AGENTS.md" "$CORE_START_TAG" "$CORE_END_TAG" <<'PY'
-from __future__ import annotations
-
+    "$PYTHON_BIN" -B - "$target_file" "$TEMPLATE_ROOT/AGENTS.md" "$CORE_START_TAG" "$CORE_END_TAG" <<'PY'
 import sys
 from pathlib import Path
 

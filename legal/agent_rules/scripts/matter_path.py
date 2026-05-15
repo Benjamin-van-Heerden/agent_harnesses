@@ -4,8 +4,6 @@ Resolves a matter reference (slug, partial dir name, or path) to a unique full p
 Errors if zero or multiple matches.
 """
 
-from __future__ import annotations
-
 import sys
 
 from _lib import die, resolve_matter

@@ -5,8 +5,6 @@ trust, estate, voluntary_association, ...). Used as descriptive metadata.
 Creates clients/<slug>/{profile.md, matters/open/, matters/resolved/}.
 """
 
-from __future__ import annotations
-
 import sys
 
 from _lib import die, praxis_root, render_skeleton, today, validate_slug

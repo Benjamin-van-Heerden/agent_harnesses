@@ -3,9 +3,15 @@
 ## Package Structure and Imports
 
 ### No `__init__.py` Files
+
 Projects should follow a simplified approach without `__init__.py` files in directories. This keeps the structure clean and avoids complex import hierarchies.
 
+### No `from __future__ import annotations` imports
+
+Self explanatory, almost never necessary to do this.
+
 ### Import Patterns
+
 When importing from modules in subdirectories, use explicit imports from the project root:
 
 ```python
@@ -173,22 +179,26 @@ db_url = f"postgresql://{ENV_SETTINGS.db_user}:{ENV_SETTINGS.db_password}@{ENV_S
 ## Code Style and Standards
 
 ### Error Handling
+
 - Use specific exceptions with clear messages
 - Log errors appropriately using `logging.getLogger(__name__)`
 - Provide meaningful error context for debugging
 
 ### Type Hints
+
 - Use comprehensive type hints for all function signatures
 - Import types from `typing` module when needed
 - Use Pydantic models for structured data validation
 
 ### Async Patterns
+
 - Use `async`/`await` for database operations and external API calls
 - Avoid blocking operations in async contexts
 - Use proper async context managers (`async with`)
 - For network requests, use `httpx`
 
 ### Model Design
+
 - Pydantic is our mechanism for python types and validation. When in doubt, use Pydantic.
 - Use enums for categorical data with clear, descriptive values
 - Include comprehensive field descriptions in Pydantic models

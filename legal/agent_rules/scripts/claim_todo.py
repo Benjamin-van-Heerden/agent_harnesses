@@ -3,8 +3,6 @@
 Sets status: claimed and moves agent_rules/todos/<slug>.md to claimed/.
 """
 
-from __future__ import annotations
-
 import shutil
 import sys
 
