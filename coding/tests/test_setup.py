@@ -15,8 +15,15 @@ def test_template_setup_preserves_state_and_avoids_removed_surfaces(tmp_path):
     assert (target / ".agent_core" / "user_mappings.toml").is_file()
     assert not (target / ".agent_core" / "tmp").exists()
     assert (target / "AGENTS.md").read_text().strip()
+    assert (target / ".agent_core" / "docs" / "general.md").read_text() == (
+        HARNESS_ROOT / "optional_docs" / "general.md"
+    ).read_text()
+    assert (target / ".agent_core" / "docs" / "testing.md").read_text() == (
+        HARNESS_ROOT / "optional_docs" / "testing.md"
+    ).read_text()
 
     (target / ".agent_core" / "specs" / "keep.md").write_text("state\n")
+    (target / ".agent_core" / "docs" / "general.md").write_text("project notes\n")
     config_path = target / ".agent_core" / "config.toml"
     run_command(["git", "branch", "prod"], cwd=target)
     config_path.write_text('[project]\nname = "Custom"\n\n[branches]\nmain = "prod"\n')
@@ -32,6 +39,7 @@ def test_template_setup_preserves_state_and_avoids_removed_surfaces(tmp_path):
     assert config["branches"]["test"] == "test"
     assert not stale_file.exists()
     assert (target / ".agent_core" / "specs" / "keep.md").read_text() == "state\n"
+    assert (target / ".agent_core" / "docs" / "general.md").read_text() == "project notes\n"
     assert not (target / ".agent_core" / "tmp").exists()
 
     harness_text = "\n".join(
@@ -57,7 +65,7 @@ def test_template_setup_preserves_state_and_avoids_removed_surfaces(tmp_path):
         assert re.search(pattern, lowered) is None
 
 
-def test_setup_requires_configured_protected_branches(tmp_path):
+def test_setup_creates_missing_configured_protected_branches(tmp_path):
     target = tmp_path / "project"
     target.mkdir()
     run_command(["git", "init", "-b", "main"], cwd=target)
@@ -65,10 +73,15 @@ def test_setup_requires_configured_protected_branches(tmp_path):
     run_command(["git", "config", "user.email", "harness@example.com"], cwd=target)
     run_command(["git", "commit", "--allow-empty", "-m", "initial commit"], cwd=target)
 
-    result = run_command([str(HARNESS_ROOT / "setup.sh")], cwd=target, check=False)
+    result = run_command([str(HARNESS_ROOT / "setup.sh")], cwd=target)
 
-    assert result.returncode == 1
-    assert not (target / ".agent_core" / "harness").exists()
+    assert result.returncode == 0
+    assert "Created local protected branch: dev" in result.stdout
+    assert "Created local protected branch: test" in result.stdout
+    assert (target / ".agent_core" / "harness").exists()
+    branches = run_command(["git", "branch", "--list"], cwd=target).stdout
+    assert "dev" in branches
+    assert "test" in branches
 
 
 def test_setup_optional_docs_commands_manage_project_local_docs(tmp_path):

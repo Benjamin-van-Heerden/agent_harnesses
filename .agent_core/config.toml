@@ -20,9 +20,4 @@ symlink_paths = [".agent_core/docs/data", ".claude"]
 [branches]
 main = "main"
 test = "test"
-
 dev = "dev"
-
-[[files]]
-path = "README.md"
-description = "Project overview and setup instructions"

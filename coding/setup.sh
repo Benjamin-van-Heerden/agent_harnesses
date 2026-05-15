@@ -110,6 +110,158 @@ for name in ("dev", "test", "main"):
 PY
 }
 
+set_branch_names() {
+    "$PYTHON_BIN" -B - "$STATE_DIR/config.toml" "$1" "$2" "$3" <<'PY'
+import json
+import re
+import sys
+from pathlib import Path
+
+path = Path(sys.argv[1])
+values = {
+    "dev": sys.argv[2],
+    "test": sys.argv[3],
+    "main": sys.argv[4],
+}
+content = path.read_text()
+lines = content.splitlines()
+section_index = None
+
+for index, line in enumerate(lines):
+    if line.strip() == "[branches]":
+        section_index = index
+        break
+
+if section_index is None:
+    if lines and lines[-1].strip():
+        lines.append("")
+    lines.append("[branches]")
+    section_index = len(lines) - 1
+
+section_end = section_index + 1
+while section_end < len(lines) and not lines[section_end].strip().startswith("["):
+    section_end += 1
+
+present = set()
+for index in range(section_index + 1, section_end):
+    match = re.match(r"^(\s*)(dev|test|main)\s*=", lines[index])
+    if not match:
+        continue
+    key = match.group(2)
+    present.add(key)
+    lines[index] = f"{key} = {json.dumps(values[key])}"
+
+insert_at = section_end
+for key in ("dev", "test", "main"):
+    if key in present:
+        continue
+    lines.insert(insert_at, f"{key} = {json.dumps(values[key])}")
+    insert_at += 1
+
+path.write_text("\n".join(lines).rstrip() + "\n")
+PY
+}
+
+print_existing_branches() {
+    echo "Existing branches:"
+
+    local local_branches
+    local_branches="$(git -C "$TARGET_ROOT" for-each-ref --format='%(refname:short)' refs/heads | sort)"
+    if [[ -n "$local_branches" ]]; then
+        echo "  Local:"
+        while IFS= read -r branch; do
+            echo "    - $branch"
+        done <<< "$local_branches"
+    else
+        echo "  Local: none"
+    fi
+
+    if git -C "$TARGET_ROOT" remote get-url origin >/dev/null 2>&1; then
+        local remote_branches
+        remote_branches="$(git -C "$TARGET_ROOT" for-each-ref --format='%(refname:short)' refs/remotes/origin | sed '/^origin\/HEAD$/d' | sort)"
+        if [[ -n "$remote_branches" ]]; then
+            echo "  Origin:"
+            while IFS= read -r branch; do
+                echo "    - ${branch#origin/}"
+            done <<< "$remote_branches"
+        else
+            echo "  Origin: none"
+        fi
+    fi
+}
+
+prompt_branch_mapping() {
+    local branch_output
+    if ! branch_output="$(branch_names)"; then
+        exit 1
+    fi
+
+    local dev_branch
+    local test_branch
+    local main_branch
+    dev_branch="$(printf "%s\n" "$branch_output" | sed -n '1p')"
+    test_branch="$(printf "%s\n" "$branch_output" | sed -n '2p')"
+    main_branch="$(printf "%s\n" "$branch_output" | sed -n '3p')"
+
+    echo "Configured protected branch mapping:"
+    echo "  dev  -> $dev_branch"
+    echo "  test -> $test_branch"
+    echo "  main -> $main_branch"
+
+    if [[ ! -t 0 ]]; then
+        echo "No interactive terminal detected; keeping the configured branch mapping."
+        return
+    fi
+
+    echo "Press Enter to keep each value, or type an existing/custom branch name."
+
+    local candidate
+    read -r -p "dev branch [$dev_branch]: " candidate
+    if [[ -n "$candidate" ]]; then
+        dev_branch="$candidate"
+    fi
+    read -r -p "test branch [$test_branch]: " candidate
+    if [[ -n "$candidate" ]]; then
+        test_branch="$candidate"
+    fi
+    read -r -p "main branch [$main_branch]: " candidate
+    if [[ -n "$candidate" ]]; then
+        main_branch="$candidate"
+    fi
+
+    local branch
+    for branch in "$dev_branch" "$test_branch" "$main_branch"; do
+        if ! git -C "$TARGET_ROOT" check-ref-format --branch "$branch" >/dev/null 2>&1; then
+            echo "Error: invalid branch name: $branch" >&2
+            exit 1
+        fi
+    done
+
+    set_branch_names "$dev_branch" "$test_branch" "$main_branch"
+    echo "Updated .agent_core/config.toml branch mapping."
+}
+
+configured_branches_missing() {
+    local has_origin="$1"
+    local branch_output
+    if ! branch_output="$(branch_names)"; then
+        exit 1
+    fi
+
+    local branch
+    while IFS= read -r branch; do
+        [[ -n "$branch" ]] || continue
+        if ! git -C "$TARGET_ROOT" show-ref --verify --quiet "refs/heads/$branch"; then
+            return 0
+        fi
+        if [[ "$has_origin" == true ]] && ! git -C "$TARGET_ROOT" show-ref --verify --quiet "refs/remotes/origin/$branch"; then
+            return 0
+        fi
+    done <<< "$branch_output"
+
+    return 1
+}
+
 ensure_branches_exist() {
     if ! command -v git >/dev/null 2>&1; then
         echo "Error: git is required but was not found on PATH." >&2
@@ -129,7 +281,17 @@ ensure_branches_exist() {
         }
     fi
 
-    local missing=()
+    if configured_branches_missing "$has_origin"; then
+        echo "Configured protected branches are missing."
+        print_existing_branches
+        prompt_branch_mapping
+    fi
+
+    if ! git -C "$TARGET_ROOT" rev-parse --verify HEAD >/dev/null 2>&1; then
+        echo "Error: setup requires at least one commit before protected branches can be created." >&2
+        exit 1
+    fi
+
     local branch_output
     if ! branch_output="$(branch_names)"; then
         exit 1
@@ -138,18 +300,21 @@ ensure_branches_exist() {
     while IFS= read -r branch; do
         [[ -n "$branch" ]] || continue
         if ! git -C "$TARGET_ROOT" show-ref --verify --quiet "refs/heads/$branch"; then
-            missing+=("$branch (local)")
+            if $has_origin && git -C "$TARGET_ROOT" show-ref --verify --quiet "refs/remotes/origin/$branch"; then
+                git -C "$TARGET_ROOT" branch --track "$branch" "origin/$branch" >/dev/null 2>&1
+            else
+                git -C "$TARGET_ROOT" branch "$branch" >/dev/null 2>&1
+            fi
+            echo "Created local protected branch: $branch"
         fi
         if $has_origin && ! git -C "$TARGET_ROOT" show-ref --verify --quiet "refs/remotes/origin/$branch"; then
-            missing+=("origin/$branch")
+            git -C "$TARGET_ROOT" push -u origin "$branch:$branch" >/dev/null 2>&1 || {
+                echo "Error: failed to create origin/$branch." >&2
+                exit 1
+            }
+            echo "Created origin protected branch: origin/$branch"
         fi
     done <<< "$branch_output"
-
-    if [[ "${#missing[@]}" -gt 0 ]]; then
-        echo "Error: required protected branch(es) missing: ${missing[*]}" >&2
-        echo "Create the configured dev/test/main branches before running setup." >&2
-        exit 1
-    fi
 }
 
 ensure_update_branch() {
@@ -267,6 +432,18 @@ docs_list() {
     done
 }
 
+copy_optional_doc() {
+    local slug="$1"
+    local source
+    if ! source="$(optional_doc_path "$slug")"; then
+        echo "Error: unknown optional doc: $slug" >&2
+        echo "Available docs:" >&2
+        docs_list >&2
+        exit 1
+    fi
+    cp "$source" "$STATE_DIR/docs/$(basename "$source")"
+}
+
 docs_add() {
     if [[ "$#" -eq 0 ]]; then
         echo "Error: docs add requires at least one doc slug." >&2
@@ -276,17 +453,59 @@ docs_add() {
 
     mkdir -p "$STATE_DIR/docs"
     local slug
-    local source
     for slug in "$@"; do
-        if ! source="$(optional_doc_path "$slug")"; then
-            echo "Error: unknown optional doc: $slug" >&2
-            echo "Available docs:" >&2
-            docs_list >&2
-            exit 1
-        fi
-        cp "$source" "$STATE_DIR/docs/$(basename "$source")"
+        copy_optional_doc "$slug"
         echo "Added optional doc: $slug"
     done
+}
+
+install_default_docs() {
+    mkdir -p "$STATE_DIR/docs"
+
+    local slug
+    local source
+    local target
+    for slug in general testing; do
+        if ! source="$(optional_doc_path "$slug")"; then
+            continue
+        fi
+        target="$STATE_DIR/docs/$(basename "$source")"
+        if [[ -f "$target" ]]; then
+            continue
+        fi
+        cp "$source" "$target"
+        echo "Included default doc: $slug"
+    done
+}
+
+prompt_optional_docs() {
+    if [[ ! -t 0 ]]; then
+        return
+    fi
+
+    local available=()
+    local slug
+    while IFS= read -r slug; do
+        [[ "$slug" != "general" && "$slug" != "testing" ]] || continue
+        [[ ! -f "$STATE_DIR/docs/$slug.md" ]] || continue
+        available+=("$slug")
+    done < <(docs_list)
+
+    if [[ "${#available[@]}" -eq 0 ]]; then
+        return
+    fi
+
+    echo "Additional optional docs are available: ${available[*]}"
+    echo "Enter slugs separated by spaces to install them, or press Enter to skip."
+
+    local selected
+    read -r -p "Optional docs: " selected
+    if [[ -z "$selected" ]]; then
+        return
+    fi
+
+    # shellcheck disable=SC2086
+    docs_add $selected
 }
 
 docs_update() {
@@ -350,6 +569,8 @@ install_harness
 ensure_user_mappings
 install_agents_file
 ensure_claude_file
+install_default_docs
+prompt_optional_docs
 
 if $UPDATE; then
     echo "Updated project-local harness."
