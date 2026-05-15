@@ -31,6 +31,10 @@ def _relative(path: Path) -> str:
         return str(path)
 
 
+def _section(title: str) -> list[str]:
+    return ["-" * 70, title, "-" * 70, ""]
+
+
 def _iter_docs() -> list[Path]:
     if not PROJECT_PATHS.docs_dir.exists():
         return []
@@ -45,7 +49,7 @@ def _important_files_section(config) -> list[str]:
     if not config.files:
         return lines
 
-    lines.extend(["-" * 70, "IMPORTANT FILES", "-" * 70, ""])
+    lines.extend(_section("📄 IMPORTANT FILES"))
     for item in config.files:
         path = PROJECT_PATHS.project_root / item.path
         lines.append(f"## {item.path}")
@@ -79,7 +83,7 @@ def _tree_sections(config) -> list[str]:
     if not config.tree_dirs:
         return lines
 
-    lines.extend(["-" * 70, "DIRECTORY TREES", "-" * 70, ""])
+    lines.extend(_section("🌲 DIRECTORY TREES"))
     for item in config.tree_dirs:
         path = PROJECT_PATHS.project_root / item.path
         lines.append(f"## {item.path}")
@@ -99,7 +103,7 @@ def _docs_section() -> list[str]:
     if not docs:
         return lines
 
-    lines.extend(["-" * 70, "PROJECT DOCS", "-" * 70, ""])
+    lines.extend(_section("📚 PROJECT DOCS"))
     for path in docs:
         lines.append(f"## {_relative(path)}")
         lines.append("")
@@ -108,16 +112,39 @@ def _docs_section() -> list[str]:
     return lines
 
 
+def _format_metadata(values: dict[str, object]) -> str:
+    lines: list[str] = []
+    for key, value in values.items():
+        if value is None:
+            continue
+        lines.append(f"{key}: {value}")
+    return "\n".join(lines)
+
+
 def _spec_summary(record: Spec) -> str:
-    lines = [f"- [{record.status}] {record.title}"]
+    lines = [f"- `[{record.status}]` **{record.title}** (`{record.slug}`)"]
     if record.branch:
-        lines.append(f"  Branch: {record.branch}")
+        lines.append(f"  Branch: `{record.branch}`")
+    if record.pr_url:
+        lines.append(f"  PR: {record.pr_url}")
     return "\n".join(lines)
 
 
 def _log_entry(record: WorkLog) -> str:
     lines = [
-        f"### {record.filename} ({record.created_at})",
+        f"### 🧾 {record.filename}",
+        "",
+        "```yaml",
+        _format_metadata(
+            {
+                "filename": record.filename,
+                "created_at": record.created_at,
+                "date": record.date,
+                "username": record.username,
+                "spec_slug": record.spec_slug,
+            }
+        ),
+        "```",
         "",
     ]
     body = record.body.strip()
@@ -151,41 +178,55 @@ def _recent_log_records() -> list[WorkLog]:
 
 
 def _state_section() -> list[str]:
-    lines = ["-" * 70, "PROJECT STATE", "-" * 70, ""]
+    lines = _section("📌 PROJECT STATE")
 
     records = specs.list_all()
     if records:
-        lines.append("## Specs")
-        active_records = [record for record in records if record.status != "completed"]
-        completed_records = [record for record in records if record.status == "completed"][:3]
+        lines.append("## 📋 Specs")
+        active_records = [
+            record for record in records if record.status in {"todo", "merge_ready"}
+        ]
+        completed_records = [
+            record for record in records if record.status == "completed"
+        ][:3]
 
-        for record in active_records:
-            lines.append(f"- [{record.status}] {record.title}")
-            task_records = tasks.list_all(record.slug)
-            for task_record in task_records:
-                lines.append(
-                    f"  - [{task_record.status}] "
-                    f"{task_record.title}"
-                )
+        if active_records:
+            lines.append("### 🚧 Active Specs")
+            lines.append("")
+            for record in active_records:
+                lines.append(_spec_summary(record))
+                task_records = tasks.list_all(record.slug)
+                if task_records:
+                    lines.append("")
+                    lines.append("  Tasks:")
+                    for task_record in task_records:
+                        marker = "x" if task_record.status == "completed" else " "
+                        lines.append(f"  - [{marker}] {task_record.title}")
+                lines.append("")
+        else:
+            lines.append("No active specs.")
+            lines.append("")
 
         if completed_records:
-            if active_records:
-                lines.append("")
-            lines.append("### Recently Completed Specs")
+            lines.append("### ✅ Last 3 Completed Specs")
+            lines.append("")
             for record in completed_records:
                 lines.append(_spec_summary(record))
+            lines.append("")
+        elif not active_records:
+            lines.append("No completed specs found.")
         lines.append("")
 
     todo_records = todos.list_all(status="open")
     if todo_records:
-        lines.append("## Open Todos")
+        lines.append("## 📌 Open Todos")
         for record in todo_records:
             lines.append(f"- {record.title}")
         lines.append("")
 
     memory_records = memories.list_all()
     if memory_records:
-        lines.append("## Memories")
+        lines.append("## 💾 Memories")
         for record in memory_records:
             lines.append(f"### {record.title}")
             body = record.body.strip()
@@ -195,7 +236,13 @@ def _state_section() -> list[str]:
 
     log_records = _recent_log_records()
     if log_records:
-        lines.append("## Recent Logs")
+        lines.append("## 📝 Recent Work Logs")
+        lines.append("")
+        lines.append(
+            "Work logs are the continuation record. Each selected log is expanded "
+            "with its metadata and full body."
+        )
+        lines.append("")
         for record in log_records:
             lines.append(_log_entry(record))
             lines.append("")
@@ -219,12 +266,12 @@ def _build_context() -> str:
     config = result.config
     lines = [
         "=" * 70,
-        "PROJECT CONTEXT",
+        "📋 PROJECT CONTEXT",
         "=" * 70,
         "",
-        f"Project: {config.project.name}",
-        f"Description: {config.project.description}",
-        f"Generated: {datetime.now().isoformat()}",
+        f"**Project:** {config.project.name}",
+        f"**Description:** {config.project.description}",
+        f"**Generated:** {datetime.now().isoformat()}",
         "",
     ]
 
@@ -285,5 +332,9 @@ def run(
         return
 
     output_path = _write_output(content)
-    typer.echo(f"Onboard context written to: {_relative(output_path)}")
-    typer.echo(f"Line count: {content.count(chr(10))}")
+    typer.echo(f"✅ Onboard context written to: {_relative(output_path)}")
+    typer.echo(f"📏 Line count: {content.count(chr(10))}")
+    typer.echo(
+        "NB: You must read the full onboard file before proceeding; it contains "
+        "expanded work logs and project continuation context."
+    )

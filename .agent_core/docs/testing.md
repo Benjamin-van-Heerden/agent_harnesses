@@ -33,7 +33,7 @@ If the answer is no, delete the test and focus on more valuable testing efforts.
 
 Remember: "Whenever I'm about to do something, I think, 'Would an idiot do that?' And if they would, I do not do that thing." - Dwight Schrute
 
-DELETE tests that don't follow these principles.
+DELETE tests that don't follow these principles. NO 'IDIOT TESTS'!
 
 **NEVER WRITE OR RUN TESTS UNLESS PROMPTED TO OR WE ARE EXPLICITLY WORKING ON TEST CASES.**
 
