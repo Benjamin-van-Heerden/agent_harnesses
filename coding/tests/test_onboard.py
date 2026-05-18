@@ -62,3 +62,27 @@ def test_template_onboard_expands_current_user_and_recent_logs(tmp_path):
     assert "General log 6" in result.stdout
     assert "General log 2" in result.stdout
     assert "General log 1" not in result.stdout
+
+
+def test_template_onboard_warns_and_continues_when_sync_fails(tmp_path):
+    target = tmp_path / "project"
+    target.mkdir()
+    (target / "README.md").write_text("# Project\n")
+    init_git_project(target)
+    run_command(["git", "add", "README.md"], cwd=target)
+    run_command(["git", "commit", "-m", "track readme"], cwd=target)
+    install_harness(target)
+
+    (target / "README.md").write_text("# Project\nDirty tracked change\n")
+
+    result = run_command(
+        harness_command() + ["onboard", "--stdout"],
+        cwd=target,
+        env=command_env(),
+    )
+
+    assert "🚨 ONBOARD SYNC WARNING" in result.stdout
+    assert "Working tree has uncommitted tracked changes." in result.stdout
+    assert "Read this onboard output in full before proceeding." in result.stdout
+    assert "Report the onboard sync warning and its reason." in result.stdout
+    assert "Project" in result.stdout
