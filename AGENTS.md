@@ -17,6 +17,10 @@ Use this local Python invocation for harness commands. Do not assume a global CL
 
 Onboard gives you everything you need: project info, coding guidelines, active specs, tasks, todos, memories, and recent work logs. The onboard output includes all available commands and project state.
 
+### Note
+
+The onboard command performs git/network operations such as fetch and rebase. It must be ran it in an elevated shell with outbound network access. 
+
 ## About Agent Core
 
 Agent Core is a project-local CLI tool for managing project context in AI-assisted development. It uses a file-first, git-native architecture where all project state is stored as markdown files with YAML frontmatter in the `.agent_core/` directory.
