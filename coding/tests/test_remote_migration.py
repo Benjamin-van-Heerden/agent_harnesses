@@ -1,4 +1,7 @@
 import sys
+from pathlib import Path
+
+from github.Issue import Issue
 
 from constants import SPEC_LABEL, TODO_LABEL, TODO_STATUS_LABEL
 from github_helpers import authenticated_remote_url, clear_repository, client_for_token, token_or_skip
@@ -12,11 +15,11 @@ from helpers import (
 )
 
 
-def _label_names(issue) -> set[str]:
+def _label_names(issue: Issue) -> set[str]:
     return {label.name for label in issue.labels}
 
 
-def test_migrate_original_state_to_project_local_harness(tmp_path):
+def test_migrate_original_state_to_project_local_harness(tmp_path: Path) -> None:
     token = token_or_skip()
     client = client_for_token(token)
     repo = clear_repository(client)

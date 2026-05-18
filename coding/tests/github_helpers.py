@@ -6,6 +6,7 @@ import pytest
 from dotenv import load_dotenv
 from github import Auth, Github, GithubException
 from github.AuthenticatedUser import AuthenticatedUser
+from github.Repository import Repository
 
 from constants import TEST_REPOSITORY_NAME
 from helpers import configure_git, install_harness, run_command
@@ -30,7 +31,7 @@ def client_for_token(token: str) -> Github:
     return client
 
 
-def clear_repository(client: Github):
+def clear_repository(client: Github) -> Repository:
     user = client.get_user()
     full_name = f"{user.login}/{TEST_REPOSITORY_NAME}"
     try:
@@ -56,7 +57,7 @@ def authenticated_remote_url(client: Github, token: str) -> str:
     return f"https://oauth2:{token}@github.com/{user.login}/{TEST_REPOSITORY_NAME}.git"
 
 
-def prepare_remote_project(project_path: Path, token: str, client: Github):
+def prepare_remote_project(project_path: Path, token: str, client: Github) -> Repository:
     repo = clear_repository(client)
     remote_url = authenticated_remote_url(client, token)
 
@@ -80,7 +81,7 @@ def prepare_remote_project(project_path: Path, token: str, client: Github):
     return repo
 
 
-def issue_titles(repo) -> set[str]:
+def issue_titles(repo: Repository) -> set[str]:
     return {
         issue.title
         for issue in repo.get_issues(state="all")

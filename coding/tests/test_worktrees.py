@@ -1,7 +1,9 @@
+from pathlib import Path
+
 from helpers import command_env, harness_command, init_git_project, install_harness, run_command
 
 
-def test_installed_harness_local_worktree_commands(tmp_path):
+def test_installed_harness_local_worktree_commands(tmp_path: Path) -> None:
     target = tmp_path / "project"
     target.mkdir()
     init_git_project(target)

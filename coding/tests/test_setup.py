@@ -1,9 +1,10 @@
 import re
+from pathlib import Path
 
 from helpers import HARNESS_ROOT, init_git_project, install_harness, read_toml, run_command
 
 
-def test_template_setup_preserves_state_and_avoids_removed_surfaces(tmp_path):
+def test_template_setup_preserves_state_and_avoids_removed_surfaces(tmp_path: Path) -> None:
     target = tmp_path / "project"
     target.mkdir()
     init_git_project(target)
@@ -75,7 +76,7 @@ def test_template_setup_preserves_state_and_avoids_removed_surfaces(tmp_path):
         assert re.search(pattern, lowered) is None
 
 
-def test_setup_creates_missing_configured_protected_branches(tmp_path):
+def test_setup_creates_missing_configured_protected_branches(tmp_path: Path) -> None:
     target = tmp_path / "project"
     target.mkdir()
     run_command(["git", "init", "-b", "main"], cwd=target)
@@ -94,7 +95,7 @@ def test_setup_creates_missing_configured_protected_branches(tmp_path):
     assert "test" in branches
 
 
-def test_setup_does_not_activate_commented_files_config(tmp_path):
+def test_setup_does_not_activate_commented_files_config(tmp_path: Path) -> None:
     target = tmp_path / "project"
     target.mkdir()
     init_git_project(target)
@@ -127,7 +128,7 @@ main = "main"
     assert "\n[[files]]" not in content
 
 
-def test_setup_does_not_activate_commented_required_config(tmp_path):
+def test_setup_does_not_activate_commented_required_config(tmp_path: Path) -> None:
     target = tmp_path / "project"
     target.mkdir()
     init_git_project(target)
@@ -161,7 +162,7 @@ def test_setup_does_not_activate_commented_required_config(tmp_path):
     assert "\n[branches]" not in content
 
 
-def test_setup_ignores_configured_symlink_paths(tmp_path):
+def test_setup_ignores_configured_symlink_paths(tmp_path: Path) -> None:
     target = tmp_path / "project"
     target.mkdir()
     init_git_project(target)
@@ -193,7 +194,7 @@ main = "main"
     assert lines.count("nested/cache/") == 1
 
 
-def test_setup_optional_docs_commands_manage_project_local_docs(tmp_path):
+def test_setup_optional_docs_commands_manage_project_local_docs(tmp_path: Path) -> None:
     target = tmp_path / "project"
     target.mkdir()
 

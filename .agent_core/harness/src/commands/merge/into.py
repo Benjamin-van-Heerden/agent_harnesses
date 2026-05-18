@@ -1,7 +1,6 @@
 from typing import Annotated
 
 import typer
-
 from src.commands.merge.utils import (
     list_pull_requests,
     merge_pull_request_into_base,
@@ -31,7 +30,9 @@ def run(
     ] = None,
     force: Annotated[
         bool,
-        typer.Option("--force", "-f", help="Required for merges into the logical main branch"),
+        typer.Option(
+            "--force", "-f", help="Required for merges into the logical main branch"
+        ),
     ] = False,
 ) -> None:
     branches = get_branch_names()

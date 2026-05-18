@@ -1,9 +1,10 @@
 import sys
+from pathlib import Path
 
 from helpers import PROJECT_ROOT, command_env, run_command, write_legacy_state
 
 
-def test_to_harness_dry_run_summarizes_without_mutating(tmp_path):
+def test_to_harness_dry_run_summarizes_without_mutating(tmp_path: Path) -> None:
     target = tmp_path / "project"
     target.mkdir()
     write_legacy_state(target)
@@ -26,7 +27,7 @@ def test_to_harness_dry_run_summarizes_without_mutating(tmp_path):
     assert (target / ".mem").exists()
 
 
-def test_to_harness_requires_github_before_writing_state(tmp_path):
+def test_to_harness_requires_github_before_writing_state(tmp_path: Path) -> None:
     target = tmp_path / "project"
     target.mkdir()
     write_legacy_state(target)
@@ -48,4 +49,3 @@ def test_to_harness_requires_github_before_writing_state(tmp_path):
     assert (target / ".mem").exists()
     assert not (target / ".mem.bak").exists()
     assert not (target / ".agent_core").exists()
-

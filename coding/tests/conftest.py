@@ -2,6 +2,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 import pytest
+from github.Repository import Repository
 
 from github_helpers import client_for_token, prepare_remote_project, token_or_skip
 
@@ -9,12 +10,12 @@ from github_helpers import client_for_token, prepare_remote_project, token_or_sk
 @dataclass(frozen=True)
 class RemoteHarnessProject:
     path: Path
-    repo: object
+    repo: Repository
     token: str = field(repr=False)
 
 
 @pytest.fixture
-def remote_harness_project(tmp_path):
+def remote_harness_project(tmp_path: Path) -> RemoteHarnessProject:
     token = token_or_skip()
     client = client_for_token(token)
     project_path = tmp_path / "project"

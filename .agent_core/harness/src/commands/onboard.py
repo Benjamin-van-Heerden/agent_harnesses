@@ -253,7 +253,39 @@ def _state_section() -> list[str]:
     return lines
 
 
-def _build_context() -> str:
+def _sync_warning_section(sync_warning: str) -> list[str]:
+    lines = _section("🚨 ONBOARD SYNC WARNING")
+    lines.append("The default sync step failed, but onboard context was still generated.")
+    lines.append(f"Reason: {sync_warning}")
+    lines.append("")
+    lines.append("Report this warning to the user before doing any other work.")
+    lines.append("")
+    return lines
+
+
+def _agent_instruction_section(sync_warning: str | None) -> list[str]:
+    lines = _section("⚠️ AGENT INSTRUCTION")
+    lines.append(
+        "Read this onboard output in full before proceeding. It contains project "
+        "context, best practices, state, memories, and continuation notes that are "
+        "essential for every session."
+    )
+    lines.append("")
+    lines.append("Your next response must:")
+    if sync_warning is not None:
+        lines.append("1. Report the onboard sync warning and its reason.")
+        lines.append("2. Briefly summarize the current project state.")
+        lines.append("3. Ask the user how they would like to proceed.")
+    else:
+        lines.append("1. Briefly summarize the current project state.")
+        lines.append("2. Ask the user how they would like to proceed.")
+    lines.append("")
+    lines.append("Do not start implementation work until the user gives explicit instruction.")
+    lines.append("")
+    return lines
+
+
+def _build_context(sync_warning: str | None = None) -> str:
     result = load_project_config(PROJECT_PATHS.config_file)
     if result.config is None:
         if result.validation_error is not None:
@@ -273,10 +305,13 @@ def _build_context() -> str:
         "",
     ]
 
+    if sync_warning is not None:
+        lines.extend(_sync_warning_section(sync_warning))
     lines.extend(_important_files_section(config))
     lines.extend(_tree_sections(config))
     lines.extend(_docs_section())
     lines.extend(_state_section())
+    lines.extend(_agent_instruction_section(sync_warning))
     return "\n".join(lines).rstrip() + "\n"
 
 
@@ -297,6 +332,13 @@ def _write_output(content: str) -> Path:
     return output_path
 
 
+def _sync_warning_from_exit(error: typer.Exit) -> str:
+    cause = error.__cause__
+    if cause is not None:
+        return str(cause)
+    return f"Sync failed with exit code {error.exit_code}."
+
+
 @app.callback(invoke_without_command=True)
 def run(
     stdout: bool = typer.Option(
@@ -310,17 +352,21 @@ def run(
         help="Skip default git/GitHub sync before building context.",
     ),
 ) -> None:
+    sync_warning: str | None = None
     if not no_sync:
         try:
             sync_all(no_git=False)
-        except typer.Exit:
-            raise
+        except typer.Exit as error:
+            if error.exit_code == 0:
+                raise
+            sync_warning = _sync_warning_from_exit(error)
+            typer.echo(f"Onboard sync warning: {sync_warning}", err=True)
         except Exception as error:
-            typer.echo(f"Onboard sync failed: {error}", err=True)
-            raise typer.Exit(code=1) from error
+            sync_warning = str(error)
+            typer.echo(f"Onboard sync warning: {sync_warning}", err=True)
 
     try:
-        content = _build_context()
+        content = _build_context(sync_warning)
     except ValueError as error:
         typer.echo(str(error), err=True)
         raise typer.Exit(code=1) from error

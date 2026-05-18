@@ -2,6 +2,12 @@ import os
 import re
 
 from github import Auth, Github, GithubException
+from github.GithubObject import NotSet, Opt
+from github.Issue import Issue
+from github.NamedUser import NamedUser
+from github.PullRequest import PullRequest
+from github.PullRequestMergeStatus import PullRequestMergeStatus
+from github.Repository import Repository
 
 from src.utils.errors import GitHubError
 from src.utils.git import run_git
@@ -68,14 +74,14 @@ def repo_name() -> str:
     return f"{parsed[0]}/{parsed[1]}"
 
 
-def repository():
+def repository() -> Repository:
     try:
         return get_client().get_repo(repo_name())
     except GithubException as error:
         raise GitHubError(f"Could not open GitHub repository: {error}") from error
 
 
-def ensure_label(repo, name: str, color: str, description: str) -> None:
+def ensure_label(repo: Repository, name: str, color: str, description: str) -> None:
     try:
         repo.get_label(name)
     except GithubException as error:
@@ -87,7 +93,7 @@ def ensure_label(repo, name: str, color: str, description: str) -> None:
             raise GitHubError(f"Could not create label '{name}': {create_error}") from create_error
 
 
-def ensure_labels(repo) -> None:
+def ensure_labels(repo: Repository) -> None:
     ensure_label(repo, SPEC_LABEL, "8B5CF6", "Specification")
     ensure_label(repo, TODO_LABEL, "22C55E", "Standalone todo")
     ensure_label(repo, STATUS_LABELS["todo"], "6B7280", "Not completed")
@@ -121,15 +127,22 @@ def issue_labels(kind: str, status: str) -> list[str]:
     return labels
 
 
-def list_issues(repo, label: str | None = None, state: str = "open") -> list:
+def list_issues(repo: Repository, label: str | None = None, state: str = "open") -> list[Issue]:
     try:
-        issues = repo.get_issues(state=state, labels=[label] if label else None)
+        labels: Opt[list[str]] = [label] if label else NotSet
+        issues = repo.get_issues(state=state, labels=labels)
         return [issue for issue in issues if issue.pull_request is None]
     except GithubException as error:
         raise GitHubError(f"Could not list issues: {error}") from error
 
 
-def create_issue(repo, title: str, body: str, labels: list[str], assignees: list[str] | None = None):
+def create_issue(
+    repo: Repository,
+    title: str,
+    body: str,
+    labels: list[str],
+    assignees: list[str] | None = None,
+) -> Issue:
     try:
         return repo.create_issue(
             title=title,
@@ -141,23 +154,53 @@ def create_issue(repo, title: str, body: str, labels: list[str], assignees: list
         raise GitHubError(f"Could not create issue: {error}") from error
 
 
-def update_issue(repo, issue_id: int, **kwargs):
+def update_issue(
+    repo: Repository,
+    issue_id: int,
+    *,
+    title: Opt[str] = NotSet,
+    body: Opt[str] = NotSet,
+    state: Opt[str] = NotSet,
+    labels: Opt[list[str]] = NotSet,
+    assignees: Opt[list[NamedUser | str]] = NotSet,
+) -> Issue:
     try:
         issue = repo.get_issue(issue_id)
-        issue.edit(**kwargs)
+        issue.edit(
+            title=title,
+            body=body,
+            state=state,
+            labels=labels,
+            assignees=assignees,
+        )
         return issue
     except GithubException as error:
         raise GitHubError(f"Could not update issue #{issue_id}: {error}") from error
 
 
-def create_pull_request(repo, title: str, body: str, head: str, base: str):
+def close_issue_with_comment(
+    repo: Repository,
+    issue_id: int,
+    comment: str,
+    labels: Opt[list[str]] = NotSet,
+) -> Issue:
+    try:
+        issue = repo.get_issue(issue_id)
+        issue.create_comment(comment)
+        issue.edit(state="closed", labels=labels)
+        return issue
+    except GithubException as error:
+        raise GitHubError(f"Could not close issue #{issue_id}: {error}") from error
+
+
+def create_pull_request(repo: Repository, title: str, body: str, head: str, base: str) -> PullRequest:
     try:
         return repo.create_pull(title=title, body=body, head=head, base=base)
     except GithubException as error:
         raise GitHubError(f"Could not create pull request: {error}") from error
 
 
-def merge_pull_request(repo, number: int, commit_message: str):
+def merge_pull_request(repo: Repository, number: int, commit_message: str) -> PullRequestMergeStatus:
     try:
         pull_request = repo.get_pull(number)
         return pull_request.merge(commit_message=commit_message, merge_method="squash")
@@ -165,7 +208,7 @@ def merge_pull_request(repo, number: int, commit_message: str):
         raise GitHubError(f"Could not merge pull request #{number}: {error}") from error
 
 
-def delete_remote_branch(repo, branch: str) -> None:
+def delete_remote_branch(repo: Repository, branch: str) -> None:
     try:
         ref = repo.get_git_ref(f"heads/{branch}")
         ref.delete()

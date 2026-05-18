@@ -1,7 +1,6 @@
 from typing import Annotated
 
 import typer
-
 from src.commands.merge.utils import (
     list_pull_requests,
     merge_pull_request_into_base,
@@ -18,7 +17,9 @@ def run(
     ] = None,
     message: Annotated[
         str | None,
-        typer.Option("--message", "-m", help="Commit message for the pull request merge"),
+        typer.Option(
+            "--message", "-m", help="Commit message for the pull request merge"
+        ),
     ] = None,
 ) -> None:
     branches = get_branch_names()

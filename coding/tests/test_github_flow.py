@@ -1,11 +1,13 @@
 import re
 import shutil
+from pathlib import Path
 
+from conftest import RemoteHarnessProject
 from constants import SPEC_LABEL, TODO_LABEL, TODO_STATUS_LABEL
 from helpers import command_env, harness_command, run_command
 
 
-def _frontmatter_value(path, key: str) -> str | None:
+def _frontmatter_value(path: Path, key: str) -> str | None:
     match = re.search(rf"^{re.escape(key)}:\s*(.+)$", path.read_text(), re.MULTILINE)
     if match is None:
         return None
@@ -20,7 +22,9 @@ def _slugify(value: str) -> str:
     return slug.strip("_")
 
 
-def test_remote_issue_sync_creates_and_imports_state(remote_harness_project):
+def test_remote_issue_sync_creates_and_imports_state(
+    remote_harness_project: RemoteHarnessProject,
+) -> None:
     project_path = remote_harness_project.path
     repo = remote_harness_project.repo
     token = remote_harness_project.token
@@ -48,7 +52,52 @@ def test_remote_issue_sync_creates_and_imports_state(remote_harness_project):
     assert (project_path / ".agent_core" / "todos" / "imported_remote_todo.md").is_file()
 
 
-def test_remote_assignment_completion_and_merge_flow(remote_harness_project):
+def test_todo_new_creates_linked_issue_and_claim_closes_it(
+    remote_harness_project: RemoteHarnessProject,
+) -> None:
+    project_path = remote_harness_project.path
+    repo = remote_harness_project.repo
+    token = remote_harness_project.token
+    command = harness_command()
+    env = command_env({"GITHUB_TOKEN": token})
+
+    run_command(command + ["todo", "new", "Linked Remote Todo", "Linked todo body"], cwd=project_path, env=env)
+
+    todo_file = project_path / ".agent_core" / "todos" / "linked_remote_todo.md"
+    issue_id = _frontmatter_value(todo_file, "issue_id")
+    issue_url = _frontmatter_value(todo_file, "issue_url")
+    assert issue_id is not None
+    assert issue_url is not None
+    assert run_command(["git", "status", "--porcelain"], cwd=project_path).stdout == ""
+
+    issue = repo.get_issue(int(issue_id))
+    assert issue.title == "Linked Remote Todo"
+    assert issue.body == "Linked todo body"
+    assert issue.state == "open"
+    assert {label.name for label in issue.labels} == {TODO_LABEL, TODO_STATUS_LABEL}
+
+    run_command(
+        command + ["todo", "claim", "linked_remote_todo", "harness-test-user"],
+        cwd=project_path,
+        env=env,
+    )
+
+    claimed_file = project_path / ".agent_core" / "todos" / "claimed" / "linked_remote_todo.md"
+    assert claimed_file.is_file()
+    assert _frontmatter_value(claimed_file, "status") == "claimed"
+    assert _frontmatter_value(claimed_file, "claimed_by") == "harness-test-user"
+
+    closed_issue = repo.get_issue(int(issue_id))
+    assert closed_issue.state == "closed"
+    assert {label.name for label in closed_issue.labels} == {TODO_LABEL, "status:completed"}
+    assert list(closed_issue.get_comments())[-1].body == (
+        "Todo claimed by harness-test-user via `todo claim`."
+    )
+
+
+def test_remote_assignment_completion_and_merge_flow(
+    remote_harness_project: RemoteHarnessProject,
+) -> None:
     project_path = remote_harness_project.path
     repo = remote_harness_project.repo
     token = remote_harness_project.token

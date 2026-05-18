@@ -1,8 +1,10 @@
+from pathlib import Path
+
 from constants import GIT_USER_NAME
 from helpers import command_env, harness_command, init_git_project, install_harness, run_command
 
 
-def test_template_onboard_reads_docs_without_indexing(tmp_path):
+def test_template_onboard_reads_docs_without_indexing(tmp_path: Path) -> None:
     target = tmp_path / "project"
     target.mkdir()
     (target / "README.md").write_text("# Project\n")
@@ -26,7 +28,7 @@ def test_template_onboard_reads_docs_without_indexing(tmp_path):
     assert not (target / ".agent_core" / "docs" / "data").exists()
 
 
-def test_template_onboard_expands_current_user_and_recent_logs(tmp_path):
+def test_template_onboard_expands_current_user_and_recent_logs(tmp_path: Path) -> None:
     target = tmp_path / "project"
     target.mkdir()
     (target / "README.md").write_text("# Project\n")
@@ -64,7 +66,7 @@ def test_template_onboard_expands_current_user_and_recent_logs(tmp_path):
     assert "General log 1" not in result.stdout
 
 
-def test_template_onboard_warns_and_continues_when_sync_fails(tmp_path):
+def test_template_onboard_warns_and_continues_when_sync_fails(tmp_path: Path) -> None:
     target = tmp_path / "project"
     target.mkdir()
     (target / "README.md").write_text("# Project\n")

@@ -1,6 +1,7 @@
 from typing import cast
 
 import typer
+from github.Repository import Repository
 
 from src.config.branches import get_branch_names
 from src.config.paths import PROJECT_PATHS
@@ -53,7 +54,7 @@ def github_user() -> None:
         raise typer.Exit(code=1) from error
 
 
-def _sync_specs(repo) -> int:
+def _sync_specs(repo: Repository) -> int:
     actions = 0
     remote_by_number = {issue.number: issue for issue in list_issues(repo, SPEC_LABEL, state="open")}
     local_by_issue = {
@@ -103,7 +104,7 @@ def _sync_specs(repo) -> int:
     return actions
 
 
-def _sync_todos(repo) -> int:
+def _sync_todos(repo: Repository) -> int:
     actions = 0
     remote_by_number = {issue.number: issue for issue in list_issues(repo, TODO_LABEL, state="open")}
     local_by_issue = {

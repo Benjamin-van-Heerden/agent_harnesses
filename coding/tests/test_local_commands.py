@@ -1,3 +1,5 @@
+from pathlib import Path
+
 from helpers import (
     command_env,
     harness_command,
@@ -9,7 +11,7 @@ from helpers import (
 )
 
 
-def test_installed_harness_command_smoke(tmp_path):
+def test_installed_harness_command_smoke(tmp_path: Path) -> None:
     target = tmp_path / "project"
     target.mkdir()
     (target / "README.md").write_text("# Project\n")
