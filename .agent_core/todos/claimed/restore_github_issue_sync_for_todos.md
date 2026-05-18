@@ -1,8 +1,8 @@
 ---
 title: Restore GitHub issue sync for todos
 status: claimed
-issue_id: null
-issue_url: null
+issue_id: 2
+issue_url: https://github.com/Benjamin-van-Heerden/agent_harnesses/issues/2
 created_at: '2026-05-15T15:44:36.273804'
 claimed_by: benjamin_van_heerden
 claimed_at: '2026-05-18T14:23:56.384664'
