@@ -1,4 +1,5 @@
 import typer
+from github.Repository import Repository
 
 from src.state import specs
 from src.utils import git, worktrees
@@ -133,7 +134,7 @@ def _resolve_pull_number(pr_ref: str) -> tuple[int, str | None]:
     return pull_number, record.slug
 
 
-def _complete_spec_after_pr_merge(repo, spec_slug: str) -> None:
+def _complete_spec_after_pr_merge(repo: Repository, spec_slug: str) -> None:
     record = specs.get(spec_slug)
     if record is None:
         return

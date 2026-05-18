@@ -2,13 +2,11 @@ from datetime import datetime, timedelta
 from pathlib import Path
 
 import typer
-
+from src.commands.sync.main import sync_all
 from src.config.main import load_project_config, summarize_validation_error
 from src.config.paths import PROJECT_PATHS
-from src.commands.sync.main import sync_all
 from src.state import logs, memories, specs, tasks, todos
 from src.state.models import Spec, WorkLog
-
 
 app = typer.Typer(help="Build local project context")
 
@@ -66,11 +64,16 @@ def _tree_dir(path: Path, max_entries: int = 300) -> str:
         return f"{_relative(path)} (not a directory)"
 
     entries: list[str] = []
-    for index, child in enumerate(sorted(path.rglob("*"), key=lambda item: str(item).lower())):
+    for index, child in enumerate(
+        sorted(path.rglob("*"), key=lambda item: str(item).lower())
+    ):
         if index >= max_entries:
             entries.append("...")
             break
-        if any(part in {".git", ".venv", "__pycache__", "node_modules"} for part in child.parts):
+        if any(
+            part in {".git", ".venv", "__pycache__", "node_modules"}
+            for part in child.parts
+        ):
             continue
         entries.append(_relative(child) + ("/" if child.is_dir() else ""))
     return "\n".join(entries)
@@ -255,7 +258,9 @@ def _state_section() -> list[str]:
 
 def _sync_warning_section(sync_warning: str) -> list[str]:
     lines = _section("🚨 ONBOARD SYNC WARNING")
-    lines.append("The default sync step failed, but onboard context was still generated.")
+    lines.append(
+        "The default sync step failed, but onboard context was still generated."
+    )
     lines.append(f"Reason: {sync_warning}")
     lines.append("")
     lines.append("Report this warning to the user before doing any other work.")
@@ -265,11 +270,6 @@ def _sync_warning_section(sync_warning: str) -> list[str]:
 
 def _agent_instruction_section(sync_warning: str | None) -> list[str]:
     lines = _section("⚠️ AGENT INSTRUCTION")
-    lines.append(
-        "Read this onboard output in full before proceeding. It contains project "
-        "context, best practices, state, memories, and continuation notes that are "
-        "essential for every session."
-    )
     lines.append("")
     lines.append("Your next response must:")
     if sync_warning is not None:
@@ -280,7 +280,9 @@ def _agent_instruction_section(sync_warning: str | None) -> list[str]:
         lines.append("1. Briefly summarize the current project state.")
         lines.append("2. Ask the user how they would like to proceed.")
     lines.append("")
-    lines.append("Do not start implementation work until the user gives explicit instruction.")
+    lines.append(
+        "Do not start implementation work until the user gives explicit instruction."
+    )
     lines.append("")
     return lines
 
