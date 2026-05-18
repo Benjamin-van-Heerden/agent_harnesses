@@ -1,5 +1,6 @@
 __pycache__
 .agent_core/tmp
+.pytest_cache/
 
 # Agent Core worktree symlinks
 .agent_core/docs/data
