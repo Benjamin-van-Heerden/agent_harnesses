@@ -7,7 +7,7 @@ from src.config.branches import get_branch_names
 from src.config.paths import PROJECT_PATHS
 from src.models.frontmatter import SpecStatus, TodoStatus, create_spec_frontmatter, create_todo_frontmatter
 from src.state import specs, todos
-from src.utils import git
+from src.utils import git, worktrees
 from src.utils.errors import GitError, GitHubError
 from src.utils.github import (
     SPEC_LABEL,
@@ -17,6 +17,7 @@ from src.utils.github import (
     ensure_labels,
     issue_labels,
     list_issues,
+    parse_pull_number,
     repository,
     status_from_labels,
     update_issue,
@@ -166,19 +167,154 @@ def issues() -> None:
 
 
 def sync_git_state() -> None:
-    git.sync_current_branch(get_branch_names())
+    branches = get_branch_names()
+    current = git.current_branch()
+    if current is None:
+        raise GitError("Could not determine current branch.")
+    if git.has_tracked_changes():
+        raise GitError("UNCOMMITTED_CHANGES")
+
+    git.fetch()
+    if worktrees.is_worktree():
+        parent = branches.noswitch_branches.parent_for(current)
+        if parent is not None:
+            git.rebase_onto(f"origin/{parent}")
+            return
+        if current.startswith(f"{branches.dev}-"):
+            git.rebase_onto(f"origin/{branches.dev}")
+            git.push_force_with_lease(current)
+            return
+        raise GitError(
+            f"Worktree sync only supports spec branches based on '{branches.dev}'. Current branch: {current}"
+        )
+
+    if current != branches.dev:
+        raise GitError(
+            f"Sync must run from '{branches.dev}' in the main repository. Current branch: {current}"
+        )
+
+    git.protected_branch_sync(branches)
+
+
+def _print_git_sync_failure(error: GitError) -> None:
+    message = str(error)
+    branches = get_branch_names()
+    if message == "UNCOMMITTED_CHANGES" or "uncommitted tracked changes" in message.lower():
+        typer.echo("", err=True)
+        typer.echo("=" * 60, err=True)
+        typer.echo("UNCOMMITTED CHANGES - COMMIT AND PUSH FIRST", err=True)
+        typer.echo("=" * 60, err=True)
+        typer.echo("", err=True)
+        typer.echo("Cannot sync/rebase with uncommitted tracked changes.", err=True)
+        typer.echo("", err=True)
+        typer.echo("To proceed, commit and push your changes, then run sync again:", err=True)
+        typer.echo("  git add -A && git commit -m '<describe what was done>' && git push", err=True)
+        typer.echo("", err=True)
+        typer.echo("Do not continue implementation work until sync succeeds.", err=True)
+        typer.echo("=" * 60, err=True)
+        return
+
+    if "conflict" in message.lower() or "rebase" in message.lower():
+        typer.echo("", err=True)
+        typer.echo("=" * 60, err=True)
+        typer.echo("REBASE FAILED - MANUAL INTERVENTION REQUIRED", err=True)
+        typer.echo("=" * 60, err=True)
+        typer.echo("", err=True)
+        typer.echo("Could not automatically rebase onto the configured upstream.", err=True)
+        typer.echo("", err=True)
+        typer.echo("To resolve this manually from the current branch:", err=True)
+        typer.echo("  1. git fetch origin", err=True)
+        typer.echo(f"  2. git rebase origin/{branches.dev}", err=True)
+        typer.echo("  3. Resolve any conflicts", err=True)
+        typer.echo("  4. git rebase --continue", err=True)
+        typer.echo("  5. git push --force-with-lease", err=True)
+        typer.echo("  6. python -B .agent_core/harness/main.py sync", err=True)
+        typer.echo("", err=True)
+        typer.echo(f"Reason: {message}", err=True)
+        typer.echo("=" * 60, err=True)
+        return
+
+    typer.echo(f"Git sync failed: {message}", err=True)
+
+
+def _complete_merged_specs(repo: Repository) -> int:
+    if worktrees.is_worktree():
+        return 0
+
+    branches = get_branch_names()
+    current = git.current_branch()
+    if current != branches.dev:
+        return 0
+    if git.has_uncommitted_changes():
+        typer.echo(
+            "Skipping merged spec completion because the working tree is dirty.",
+            err=True,
+        )
+        return 0
+
+    completed = 0
+    for record in specs.list_all(status="merge_ready"):
+        pull_number = parse_pull_number(record.pr_url or "")
+        if pull_number is None:
+            continue
+        try:
+            pull_request = repo.get_pull(pull_number)
+        except Exception:
+            continue
+        if not getattr(pull_request, "merged", False):
+            continue
+
+        specs.update_status(record.slug, "completed")
+        if record.issue_id:
+            update_issue(
+                repo,
+                record.issue_id,
+                state="closed",
+                labels=issue_labels("spec", "completed"),
+            )
+        if record.branch:
+            worktrees.remove(record.slug, force=True)
+            try:
+                git.delete_local_branch(record.branch, force=True)
+            except GitError:
+                pass
+        completed += 1
+
+    if completed:
+        git.add_all()
+        if git.commit(f"sync completed specs ({completed})"):
+            git.push(branches.dev)
+
+    return completed
 
 
 @app.command("all")
-def sync_all(no_git: bool = False) -> None:
+def sync_all(
+    no_git: bool = typer.Option(
+        False,
+        "--no-git",
+        help="Skip git sync, commit, and push operations.",
+    ),
+) -> None:
     if not no_git:
         try:
             sync_git_state()
-        except (GitError, ValueError) as error:
+        except GitError as error:
+            _print_git_sync_failure(error)
+            raise typer.Exit(code=1) from error
+        except ValueError as error:
             typer.echo(str(error), err=True)
             raise typer.Exit(code=1) from error
         status()
     issues()
+    try:
+        repo = repository()
+        completed = _complete_merged_specs(repo)
+        if completed:
+            typer.echo(f"Completed merged specs: {completed}")
+    except GitHubError as error:
+        typer.echo(f"Warning: could not check merged specs: {error}", err=True)
+
     if not no_git:
         try:
             git.add_all()
