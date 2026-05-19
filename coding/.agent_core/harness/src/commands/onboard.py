@@ -9,6 +9,7 @@ from src.config.models import AgentCoreConfig, BranchNames
 from src.config.paths import PROJECT_PATHS
 from src.state import logs, memories, specs, tasks, todos
 from src.state.models import Spec, Task, Todo, WorkLog
+from src.utils import auto_update
 from src.utils import git, worktrees
 from src.utils.errors import GitError
 
@@ -733,6 +734,21 @@ def run(
         except OnboardBlockedError as error:
             typer.echo(str(error), err=True)
             raise typer.Exit(code=1) from error
+
+        try:
+            update_result = auto_update.maybe_update()
+        except auto_update.AutoUpdateError as error:
+            typer.echo("Onboard stopped before building project context.", err=True)
+            typer.echo(f"Harness auto-update failed: {error}", err=True)
+            typer.echo("", err=True)
+            typer.echo(
+                "You must resolve the harness update failure, or set AGENT_CORE_SKIP_AUTO_UPDATE=1 and rerun onboard.",
+                err=True,
+            )
+            raise typer.Exit(code=1) from error
+        if update_result.reexec_required:
+            typer.echo("Harness updated. Restarting onboard with the refreshed harness.")
+            auto_update.reexec_current_command()
 
         try:
             sync_all(no_git=False)

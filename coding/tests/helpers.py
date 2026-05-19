@@ -42,7 +42,7 @@ def harness_command() -> list[str]:
 
 
 def install_harness(project_path: Path) -> None:
-    run_command([str(HARNESS_ROOT / "setup.sh")], cwd=project_path)
+    run_command([sys.executable, str(HARNESS_ROOT / "setup.py")], cwd=project_path)
 
 
 def configure_git(project_path: Path) -> None:

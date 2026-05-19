@@ -1,4 +1,5 @@
 import re
+import sys
 from pathlib import Path
 
 from helpers import HARNESS_ROOT, init_git_project, install_harness, read_toml, run_command
@@ -84,7 +85,7 @@ def test_setup_creates_missing_configured_protected_branches(tmp_path: Path) -> 
     run_command(["git", "config", "user.email", "harness@example.com"], cwd=target)
     run_command(["git", "commit", "--allow-empty", "-m", "initial commit"], cwd=target)
 
-    result = run_command([str(HARNESS_ROOT / "setup.sh")], cwd=target)
+    result = run_command([sys.executable, str(HARNESS_ROOT / "setup.py")], cwd=target)
 
     assert result.returncode == 0
     assert "Created local protected branch: dev" in result.stdout
@@ -150,7 +151,7 @@ def test_setup_does_not_activate_commented_required_config(tmp_path: Path) -> No
 '''
     )
 
-    result = run_command([str(HARNESS_ROOT / "setup.sh")], cwd=target, check=False)
+    result = run_command([sys.executable, str(HARNESS_ROOT / "setup.py")], cwd=target, check=False)
 
     assert result.returncode == 1
     content = config_path.read_text()
@@ -198,12 +199,19 @@ def test_setup_optional_docs_commands_manage_project_local_docs(tmp_path: Path) 
     target = tmp_path / "project"
     target.mkdir()
 
-    available = run_command([str(HARNESS_ROOT / "setup.sh"), "docs", "list"], cwd=target)
+    available = run_command([sys.executable, str(HARNESS_ROOT / "setup.py"), "docs", "list"], cwd=target)
     expected_slugs = sorted(path.stem for path in (HARNESS_ROOT / "optional_docs").glob("*.md"))
     assert available.stdout.splitlines() == expected_slugs
 
     run_command(
-        [str(HARNESS_ROOT / "setup.sh"), "docs", "add", "coding_python", "coding_testing"],
+        [
+            sys.executable,
+            str(HARNESS_ROOT / "setup.py"),
+            "docs",
+            "add",
+            "coding_python",
+            "coding_testing",
+        ],
         cwd=target,
     )
     docs_dir = target / ".agent_core" / "docs"
@@ -215,13 +223,16 @@ def test_setup_optional_docs_commands_manage_project_local_docs(tmp_path: Path) 
     ).read_text()
 
     (docs_dir / "coding_python.md").write_text("stale\n")
-    run_command([str(HARNESS_ROOT / "setup.sh"), "docs", "update"], cwd=target)
+    run_command([sys.executable, str(HARNESS_ROOT / "setup.py"), "docs", "update"], cwd=target)
     assert (docs_dir / "coding_python.md").read_text() == (
         HARNESS_ROOT / "optional_docs" / "coding_python.md"
     ).read_text()
 
     (docs_dir / "coding_testing.md").write_text("stale\n")
-    run_command([str(HARNESS_ROOT / "setup.sh"), "docs", "update", "coding_testing"], cwd=target)
+    run_command(
+        [sys.executable, str(HARNESS_ROOT / "setup.py"), "docs", "update", "coding_testing"],
+        cwd=target,
+    )
     assert (docs_dir / "coding_testing.md").read_text() == (
         HARNESS_ROOT / "optional_docs" / "coding_testing.md"
     ).read_text()

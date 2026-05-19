@@ -54,7 +54,7 @@ Agent Core is a project-local CLI tool for managing project context in AI-assist
 **Documents:**
 - Durable project context that should appear during onboard belongs in `.agent_core/docs/`.
 - Onboard reads markdown documents from `.agent_core/docs/` directly.
-- Optional repo-local docs can be managed from the harness template with `setup.sh docs list`, `setup.sh docs add <slug> [slug ...]`, and `setup.sh docs update [slug ...]`.
+- Optional repo-local docs can be managed from the harness template with `setup.py docs list`, `setup.py docs add <slug> [slug ...]`, and `setup.py docs update [slug ...]`.
 
 ## Project State
 
@@ -69,7 +69,7 @@ Project-owned state lives in `.agent_core/`:
 - `.agent_core/docs/`
 
 The managed runtime lives in `.agent_core/harness/` and may be overwritten by
-`setup.sh --update`.
+`setup.py --update`.
 
 ## Memories
 
@@ -165,4 +165,4 @@ Strong success criteria let you loop independently. Weak criteria like "make it 
 This project deals with agentic harness development. Critically, the agentic harness for coding *is itself used to develop the other harnesses*. As a result, mutating python scripts in .agent_core/src *will not have the intended effect of updating the harness itself*. Work and changes to the coding harness should be made under coding/.
 
 Should the local .agent_core/ need updating, the loop *must* be: 
-> make changes to coding/ -> git push -> run `bash <(curl -sL https://raw.githubusercontent.com/Benjamin-van-Heerden/agent_harnesses/main/coding/setup.sh) --update`
+> make changes to coding/ -> git push -> run `python -c "import urllib.request; exec(urllib.request.urlopen('https://raw.githubusercontent.com/Benjamin-van-Heerden/agent_harnesses/main/coding/setup.py').read())" -- --update`

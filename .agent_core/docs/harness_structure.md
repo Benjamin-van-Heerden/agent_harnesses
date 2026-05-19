@@ -9,10 +9,10 @@ This document is descriptive guidance. It explains how native harnesses are expe
 A native harness has three main surfaces:
 
 - `AGENTS.md`: the agent entrypoint and workflow contract.
-- `setup.sh`: the installer and updater for any target project directory.
+- `setup.py`: the stdlib-only installer and updater for any target project directory.
 - `.agent_core/harness/`: the project-local Python runtime that implements the CLI commands.
 
-The installed project also has a root-level `.agent_core/` directory that holds project-owned state. That root-level state is not where harness development happens. Harness implementation changes belong in the harness template itself, for example `coding/.agent_core/harness/`, then get propagated by `setup.sh`.
+The installed project also has a root-level `.agent_core/` directory that holds project-owned state. That root-level state is not where harness development happens. Harness implementation changes belong in the harness template itself, for example `coding/.agent_core/harness/`, then get propagated by `setup.py`.
 
 ## AGENTS.md
 
@@ -28,13 +28,13 @@ The file may intentionally expose only part of the harness capability surface. T
 
 The installed `AGENTS.md` should contain a managed core block from the harness template. If an installed project already has an `AGENTS.md`, setup should update the managed block without deleting project-specific notes outside that block.
 
-## setup.sh
+## setup.py
 
-`setup.sh` installs the harness into the current working directory. It should be possible to run it from any chosen target project directory.
+`setup.py` installs the harness into the current working directory. It should be possible to run it from any chosen target project directory. The installer must use only the Python standard library so it can run before harness dependencies have been installed.
 
 In the reference harness, setup does the following:
 
-- resolves the harness template locally or by cloning the harness repository;
+- resolves the harness template locally or by downloading the harness repository archive;
 - creates required project state directories under `.agent_core/`;
 - creates or updates `.agent_core/config.toml` without clobbering existing
   project choices;
@@ -44,9 +44,9 @@ In the reference harness, setup does the following:
   needed;
 - installs or updates the managed block in `AGENTS.md`;
 - manages compatibility files, such as `CLAUDE.md` linking to `AGENTS.md`;
-- exposes optional documentation commands such as `setup.sh docs list`, `setup.sh docs add`, and `setup.sh docs update`.
+- exposes optional documentation commands such as `setup.py docs list`, `setup.py docs add`, and `setup.py docs update`.
 
-The important split is that setup may replace the managed runtime, but it must preserve project-owned state. A `setup.sh --update` should refresh the harness implementation without deleting specs, todos, memories, logs, docs, config, or other durable project data.
+The important split is that setup may replace the managed runtime, but it must preserve project-owned state. A `setup.py --update` should refresh the harness implementation without deleting specs, todos, memories, logs, docs, config, or other durable project data.
 
 ## Installed .agent_core
 
@@ -219,7 +219,7 @@ The expected update loop for the coding harness is:
 ```bash
 # make changes under coding/
 git push
-bash <(curl -sL https://raw.githubusercontent.com/Benjamin-van-Heerden/agent_harnesses/main/coding/setup.sh) --update
+python -c "import urllib.request; exec(urllib.request.urlopen('https://raw.githubusercontent.com/Benjamin-van-Heerden/agent_harnesses/main/coding/setup.py').read())" -- --update
 ```
 
 That loop keeps the installed runtime disposable and makes the template the source of truth.
