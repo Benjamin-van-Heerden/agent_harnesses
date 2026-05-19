@@ -524,7 +524,7 @@ def _agent_instruction_section(
             item_number += 1
 
     lines.append(
-        f"{item_number}. Summarize the current project state. Use tables where appropriate and make it look nice. Be concise, yet informative."
+        f"{item_number}. Summarize the current project state. Use tables where appropriate and make it look nice (don't be overly reliant on tables, only add them if applicable)."
     )
     item_number += 1
     lines.append(f"{item_number}. Ask the user how they would like to proceed.")

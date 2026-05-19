@@ -1,5 +1,4 @@
 import typer
-
 from src.config.branches import get_branch_names
 from src.config.models import BranchNames
 from src.utils import git
@@ -40,34 +39,36 @@ def _remote_status_summary(branch: str, branches: BranchNames) -> str:
     target = _sync_target_branch(branch, branches)
     remote_ref = f"origin/{target}"
     if not git.remote_branch_exists(target):
-        return f"Remote check: `{remote_ref}` does not exist."
+        return f"Remote inspection after fetch: `{remote_ref}` does not exist."
 
     remote_only = _commit_count(f"HEAD..{remote_ref}")
     local_only = _commit_count(f"{remote_ref}..HEAD")
     if remote_only is None or local_only is None:
-        return f"Remote check: could not compare `HEAD` with `{remote_ref}`."
+        return f"Remote inspection after fetch: could not compare `HEAD` with `{remote_ref}`."
 
     if target != branch:
         return (
-            f"Remote check: current branch `{branch}` syncs against `{remote_ref}`; "
+            f"Remote inspection after fetch: current branch `{branch}` will sync against `{remote_ref}` after the working tree is clean; "
             f"{remote_only} remote commit(s) and {local_only} local commit(s) differ."
         )
     if remote_only and local_only:
         return (
-            f"Remote check: `{branch}` has diverged from `{remote_ref}` "
+            f"Remote inspection after fetch: `{branch}` has diverged from `{remote_ref}` "
             f"({local_only} local commit(s), {remote_only} remote commit(s))."
         )
     if remote_only:
         return (
-            f"Remote check: `{branch}` is behind `{remote_ref}` by "
+            f"Remote inspection after fetch: `{branch}` is behind `{remote_ref}` by "
             f"{remote_only} commit(s)."
         )
     if local_only:
         return (
-            f"Remote check: `{branch}` is ahead of `{remote_ref}` by "
+            f"Remote inspection after fetch: `{branch}` is ahead of `{remote_ref}` by "
             f"{local_only} commit(s)."
         )
-    return f"Remote check: `{branch}` is up to date with `{remote_ref}`."
+    return (
+        f"Remote inspection after fetch: `{branch}` is up to date with `{remote_ref}`."
+    )
 
 
 def _status_lines(max_lines: int = 20) -> list[str]:
@@ -85,7 +86,11 @@ def _dirty_worktree_message(continue_requested: bool) -> str:
     except (GitError, ValueError) as error:
         remote_status = f"Remote check failed after fetch: {error}"
 
-    lines = ["Onboard stopped before building project context."]
+    lines = [
+        "Onboard stopped before building project context.",
+        "Remote fetch completed so the harness could inspect upstream state.",
+        "Git sync/rebase was not attempted because the working tree is dirty.",
+    ]
     if continue_requested:
         lines.append("`--continue` was requested, but the working tree is still dirty.")
     lines.append(remote_status)
@@ -96,7 +101,7 @@ def _dirty_worktree_message(continue_requested: bool) -> str:
         [
             "",
             "You must resolve these changes before onboarding can continue.",
-            "Commit, stash, or discard the local changes, then run:",
+            "Commit, or otherwise resolve the local changes, then run:",
             "  python -B .agent_core/harness/main.py onboard --continue",
             "",
             "No onboard context file was created because local context may be stale.",
