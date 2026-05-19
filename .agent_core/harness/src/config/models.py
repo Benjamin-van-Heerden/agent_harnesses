@@ -37,6 +37,20 @@ class WorktreeConfig(BaseModel):
     )
 
 
+class HarnessConfig(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+
+    last_updated_at: str | None = Field(
+        default=None,
+        description="Last successful harness update timestamp",
+    )
+    update_interval_days: int = Field(
+        default=3,
+        ge=0,
+        description="Number of days before onboard checks for a harness update",
+    )
+
+
 class NoSwitchBranch(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
@@ -95,6 +109,7 @@ class AgentCoreConfig(BaseModel):
     files: list[ImportantFileConfig] = Field(default_factory=list)
     tree_dirs: list[TreeDirConfig] = Field(default_factory=list)
     worktree: WorktreeConfig = Field(default_factory=WorktreeConfig)
+    harness: HarnessConfig = Field(default_factory=HarnessConfig)
     branches: BranchConfig
 
 
