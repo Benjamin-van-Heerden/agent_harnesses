@@ -482,9 +482,12 @@ def ensure_update_branch(target_root: Path, config_file: Path, update: bool) -> 
     current = run_git(target_root, ["branch", "--show-current"]).stdout.strip()
     if not current:
         fail("Error: setup --update must run on a named branch, not detached HEAD.")
-    if current == dev:
+    if current == dev or current.startswith(f"{dev}-"):
         return
-    fail(f"Error: setup --update must run from the configured dev branch '{dev}'. Current branch: {current}")
+    fail(
+        f"Error: setup --update must run from the configured dev branch '{dev}' "
+        f"or a '{dev}-*' spec branch. Current branch: {current}"
+    )
 
 
 def install_harness(template_root: Path, state_dir: Path) -> None:
