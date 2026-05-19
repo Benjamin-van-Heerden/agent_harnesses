@@ -2,6 +2,7 @@ from typing import Annotated
 
 import typer
 from src.commands.merge.utils import (
+    dry_run_promote_branch,
     list_pull_requests,
     merge_pull_request_into_base,
     promote_branch,
@@ -45,19 +46,31 @@ def run(
             return
         if logical_source == "pr":
             if pr_ref is None:
+                require_clean_worktree()
+                require_current_branch(branches.dev)
                 list_pull_requests(branches.test)
                 return
             require_clean_worktree()
-            require_current_branch(branches.test)
+            require_current_branch(branches.dev)
             merge_pull_request_into_base(pr_ref, branches.test, message)
             return
         _invalid_merge_into(target, source)
 
     if logical_target == "main":
         if logical_source == "pr" and pr_ref is None:
+            require_clean_worktree()
+            require_current_branch(branches.dev)
             list_pull_requests(branches.main)
             return
         if not force:
+            if logical_source == "test":
+                dry_run_promote_branch(branches.test, branches.main)
+                typer.echo("")
+                typer.echo("This was a dry run. To execute, run:")
+                typer.echo(
+                    "  python -B .agent_core/harness/main.py merge into main test --force"
+                )
+                return
             typer.echo("Merges into the logical main branch require --force.", err=True)
             raise typer.Exit(code=1)
         if logical_source == "test":
@@ -65,7 +78,7 @@ def run(
             return
         if logical_source == "pr":
             require_clean_worktree()
-            require_current_branch(branches.main)
+            require_current_branch(branches.dev)
             merge_pull_request_into_base(pr_ref or "", branches.main, message)
             return
         _invalid_merge_into(target, source)
