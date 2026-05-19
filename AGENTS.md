@@ -13,8 +13,6 @@ python -B .agent_core/harness/main.py onboard
 
 Be on the lookout for trigger phrases like "Let's get to work", "Let's go" or "Get onboarded". If you see one, run the onboard command to get started.
 
-Use this local Python invocation for harness commands. Do not assume a global CLI is installed on `PATH`.
-
 Onboard gives you everything you need: project info, coding guidelines, active specs, tasks, todos, memories, and recent work logs. The onboard output includes all available commands and project state.
 
 ### Note

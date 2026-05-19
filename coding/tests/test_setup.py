@@ -21,15 +21,15 @@ def test_template_setup_preserves_state_and_avoids_removed_surfaces(tmp_path: Pa
     assert ".claude/" in gitignore_lines
     assert not (target / ".agent_core" / "tmp").exists()
     assert (target / "AGENTS.md").read_text().strip()
-    assert (target / ".agent_core" / "docs" / "general.md").read_text() == (
-        HARNESS_ROOT / "optional_docs" / "general.md"
+    assert (target / ".agent_core" / "docs" / "coding_general.md").read_text() == (
+        HARNESS_ROOT / "optional_docs" / "coding_general.md"
     ).read_text()
-    assert (target / ".agent_core" / "docs" / "testing.md").read_text() == (
-        HARNESS_ROOT / "optional_docs" / "testing.md"
+    assert (target / ".agent_core" / "docs" / "coding_testing.md").read_text() == (
+        HARNESS_ROOT / "optional_docs" / "coding_testing.md"
     ).read_text()
 
     (target / ".agent_core" / "specs" / "keep.md").write_text("state\n")
-    (target / ".agent_core" / "docs" / "general.md").write_text("project notes\n")
+    (target / ".agent_core" / "docs" / "coding_general.md").write_text("project notes\n")
     config_path = target / ".agent_core" / "config.toml"
     run_command(["git", "branch", "prod"], cwd=target)
     config_path.write_text('[project]\nname = "Custom"\n\n[branches]\nmain = "prod"\n')
@@ -45,7 +45,7 @@ def test_template_setup_preserves_state_and_avoids_removed_surfaces(tmp_path: Pa
     assert config["branches"]["test"] == "test"
     assert not stale_file.exists()
     assert (target / ".agent_core" / "specs" / "keep.md").read_text() == "state\n"
-    assert (target / ".agent_core" / "docs" / "general.md").read_text() == "project notes\n"
+    assert (target / ".agent_core" / "docs" / "coding_general.md").read_text() == "project notes\n"
     gitignore_lines = (target / ".gitignore").read_text().splitlines()
     assert gitignore_lines.count(".agent_core/docs/data") == 1
     assert gitignore_lines.count(".agent_core/docs/data/") == 1
@@ -202,23 +202,26 @@ def test_setup_optional_docs_commands_manage_project_local_docs(tmp_path: Path) 
     expected_slugs = sorted(path.stem for path in (HARNESS_ROOT / "optional_docs").glob("*.md"))
     assert available.stdout.splitlines() == expected_slugs
 
-    run_command([str(HARNESS_ROOT / "setup.sh"), "docs", "add", "python", "testing"], cwd=target)
+    run_command(
+        [str(HARNESS_ROOT / "setup.sh"), "docs", "add", "coding_python", "coding_testing"],
+        cwd=target,
+    )
     docs_dir = target / ".agent_core" / "docs"
-    assert (docs_dir / "python.md").read_text() == (
-        HARNESS_ROOT / "optional_docs" / "python.md"
+    assert (docs_dir / "coding_python.md").read_text() == (
+        HARNESS_ROOT / "optional_docs" / "coding_python.md"
     ).read_text()
-    assert (docs_dir / "testing.md").read_text() == (
-        HARNESS_ROOT / "optional_docs" / "testing.md"
+    assert (docs_dir / "coding_testing.md").read_text() == (
+        HARNESS_ROOT / "optional_docs" / "coding_testing.md"
     ).read_text()
 
-    (docs_dir / "python.md").write_text("stale\n")
+    (docs_dir / "coding_python.md").write_text("stale\n")
     run_command([str(HARNESS_ROOT / "setup.sh"), "docs", "update"], cwd=target)
-    assert (docs_dir / "python.md").read_text() == (
-        HARNESS_ROOT / "optional_docs" / "python.md"
+    assert (docs_dir / "coding_python.md").read_text() == (
+        HARNESS_ROOT / "optional_docs" / "coding_python.md"
     ).read_text()
 
-    (docs_dir / "testing.md").write_text("stale\n")
-    run_command([str(HARNESS_ROOT / "setup.sh"), "docs", "update", "testing"], cwd=target)
-    assert (docs_dir / "testing.md").read_text() == (
-        HARNESS_ROOT / "optional_docs" / "testing.md"
+    (docs_dir / "coding_testing.md").write_text("stale\n")
+    run_command([str(HARNESS_ROOT / "setup.sh"), "docs", "update", "coding_testing"], cwd=target)
+    assert (docs_dir / "coding_testing.md").read_text() == (
+        HARNESS_ROOT / "optional_docs" / "coding_testing.md"
     ).read_text()

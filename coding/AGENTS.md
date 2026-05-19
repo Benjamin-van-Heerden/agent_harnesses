@@ -17,48 +17,13 @@ Use this local Python invocation for harness commands. Do not assume a global CL
 
 Onboard gives you everything you need: project info, coding guidelines, active specs, tasks, todos, memories, and recent work logs. The onboard output includes all available commands and project state.
 
-### Note
-
-The onboard command performs git/network operations such as fetch and rebase. It must be ran it in an elevated shell with outbound network access. 
+**Note:** The onboard command (and indeed many of the harness commands) performs git/network operations such as fetch and rebase. It must be ran it in an elevated shell with outbound network access. Run all harness commands with such elevation.
 
 ## About Agent Core
 
 Agent Core is a project-local CLI tool for managing project context in AI-assisted development. It uses a file-first, git-native architecture where all project state is stored as markdown files with YAML frontmatter in the `.agent_core/` directory.
 
-**Core concepts:**
-- **Specs**: High-level feature specifications linked to GitHub issues.
-- **Tasks**: Concrete work items within a spec.
-- **Todos**: Standalone work items not tied to a spec, synced with GitHub issues.
-- **Memories**: Short, atomic notes about patterns, conventions, or preferences in the codebase.
-- **Work Logs**: Session records of what was done and what's next.
-
-**Key commands:**
-- `python -B .agent_core/harness/main.py spec new "title"` - Create a new spec.
-- `python -B .agent_core/harness/main.py sync issues` - Sync the project context with the remote repository. This is a very important command. It ensures the remote knows about local specs and todos before assignment or GitHub-linked work.
-- `python -B .agent_core/harness/main.py spec assign <slug>` - Assign spec to and create worktree. DO NOT ASSIGN SPECS WITHOUT EXPLICIT CONSENT.
-- `python -B .agent_core/harness/main.py task new <spec_slug> "title" "detailed description with implementation notes if necessary"` - Create a task under a specific spec.
-- `python -B .agent_core/harness/main.py task complete <spec_slug> <task_slug> "detailed notes about what was done"` - Mark task done.
-- `python -B .agent_core/harness/main.py spec complete <slug> "detailed commit message"` - Create PR and mark spec merge-ready.
-- `python -B .agent_core/harness/main.py log new` - Create work log for the session. This is an extremely important command that should be run towards the end of every session. If you feel at any point your context window is becoming too large, suggest creating a log and continuing in a new session.
-
-**Todos (standalone work items):**
-- `python -B .agent_core/harness/main.py todo new "title" "description"` - Create a todo and linked GitHub issue.
-- `python -B .agent_core/harness/main.py todo list` - List all open todos.
-- `python -B .agent_core/harness/main.py todo claim <slug> <user>` - Claim a todo and close the linked GitHub issue.
-
-**Memories (project-specific notes):**
-- `python -B .agent_core/harness/main.py memory new "title" "content"` - Create a memory, a short note about a pattern, convention, or preference.
-- `python -B .agent_core/harness/main.py memory list` - List all memories.
-- `python -B .agent_core/harness/main.py memory show <slug>` - Show memory details.
-- `python -B .agent_core/harness/main.py memory update <slug> "new content"` - Update a memory.
-- `python -B .agent_core/harness/main.py memory delete <slug>` - Delete a memory.
-
-**Documents:**
-- Durable project context that should appear during onboard belongs in `.agent_core/docs/`.
-- Onboard reads markdown documents from `.agent_core/docs/` directly.
-- Optional repo-local docs can be managed from the harness template with `setup.sh docs list`, `setup.sh docs add <slug> [slug ...]`, and `setup.sh docs update [slug ...]`.
-
-## Project State
+### Project State
 
 Project-owned state lives in `.agent_core/`:
 
@@ -70,16 +35,54 @@ Project-owned state lives in `.agent_core/`:
 - `.agent_core/logs/`
 - `.agent_core/docs/`
 
-The managed runtime lives in `.agent_core/harness/` and may be overwritten by
-`setup.sh --update`.
+### Concepts and Commands
 
-## Memories
+**Note**: For all of the agent core commands, the global python interpreter should ALWAYS be used.
 
+**Specs (larger pieces of planned work):**
+Specs are high-level feature or change specifications linked to GitHub issues. They are used when work needs planning, task breakdown, assignment, a worktree, and a PR lifecycle.
+
+- `python -B .agent_core/harness/main.py spec new "title"` - Create a draft spec.
+- `python -B .agent_core/harness/main.py spec sync <slug>` - Create or update the linked GitHub issue after the spec body and tasks are ready.
+- `python -B .agent_core/harness/main.py spec assign <slug>` - Assign the spec and create its worktree. DO NOT ASSIGN SPECS WITHOUT EXPLICIT CONSENT.
+- `python -B .agent_core/harness/main.py spec complete <slug> "detailed commit message"` - Create the PR and mark the spec merge-ready.
+
+**Tasks (concrete work inside a spec):**
+Tasks are actionable work items that belong to a spec. When run from a spec worktree, task commands infer the active spec. Use `--spec <slug>` only when managing a specific spec from outside its worktree (this will be the case most of the time, since planning and spec creation happens in non spec branches - where specs are not yet "active").
+
+- `python -B .agent_core/harness/main.py task new "title" "detailed description with implementation notes if necessary" --spec <slug>` - Create a task in the active spec.
+- `python -B .agent_core/harness/main.py task complete <task_slug> "detailed notes about what was done"` - Mark a task complete in the active spec (this command only really makes sense when within a spec branch/worktree).
+
+**Todos (standalone matters that require attention):**
+Todos are short notes on tasks that need to be completed or triaged. If the workload of a todo is large, create a spec for the implementation. Treat todos as a mechanism to draw attention to problems or changes, not full guidelines. As such, **when starting work on a todo, claim it immediately**.
+
+- `python -B .agent_core/harness/main.py todo new "title" "description"` - Create a todo and linked GitHub issue.
+- `python -B .agent_core/harness/main.py todo list` - List all open todos.
+- `python -B .agent_core/harness/main.py todo claim <slug> <user>` - Claim a todo and close the linked GitHub issue.
+
+**Work Logs (session records):**
+Work logs capture what happened in a session, what changed, blockers, and next steps. They are end-of-session artifacts that help the next agent continue with accurate context.
+
+- `python -B .agent_core/harness/main.py log new` - Create a work log for the session. This is an extremely important command that should be run towards the end of every session.
+
+**Memories (atomic notes on patterns and conventions)**
 Memories are short, atomic notes about patterns, conventions, or preferences in the codebase. They are shown during onboard so every session has access to accumulated project knowledge.
 
 - **When the user asks you to remember something** - create a memory with `python -B .agent_core/harness/main.py memory new "title" "content"`.
 - **When you notice a useful pattern** - suggest creating a memory, but only create it if the user agrees.
 - Do not use external memory tools. Use the project-local harness memory command instead.
+- `python -B .agent_core/harness/main.py memory list` - List all memories.
+- `python -B .agent_core/harness/main.py memory show <slug>` - Show memory details.
+- `python -B .agent_core/harness/main.py memory update <slug> "new content"` - Update a memory.
+- `python -B .agent_core/harness/main.py memory delete <slug>` - Delete a memory.
+
+**Documents (durable project context):**
+Documents are durable project context files that appear during onboard. They belong in `.agent_core/docs/`. Their creation and management is done manually by the user. DO NOT create or update files in `.agent_core/docs` without explicit consent.
+
+**Repair Commands (manual reconciliation):**
+Repair commands are for explicit recovery or reconciliation. Do not run them as part of normal onboarding; `onboard` already syncs version control and issue state before building context. Any repair command should be a last resort.
+
+- `python -B .agent_core/harness/main.py sync issues` - Reconcile local specs and todos with linked GitHub issues when issue metadata has drifted or a previous sync failed.
 
 ## Notes
 
@@ -90,15 +93,16 @@ Memories are short, atomic notes about patterns, conventions, or preferences in 
 - When running any harness command that talks to GitHub, **ALWAYS** allow for at least 60 seconds of execution time because the GitHub API can hang.
 - `python -B .agent_core/harness/main.py log new` is not an interactive command. When prompted to "Create a log" or "Let's log", run the log command and follow the instructions.
 - Do not create logs arbitrarily, logs are meant to be end of session artifacts that inform the next session. If it is your estimation that a session is becoming long or if your interaction with the user would indicate that some form of context corruption has occurred (constant pushback, frustration etc.), you may suggest creating a log and changing over to a fresh session.
-- When working in the context of a spec inside a worktree directory, you are ABSOLUTELY NEVER allowed to perform mutating action on the main repo directory in any way shape or form. No git operations. If any merge or rebase fails inside a spec, you must resolve the issues inside that spec.
+- When working in the context of a spec inside a worktree directory, you are ABSOLUTELY NEVER allowed to perform mutating action on the main repo directory in any way shape or form. If any merge or rebase fails inside a spec, you must resolve the issues inside that spec.
 - Do not add your name or the fact that you co-authored something to any commit messages. Commit messages should be clean and descriptive, with no extra information.
-- Do not run onboard arbitrarily - its output can be very large and typically within the scope of a session it will not provide additional information. The purpose of the onboard command is to sync/build initial context. No other time is it necessary unless the user asks.
+- Do not run the onboard command arbitrarily - its output can be very large and typically within the scope of a session it will not provide additional information. The purpose of the onboard command is to sync version control and build initial context. No other time is it necessary unless the user asks.
 - The outputs produced by harness commands are to be strictly adhered to. Especially in cases where the harness instructs you to stop and give feedback. This is important to keep a human in the loop.
 - When working within a spec, DO NOT CREATE TASKS unless explicitly prompted to do so.
-- Preserve project-owned state during harness updates.
 - Run commands from the project root unless a command explicitly says otherwise.
 - When you encounter a file or changes that you did not make, you must stop and ask about them. Removing such files or changes is NOT ACCEPTABLE unless explicit consent is given.
 - When you are interrupted by the user with "Stop" or "No" or similar, you must **IMMEDIATELY** stop what you are doing, give a brief explanation of what you were busy with, and wait for further instructions. DO NOT continue working.
+
+---------------------------------------------------------------
 
 ## Behavioral Guidelines
 

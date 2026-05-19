@@ -512,7 +512,7 @@ install_default_docs() {
     local slug
     local source
     local target
-    for slug in general testing; do
+    for slug in coding_general coding_testing; do
         if ! source="$(optional_doc_path "$slug")"; then
             continue
         fi
@@ -523,36 +523,6 @@ install_default_docs() {
         cp "$source" "$target"
         echo "Included default doc: $slug"
     done
-}
-
-prompt_optional_docs() {
-    if [[ ! -t 0 ]]; then
-        return
-    fi
-
-    local available=()
-    local slug
-    while IFS= read -r slug; do
-        [[ "$slug" != "general" && "$slug" != "testing" ]] || continue
-        [[ ! -f "$STATE_DIR/docs/$slug.md" ]] || continue
-        available+=("$slug")
-    done < <(docs_list)
-
-    if [[ "${#available[@]}" -eq 0 ]]; then
-        return
-    fi
-
-    echo "Additional optional docs are available: ${available[*]}"
-    echo "Enter slugs separated by spaces to install them, or press Enter to skip."
-
-    local selected
-    read -r -p "Optional docs: " selected
-    if [[ -z "$selected" ]]; then
-        return
-    fi
-
-    # shellcheck disable=SC2086
-    docs_add $selected
 }
 
 docs_update() {
@@ -617,8 +587,10 @@ install_harness
 ensure_user_mappings
 install_agents_file
 ensure_claude_file
+if $UPDATE; then
+    docs_update
+fi
 install_default_docs
-prompt_optional_docs
 
 if $UPDATE; then
     echo "Updated project-local harness."
