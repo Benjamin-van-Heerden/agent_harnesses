@@ -3,8 +3,10 @@ from pathlib import Path
 import typer
 
 from src.commands.spec.models.result import SpecCommandResult
+from src.config.branches import get_branch_names
 from src.config.paths import PROJECT_PATHS
 from src.state import specs
+from src.utils import git, worktrees
 
 
 def _relative(path: Path) -> str:
@@ -15,6 +17,20 @@ def _relative(path: Path) -> str:
 
 
 def run(title: str, body: str | None = None) -> None:
+    branches = get_branch_names()
+    current = git.current_branch()
+    if worktrees.is_worktree():
+        typer.echo("Error: Cannot create specs from a worktree.", err=True)
+        typer.echo("Run this command from the main repository on the dev branch.", err=True)
+        raise typer.Exit(code=1)
+    if current != branches.dev:
+        typer.echo(
+            f"Error: Must be on '{branches.dev}' to create specs. Currently on '{current or 'detached HEAD'}'.",
+            err=True,
+        )
+        typer.echo(f"Run: git checkout {branches.dev}", err=True)
+        raise typer.Exit(code=1)
+
     path = specs.create(title, body=body or specs.DEFAULT_BODY)
     result = SpecCommandResult(slug=path.parent.name, path=path)
     relative_path = _relative(result.path)
@@ -43,15 +59,17 @@ def run(title: str, body: str | None = None) -> None:
     typer.echo("")
     typer.echo("If this spec addresses any open todos, claim them.")
     typer.echo("")
+    typer.echo(
+        "DO NOT attempt to sync a spec without first filling in the body or creating at least one task."
+    )
+    typer.echo("")
     typer.echo("IMPORTANT: Worktree Workflow")
     typer.echo("")
     typer.echo("Create tasks before running `spec assign`.")
     typer.echo("After assignment, start a new agent session in the worktree.")
     typer.echo("")
     typer.echo("Remember:")
-    typer.echo(
-        "A new agent session will handle implementation work after assignment."
-    )
+    typer.echo("A new agent session will handle implementation work after assignment.")
     typer.echo(
         "That agent will only know the important files and decisions captured in the spec body and tasks."
     )
