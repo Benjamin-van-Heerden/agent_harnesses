@@ -123,7 +123,10 @@ def _spec_preview(record: Spec, max_chars: int = 300) -> str:
 
 
 def _format_task_detail(record: Task) -> list[str]:
-    lines = [f"> **{record.title}**"]
+    lines = [
+        f"> **{record.title}**",
+        f"> `slug: {record.slug}`",
+    ]
     body = record.body.strip()
     if body:
         lines.extend(["", body])
