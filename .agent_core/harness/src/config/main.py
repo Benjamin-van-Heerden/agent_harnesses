@@ -212,7 +212,9 @@ def generate_default_config_toml(
     lines.extend(
         [
             "[worktree]",
-            f"# {_description(WorktreeConfig, 'symlink_paths')}",
+            "# Project-root relative paths to symlink from the main checkout into spec worktrees.",
+            "# Every listed path is automatically added to .gitignore and must be safe to keep untracked.",
+            "# Typical examples are .env, .claude, .venv, node_modules, or deps. Use care with manifests and lock files such as pyproject.toml, package.json, or bun.lock; list them only when the project deliberately treats them as local-only.",
             f"symlink_paths = [{symlinks}]",
             "",
             "[harness]",

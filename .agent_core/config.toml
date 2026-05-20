@@ -15,7 +15,10 @@ description = "Project overview and setup instructions"
 # description = "Source code"
 
 [worktree]
-symlink_paths = [".agent_core/docs/data", ".claude"]
+# Project-root relative paths to symlink from the main checkout into spec worktrees.
+# Every listed path is automatically added to .gitignore and must be safe to keep untracked.
+# Typical examples are .env, .claude, .venv, node_modules, or deps. Use care with manifests and lock files such as pyproject.toml, package.json, or bun.lock; list them only when the project deliberately treats them as local-only.
+symlink_paths = [".claude"]
 
 [branches]
 main = "main"
@@ -24,4 +27,4 @@ dev = "dev"
 
 [harness]
 update_interval_days = 3
-last_updated_at = "2026-05-20T12:52:57Z"
+last_updated_at = "2026-05-20T13:29:36Z"

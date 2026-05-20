@@ -74,3 +74,6 @@ def run(slug: str) -> None:
     typer.echo("")
     typer.echo("When the user gives permission, run:")
     typer.echo(f"  python -B .agent_core/harness/main.py spec assign {slug}")
+    typer.echo("")
+    typer.echo("To assign another mapped GitHub user without creating a local worktree, run:")
+    typer.echo(f"  python -B .agent_core/harness/main.py spec assign {slug} --assignee <github_username>")

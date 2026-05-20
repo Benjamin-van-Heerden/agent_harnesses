@@ -3,6 +3,14 @@ import re
 from pathlib import Path
 
 
+WORKTREE_SYMLINK_PATHS_COMMENT = [
+    "# Project-root relative paths to symlink from the main checkout into spec worktrees.",
+    "# Every listed path is automatically added to .gitignore and must be safe to keep untracked.",
+    "# Typical examples are .env, .claude, .venv, node_modules, or deps. Use care with manifests and lock files such as pyproject.toml, package.json, or bun.lock; list them only when the project deliberately treats them as local-only.",
+]
+LEGACY_WORKTREE_SYMLINK_PATHS_COMMENT = "# Paths to symlink into worktrees instead of copying"
+
+
 def default_config(project_name: str) -> str:
     return f'''[project]
 name = "{project_name}"
@@ -16,7 +24,10 @@ Add your project description here.
 # description = "Project overview and setup instructions"
 
 [worktree]
-symlink_paths = [".agent_core/docs/data", ".claude"]
+# Project-root relative paths to symlink from the main checkout into spec worktrees.
+# Every listed path is automatically added to .gitignore and must be safe to keep untracked.
+# Typical examples are .env, .claude, .venv, node_modules, or deps. Use care with manifests and lock files such as pyproject.toml, package.json, or bun.lock; list them only when the project deliberately treats them as local-only.
+symlink_paths = [".claude"]
 
 [branches]
 dev = "dev"
@@ -122,6 +133,40 @@ def insert_key(content: str, section: str, line: str) -> str:
     return append_if_missing(content, f"{section_header}\n{line}")
 
 
+def find_section_key_line(lines: list[str], section: str, key: str) -> int | None:
+    in_section = False
+    section_header = f"[{section}]"
+
+    for index, line in enumerate(lines):
+        stripped = line.strip()
+        if stripped == section_header:
+            in_section = True
+            continue
+        if in_section and stripped.startswith("["):
+            return None
+        if in_section and re.match(rf"^{re.escape(key)}\s*=", stripped):
+            return index
+    return None
+
+
+def ensure_key_comment(content: str, section: str, key: str, comment_lines: list[str]) -> str:
+    lines = content.splitlines()
+    key_index = find_section_key_line(lines, section, key)
+    if key_index is None:
+        return content
+
+    comment_count = len(comment_lines)
+    comment_start = key_index - comment_count
+    if comment_start >= 0 and lines[comment_start:key_index] == comment_lines:
+        return content
+
+    if key_index > 0 and lines[key_index - 1].strip() == LEGACY_WORKTREE_SYMLINK_PATHS_COMMENT:
+        lines[key_index - 1 : key_index] = comment_lines
+    else:
+        lines[key_index:key_index] = comment_lines
+    return "\n".join(lines).rstrip() + "\n"
+
+
 def upsert_config(path: Path, project_name: str) -> None:
     if not path.exists():
         path.parent.mkdir(parents=True, exist_ok=True)
@@ -153,14 +198,18 @@ Add your project description here.
         content = append_if_missing(
             content,
             '''[worktree]
-symlink_paths = [".agent_core/docs/data", ".claude"]''',
+# Project-root relative paths to symlink from the main checkout into spec worktrees.
+# Every listed path is automatically added to .gitignore and must be safe to keep untracked.
+# Typical examples are .env, .claude, .venv, node_modules, or deps. Use care with manifests and lock files such as pyproject.toml, package.json, or bun.lock; list them only when the project deliberately treats them as local-only.
+symlink_paths = [".claude"]''',
         )
     elif section_exists(content, "worktree") and not key_declared(content, "worktree", "symlink_paths"):
         content = insert_key(
             content,
             "worktree",
-            'symlink_paths = [".agent_core/docs/data", ".claude"]',
+            'symlink_paths = [".claude"]',
         )
+    content = ensure_key_comment(content, "worktree", "symlink_paths", WORKTREE_SYMLINK_PATHS_COMMENT)
 
     if not section_declared(content, "branches"):
         content = append_if_missing(

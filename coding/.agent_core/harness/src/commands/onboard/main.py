@@ -11,9 +11,12 @@ from src.commands.onboard.preflight import (
     run_git_preflight,
     sync_warning_from_exit,
 )
+from src.config.main import load_project_config, summarize_validation_error
+from src.config.paths import PROJECT_PATHS
 from src.commands.sync.main import sync_all
 from src.utils import auto_update
 from src.utils.errors import GitError, GitHubError
+from src.utils.gitignore import ensure_symlink_paths_ignored
 
 app = typer.Typer(help="Build local project context")
 
@@ -38,6 +41,21 @@ def run(
 ) -> None:
     sync_warning: str | None = None
     assigned_worktrees: list[AssignedWorktreeResult] = []
+    config_result = load_project_config(PROJECT_PATHS.config_file)
+    if config_result.config is None:
+        if config_result.validation_error is not None:
+            summary = summarize_validation_error(config_result.validation_error)
+            typer.echo(f"Invalid {PROJECT_PATHS.config_file_display}:\n{summary}", err=True)
+        else:
+            typer.echo(f"Missing or empty {PROJECT_PATHS.config_file_display}", err=True)
+        raise typer.Exit(code=1)
+
+    try:
+        ensure_symlink_paths_ignored(config_result.config, PROJECT_PATHS.project_root / ".gitignore")
+    except ValueError as error:
+        typer.echo(str(error), err=True)
+        raise typer.Exit(code=1) from error
+
     if not no_sync:
         try:
             run_git_preflight(continue_requested)

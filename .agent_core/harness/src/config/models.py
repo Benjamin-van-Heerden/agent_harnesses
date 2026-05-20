@@ -32,8 +32,8 @@ class WorktreeConfig(BaseModel):
     model_config = ConfigDict(extra="ignore")
 
     symlink_paths: list[str] = Field(
-        default=[".agent_core/docs/data", ".claude"],
-        description="Paths to symlink into worktrees instead of copying",
+        default=[".claude"],
+        description="Project-root relative paths that must be symlinked from the main checkout into spec worktrees. Every listed path is automatically added to .gitignore and must be safe to keep untracked, such as .env, .claude, .venv, node_modules, deps, or deliberately local-only manifest and lock files.",
     )
 
 

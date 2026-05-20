@@ -1,5 +1,9 @@
 import typer
 
+from src.commands.onboard.assigned_worktrees import (
+    AssignedWorktreeResult,
+    create_missing_for_authenticated_user,
+)
 from src.commands.onboard.content import build_context, relative
 from src.commands.onboard.output import write_output
 from src.commands.onboard.preflight import (
@@ -7,9 +11,12 @@ from src.commands.onboard.preflight import (
     run_git_preflight,
     sync_warning_from_exit,
 )
+from src.config.main import load_project_config, summarize_validation_error
+from src.config.paths import PROJECT_PATHS
 from src.commands.sync.main import sync_all
 from src.utils import auto_update
-from src.utils.errors import GitError
+from src.utils.errors import GitError, GitHubError
+from src.utils.gitignore import ensure_symlink_paths_ignored
 
 app = typer.Typer(help="Build local project context")
 
@@ -33,6 +40,22 @@ def run(
     ),
 ) -> None:
     sync_warning: str | None = None
+    assigned_worktrees: list[AssignedWorktreeResult] = []
+    config_result = load_project_config(PROJECT_PATHS.config_file)
+    if config_result.config is None:
+        if config_result.validation_error is not None:
+            summary = summarize_validation_error(config_result.validation_error)
+            typer.echo(f"Invalid {PROJECT_PATHS.config_file_display}:\n{summary}", err=True)
+        else:
+            typer.echo(f"Missing or empty {PROJECT_PATHS.config_file_display}", err=True)
+        raise typer.Exit(code=1)
+
+    try:
+        ensure_symlink_paths_ignored(config_result.config, PROJECT_PATHS.project_root / ".gitignore")
+    except ValueError as error:
+        typer.echo(str(error), err=True)
+        raise typer.Exit(code=1) from error
+
     if not no_sync:
         try:
             run_git_preflight(continue_requested)
@@ -79,8 +102,21 @@ def run(
             sync_warning = str(error)
             typer.echo(f"Onboard sync warning: {sync_warning}", err=True)
 
+        if sync_warning is None:
+            try:
+                assigned_worktrees = create_missing_for_authenticated_user()
+            except (GitError, GitHubError, ValueError) as error:
+                typer.echo("Onboard stopped while creating assigned spec worktrees.", err=True)
+                typer.echo(str(error), err=True)
+                typer.echo("", err=True)
+                typer.echo(
+                    "You must resolve the assigned worktree failure, then rerun onboard.",
+                    err=True,
+                )
+                raise typer.Exit(code=1) from error
+
     try:
-        content = build_context(sync_warning)
+        content = build_context(sync_warning, assigned_worktrees)
     except ValueError as error:
         typer.echo(str(error), err=True)
         raise typer.Exit(code=1) from error

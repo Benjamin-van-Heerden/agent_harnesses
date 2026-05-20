@@ -15,9 +15,9 @@ def test_template_setup_preserves_state_and_avoids_removed_surfaces(tmp_path: Pa
     assert (target / ".agent_core" / "harness").is_dir()
     assert (target / ".agent_core" / "config.toml").is_file()
     assert (target / ".agent_core" / "user_mappings.toml").is_file()
+    config = read_toml(target / ".agent_core" / "config.toml")
+    assert config["worktree"]["symlink_paths"] == [".claude"]
     gitignore_lines = (target / ".gitignore").read_text().splitlines()
-    assert ".agent_core/docs/data" in gitignore_lines
-    assert ".agent_core/docs/data/" in gitignore_lines
     assert ".claude" in gitignore_lines
     assert ".claude/" in gitignore_lines
     assert not (target / ".agent_core" / "tmp").exists()
@@ -48,8 +48,6 @@ def test_template_setup_preserves_state_and_avoids_removed_surfaces(tmp_path: Pa
     assert (target / ".agent_core" / "specs" / "keep.md").read_text() == "state\n"
     assert (target / ".agent_core" / "docs" / "coding_general.md").read_text() == "project notes\n"
     gitignore_lines = (target / ".gitignore").read_text().splitlines()
-    assert gitignore_lines.count(".agent_core/docs/data") == 1
-    assert gitignore_lines.count(".agent_core/docs/data/") == 1
     assert gitignore_lines.count(".claude") == 1
     assert gitignore_lines.count(".claude/") == 1
     assert not (target / ".agent_core" / "tmp").exists()
@@ -188,6 +186,9 @@ main = "main"
 
     install_harness(target)
 
+    content = config_path.read_text()
+    assert "# Project-root relative paths to symlink from the main checkout into spec worktrees." in content
+    assert 'symlink_paths = [".custom_link", "nested/cache/"]' in content
     lines = (target / ".gitignore").read_text().splitlines()
     assert lines.count(".custom_link") == 1
     assert lines.count(".custom_link/") == 1

@@ -11,6 +11,14 @@ def test_template_onboard_reads_docs_without_indexing(tmp_path: Path) -> None:
     init_git_project(target)
     install_harness(target)
 
+    config_path = target / ".agent_core" / "config.toml"
+    config_path.write_text(
+        config_path.read_text().replace(
+            'symlink_paths = [".claude"]',
+            'symlink_paths = [".claude", ".env"]',
+        )
+    )
+
     docs_dir = target / ".agent_core" / "docs"
     (docs_dir / "nested").mkdir()
     (docs_dir / "alpha.md").write_text("Alpha doc body\n")
@@ -24,6 +32,9 @@ def test_template_onboard_reads_docs_without_indexing(tmp_path: Path) -> None:
 
     assert "Alpha doc body" in result.stdout
     assert "Beta doc body" in result.stdout
+    gitignore_lines = (target / ".gitignore").read_text().splitlines()
+    assert ".env" in gitignore_lines
+    assert ".env/" in gitignore_lines
     assert not (target / ".agent_core" / "tmp").exists()
     assert not (target / ".agent_core" / "docs" / "data").exists()
 
