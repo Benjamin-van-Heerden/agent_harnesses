@@ -232,8 +232,12 @@ def _recent_log_records(active_spec: Spec | None) -> list[WorkLog]:
         selected.append(record)
         seen.add(record.filename)
 
-    candidates = {record.filename: record for record in [*current_records, *general_records]}
-    for record in sorted(candidates.values(), key=lambda item: item.created_at, reverse=True):
+    candidates = {
+        record.filename: record for record in [*current_records, *general_records]
+    }
+    for record in sorted(
+        candidates.values(), key=lambda item: item.created_at, reverse=True
+    ):
         if record.filename in seen:
             continue
         selected.append(record)
@@ -291,19 +295,32 @@ def _git_state_section(branch: str, active_spec: Spec | None) -> list[str]:
     return lines
 
 
-def _available_specs_section() -> list[str]:
+def _spec_worktrees() -> list[worktrees.WorktreeInfo]:
+    return [record for record in worktrees.list_all() if not record.is_main]
+
+
+def _available_specs_section(branch: str) -> list[str]:
     lines = subsection("📋 AVAILABLE SPECS")
-    lines.append("No spec is currently active. You are in the main repo.")
+    branches = get_branch_names()
+    lines.append(
+        f"No spec is currently active. You are in the main repo on `{branch}`."
+    )
+    if branch == branches.dev:
+        lines.append(
+            f"This is mission control mode on `{branches.dev}` branch. Open specs are context, not the current workspace."
+        )
     lines.append("")
 
-    spec_worktrees = [record for record in worktrees.list_all() if not record.is_main]
+    spec_worktrees = _spec_worktrees()
     if spec_worktrees:
-        lines.append("### Active worktrees")
-        lines.append("Each worktree is an isolated workspace for a spec.")
+        lines.append("### Open spec worktrees")
+        lines.append("These specs are already checked out in isolated workspaces.")
         for record in spec_worktrees:
             lines.append(f"- {record.path.name}: {record.path}")
         lines.append("")
-        lines.append("To work on a spec, open a terminal in its worktree directory.")
+        lines.append(
+            "To work on one of those specs, start a new agent session in its worktree directory."
+        )
         lines.append("")
 
     merge_ready_specs = specs.list_all(status="merge_ready")
@@ -321,7 +338,7 @@ def _available_specs_section() -> list[str]:
 
     todo_specs = specs.list_all(status="todo")
     if todo_specs:
-        lines.append("### Specs to work on")
+        lines.append("### Open specs")
         for record in todo_specs:
             lines.append(f"## {record.slug} ({record.status})")
             lines.append(f"Title: {record.title}")
@@ -438,7 +455,7 @@ def _open_todos_section(records: list[Todo]) -> list[str]:
     return lines
 
 
-def _workflow_hints_section(active_spec: Spec | None) -> list[str]:
+def _workflow_hints_section(active_spec: Spec | None, branch: str) -> list[str]:
     lines = subsection("💡 AGENT WORKFLOW HINTS")
     if active_spec is not None:
         lines.append("Working with tasks:")
@@ -464,14 +481,28 @@ def _workflow_hints_section(active_spec: Spec | None) -> list[str]:
             f'- When all tasks are done, run: `python -B .agent_core/harness/main.py spec complete {active_spec.slug} "detailed commit message"`'
         )
     else:
-        lines.append(
-            "Choose a spec worktree or ask the user which todo/spec to handle next."
-        )
+        branches = get_branch_names()
+        if branch == branches.dev:
+            lines.append(f"You are in mission control mode on `{branches.dev}` branch.")
+            lines.append(
+                "From here, the agent can make small ad hoc edits, create a new spec, manage existing specs, or inspect project state."
+            )
+            lines.append(
+                "Open spec worktrees are separate checked-out workspaces; do not treat them as being within the current scope of work."
+            )
+        else:
+            lines.append(
+                "No spec is currently active. Ask the user whether this non-spec checkout should be used for ad hoc work or project management."
+            )
     lines.append("")
     return lines
 
 
-def _next_steps_section(active_spec: Spec | None, open_todos: list[Todo]) -> list[str]:
+def _next_steps_section(
+    active_spec: Spec | None,
+    open_todos: list[Todo],
+    branch: str,
+) -> list[str]:
     lines = subsection("👉 SUGGESTED NEXT STEPS")
     if active_spec is not None:
         pending = [
@@ -487,12 +518,21 @@ def _next_steps_section(active_spec: Spec | None, open_todos: list[Todo]) -> lis
                 f'1. Finalize the spec and run the completion command: `python -B .agent_core/harness/main.py spec complete {active_spec.slug} "detailed commit message"`'
             )
     else:
+        branches = get_branch_names()
+        if branch == branches.dev:
+            lines.append(
+                "1. Ask whether to make ad hoc edits on `dev` or create/manage a spec."
+            )
+        else:
+            lines.append(
+                f"1. Ask what work should happen from the current non-spec branch `{branch}`."
+            )
         lines.append(
-            '1. Create a new spec: `python -B .agent_core/harness/main.py spec new "feature name"`'
+            '2. Create a new spec if needed: `python -B .agent_core/harness/main.py spec new "feature name"`'
         )
         if open_todos:
             lines.append(
-                '2. Or work on a todo: `python -B .agent_core/harness/main.py todo claim "<title or slug>" <user>`'
+                '3. Or claim a todo if directed: `python -B .agent_core/harness/main.py todo claim "<title or slug>" <user>`'
             )
     lines.append("")
     lines.append("Remember to create a work log at the end of your session:")
@@ -581,15 +621,15 @@ def _onboard_output_section(sync_warning: str | None) -> list[str]:
     if active_spec is not None:
         lines.extend(_format_active_spec(active_spec))
     else:
-        lines.extend(_available_specs_section())
+        lines.extend(_available_specs_section(branch))
 
     lines.extend(_work_logs_section(active_spec))
 
     if active_spec is None:
         lines.extend(_open_todos_section(open_todos))
 
-    lines.extend(_workflow_hints_section(active_spec))
-    lines.extend(_next_steps_section(active_spec, open_todos))
+    lines.extend(_workflow_hints_section(active_spec, branch))
+    lines.extend(_next_steps_section(active_spec, open_todos, branch))
     lines.extend(_agent_instruction_section(sync_warning, active_spec, open_todos))
     return lines
 
