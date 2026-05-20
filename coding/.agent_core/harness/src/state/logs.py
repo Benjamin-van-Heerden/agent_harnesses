@@ -1,33 +1,55 @@
 import subprocess
-import tomllib
 from datetime import datetime
 from pathlib import Path
 
+import tomllib
 from pydantic import BaseModel, ConfigDict, TypeAdapter
-
 from src.config.paths import PROJECT_PATHS
 from src.models.frontmatter import LogFrontmatter, create_log_frontmatter
 from src.state.models import WorkLog
 from src.utils.markdown import read_markdown, slugify, write_markdown
 
-
-DEFAULT_TEMPLATE = """# Work Log - {short title}
+DEFAULT_TEMPLATE = """Work Log - {short title}
 
 ## Overarching Goals
 
-{goals}
+{
+Broad goals and what we were trying to achieve with this work in the context of our interaction so far.
+}
 
 ## What Was Accomplished
 
-{work}
+{
+Description of what was done. Use appropriate subtitles to organize work done and things achieved.
+
+Don't mention anything that is not relevant to actual changes made, e.g. deliberations or context building actions. You can be technical here and use actual code snippets and examples.
+}
 
 ## Key Files Affected
 
-{files}
+{
+List of files affected and changes made. Be reasonably detailed here
+}
+
+## Errors and Barriers
+
+{
+Implementation errors and barriers encountered that have not been resolved yet. Mention approaches which were tried and failed so we can learn from them and avoid repeating mistakes.
+
+(Omit this entire section if there were no errors or barriers)
+}
 
 ## What Comes Next
 
-{next}
+{
+If there are next steps or logical progressions from where we were, mention/list them here.
+
+If we were on an active spec, mention which parts of the spec were completed and which parts need further work.
+
+Do not mention "obvious things" here such as harness commands that need to be ran or tasks that still need completion.
+
+(This section may also be omitted entirely if nothing major needs to happen or if the user doesn't specify things they want for future sessions)
+}
 """
 
 
@@ -86,7 +108,9 @@ def _parse_filename(filename: str) -> tuple[str, datetime] | None:
     parts = base.rsplit("_", 2)
     if len(parts) == 3:
         try:
-            return parts[0], datetime.strptime(f"{parts[1]}_{parts[2]}", "%Y%m%d_%H%M%S")
+            return parts[0], datetime.strptime(
+                f"{parts[1]}_{parts[2]}", "%Y%m%d_%H%M%S"
+            )
         except ValueError:
             return None
     return None

@@ -51,6 +51,14 @@ class Spec(BaseModel):
     def created_at(self) -> str:
         return self.frontmatter.created_at
 
+    @property
+    def updated_at(self) -> str:
+        return self.frontmatter.updated_at
+
+    @property
+    def completed_at(self) -> str | None:
+        return self.frontmatter.completed_at
+
 
 class Task(BaseModel):
     model_config = ConfigDict(extra="forbid")
@@ -67,6 +75,18 @@ class Task(BaseModel):
     @property
     def status(self) -> str:
         return self.frontmatter.status
+
+    @property
+    def created_at(self) -> str:
+        return self.frontmatter.created_at
+
+    @property
+    def updated_at(self) -> str:
+        return self.frontmatter.updated_at
+
+    @property
+    def completed_at(self) -> str | None:
+        return self.frontmatter.completed_at
 
 
 class Todo(BaseModel):
@@ -92,6 +112,18 @@ class Todo(BaseModel):
     def issue_url(self) -> str | None:
         return self.frontmatter.issue_url
 
+    @property
+    def created_at(self) -> str:
+        return self.frontmatter.created_at
+
+    @property
+    def claimed_by(self) -> str | None:
+        return self.frontmatter.claimed_by
+
+    @property
+    def claimed_at(self) -> str | None:
+        return self.frontmatter.claimed_at
+
 
 class Memory(BaseModel):
     model_config = ConfigDict(extra="forbid")
@@ -107,6 +139,10 @@ class Memory(BaseModel):
     @property
     def created_at(self) -> str:
         return self.frontmatter.created_at
+
+    @property
+    def updated_at(self) -> str:
+        return self.frontmatter.updated_at
 
 
 class WorkLog(BaseModel):

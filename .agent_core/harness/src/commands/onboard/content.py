@@ -197,10 +197,18 @@ def _format_active_spec(record: Spec) -> list[str]:
     return lines
 
 
-def _log_entry(record: WorkLog) -> str:
+def _log_entry(record: WorkLog, current_username: str) -> str:
+    user_note = (
+        "!! Current user work log !!"
+        if record.username == current_username
+        else "This work log originates from a different user"
+    )
+    spec_slug = record.spec_slug or "N/A"
     lines = [
         *file(f"🧾 {record.filename}"),
+        user_note,
         f"> Date: {record.created_at}",
+        f"> Spec: {spec_slug}",
         "",
     ]
     body = record.body.strip()
@@ -209,34 +217,39 @@ def _log_entry(record: WorkLog) -> str:
 
 
 def _recent_log_records(active_spec: Spec | None) -> list[WorkLog]:
-    if active_spec is not None:
-        return sorted(
-            logs.list_all(limit=100, spec_slug=active_spec.slug),
-            key=lambda item: item.created_at,
-        )
-
     current_username = logs.current_username()
+    spec_slug = active_spec.slug if active_spec is not None else None
+    current_records = logs.list_all(
+        limit=5,
+        spec_slug=spec_slug,
+        username=current_username,
+    )
+    general_records = logs.list_all(limit=5, spec_slug=spec_slug)
     selected: list[WorkLog] = []
     seen: set[str] = set()
 
-    for record in logs.list_all(limit=3, username=current_username):
+    for record in current_records[:3]:
         selected.append(record)
         seen.add(record.filename)
 
-    general_count = 0
-    for record in logs.list_all(limit=20):
-        if record.username == current_username:
-            continue
+    candidates = {record.filename: record for record in [*current_records, *general_records]}
+    for record in sorted(candidates.values(), key=lambda item: item.created_at, reverse=True):
         if record.filename in seen:
             continue
         selected.append(record)
         seen.add(record.filename)
-        general_count += 1
-        if general_count >= 5:
+        if len(selected) >= 6:
             break
 
     selected.sort(key=lambda item: item.created_at)
     return selected
+
+
+def _current_user_section() -> list[str]:
+    return [
+        f"**Current User:** `{logs.current_username()}`",
+        "",
+    ]
 
 
 def _current_branch() -> str:
@@ -366,6 +379,7 @@ def _memories_section() -> list[str]:
 
 def _work_logs_section(active_spec: Spec | None) -> list[str]:
     lines = subsection("📝 RECENT WORK LOGS")
+    current_username = logs.current_username()
     if active_spec is not None:
         lines.append(
             "This is a dedicated spec worktree. Only work logs linked to "
@@ -373,15 +387,14 @@ def _work_logs_section(active_spec: Spec | None) -> list[str]:
         )
     else:
         lines.append(
-            "No spec is currently active. This section shows recent project work logs, "
-            "with the current user's logs first."
+            "No spec is currently active. This section shows recent project work logs."
         )
     lines.append("")
 
     log_records = _recent_log_records(active_spec)
     if log_records:
         for record in log_records:
-            lines.append(_log_entry(record))
+            lines.append(_log_entry(record, current_username))
             lines.append("")
     elif active_spec is not None:
         lines.append(
@@ -560,6 +573,7 @@ def _onboard_output_section(sync_warning: str | None) -> list[str]:
     open_todos = todos.list_all(status="open")
 
     lines = heading("📄 ONBOARD OUTPUT")
+    lines.extend(_current_user_section())
     lines.extend(_git_state_section(branch, active_spec))
     if sync_warning is not None:
         lines.extend(_sync_warning_section(sync_warning))

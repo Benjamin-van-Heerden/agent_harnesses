@@ -1,7 +1,7 @@
 import typer
 from typing import cast
 
-from src.commands.todo.utils.formatting import format_summary
+from src.commands.utils.listing import short_datetime, table_lines
 from src.models.frontmatter import TodoStatus
 from src.state import todos
 
@@ -19,9 +19,45 @@ def _parse_status(status: str | None) -> TodoStatus | None:
 
 
 def run(status: str | None = None) -> None:
-    records = todos.list_all(status=_parse_status(status))
+    parsed_status = _parse_status(status)
+    records = todos.list_all(status=parsed_status)
     if not records:
-        typer.echo("No todos found.")
+        status_text = f" {parsed_status}" if parsed_status else ""
+        typer.echo(f"No{status_text} todos found.")
         return
-    for record in records:
-        typer.echo(format_summary(record))
+
+    open_count = sum(1 for record in todos.list_all() if record.status == "open")
+    typer.echo("TODOS")
+    typer.echo(f"Open: {open_count}")
+    if parsed_status is not None:
+        typer.echo(f"Filter: {parsed_status}")
+    typer.echo("")
+
+    columns = [
+        ("Status", 10),
+        ("Slug", 34),
+        ("Title", 42),
+        ("Issue", 42),
+        ("Claimed By", 24),
+        ("Date", 16),
+    ]
+    rows = [
+        [
+            record.status,
+            record.slug,
+            record.title,
+            record.issue_url
+            or (str(record.issue_id) if record.issue_id is not None else "N/A"),
+            record.claimed_by or "N/A",
+            short_datetime(record.claimed_at or record.created_at),
+        ]
+        for record in records
+    ]
+    for line in table_lines(columns, rows):
+        typer.echo(line)
+
+    typer.echo("")
+    typer.echo(f"Total: {len(records)} todo(s)")
+    if open_count:
+        typer.echo("Open todos must be claimed before work starts.")
+    typer.echo('Claim: python -B .agent_core/harness/main.py todo claim "<title or slug>" <user>')
