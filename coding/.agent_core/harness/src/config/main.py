@@ -166,12 +166,7 @@ def generate_default_config_toml(
     noswitch_branches: NoSwitchBranches | None = None,
 ) -> str:
     if important_files is None:
-        important_files = [
-            ImportantFileConfig(
-                path="README.md",
-                description="Project overview and setup instructions",
-            )
-        ]
+        important_files = []
     if symlink_paths is None:
         symlink_paths = WorktreeConfig().symlink_paths
 
@@ -188,11 +183,17 @@ def generate_default_config_toml(
         "# Files to include in onboard output",
     ]
 
-    for item in important_files:
-        lines.append("[[files]]")
-        lines.append(f'path = "{_escape_toml_string(item.path)}"')
-        if item.description:
-            lines.append(f'description = "{_escape_toml_string(item.description)}"')
+    if important_files:
+        for item in important_files:
+            lines.append("[[files]]")
+            lines.append(f'path = "{_escape_toml_string(item.path)}"')
+            if item.description:
+                lines.append(f'description = "{_escape_toml_string(item.description)}"')
+            lines.append("")
+    else:
+        lines.append("# [[files]]")
+        lines.append('# path = "README.md"')
+        lines.append('# description = "Project overview and setup instructions"')
         lines.append("")
 
     lines.append("# Directories whose tree structure is included in onboard output")

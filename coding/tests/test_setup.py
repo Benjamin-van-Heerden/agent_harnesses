@@ -14,6 +14,7 @@ def test_template_setup_preserves_state_and_avoids_removed_surfaces(tmp_path: Pa
 
     assert (target / ".agent_core" / "harness").is_dir()
     assert (target / ".agent_core" / "config.toml").is_file()
+    assert (target / ".agent_core" / "README.md").read_text() == (HARNESS_ROOT / "README.md").read_text()
     assert (target / ".agent_core" / "user_mappings.toml").is_file()
     config = read_toml(target / ".agent_core" / "config.toml")
     assert config["worktree"]["symlink_paths"] == [".claude"]
@@ -31,6 +32,7 @@ def test_template_setup_preserves_state_and_avoids_removed_surfaces(tmp_path: Pa
 
     (target / ".agent_core" / "specs" / "keep.md").write_text("state\n")
     (target / ".agent_core" / "docs" / "coding_general.md").write_text("project notes\n")
+    (target / ".agent_core" / "README.md").write_text("stale readme\n")
     config_path = target / ".agent_core" / "config.toml"
     run_command(["git", "branch", "prod"], cwd=target)
     config_path.write_text('[project]\nname = "Custom"\n\n[branches]\nmain = "prod"\n')
@@ -47,6 +49,7 @@ def test_template_setup_preserves_state_and_avoids_removed_surfaces(tmp_path: Pa
     assert not stale_file.exists()
     assert (target / ".agent_core" / "specs" / "keep.md").read_text() == "state\n"
     assert (target / ".agent_core" / "docs" / "coding_general.md").read_text() == "project notes\n"
+    assert (target / ".agent_core" / "README.md").read_text() == (HARNESS_ROOT / "README.md").read_text()
     gitignore_lines = (target / ".gitignore").read_text().splitlines()
     assert gitignore_lines.count(".claude") == 1
     assert gitignore_lines.count(".claude/") == 1

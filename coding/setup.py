@@ -582,6 +582,13 @@ def install_harness(template_root: Path, state_dir: Path) -> None:
     shutil.copytree(source, target)
 
 
+def install_harness_readme(template_root: Path, state_dir: Path) -> None:
+    source = template_root / "README.md"
+    if not source.is_file():
+        return
+    shutil.copyfile(source, state_dir / "README.md")
+
+
 def ensure_user_mappings(state_dir: Path) -> None:
     path = state_dir / "user_mappings.toml"
     if not path.exists():
@@ -747,6 +754,7 @@ def install(template_root: Path, target_root: Path, update: bool) -> None:
     ensure_branches_exist(target_root, config_file)
     ensure_update_branch(target_root, config_file, update)
     install_harness(template_root, state_dir)
+    install_harness_readme(template_root, state_dir)
     ensure_user_mappings(state_dir)
     install_agents_file(template_root, target_root)
     ensure_claude_file(target_root)
