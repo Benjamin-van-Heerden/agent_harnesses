@@ -169,3 +169,223 @@ After migration:
 - Confirm claimed todo issues are closed.
 - Run `python -B .agent_core/harness/main.py onboard` with network access and read the generated context in full.
 
+## `agent_rules` to `.mem` to `.agent_core`
+
+### Scope Reviewed
+
+This section reviews the current working-tree implementation of:
+
+- `/Users/benjamin/utils/mem/src/commands/migrate.py`
+- `/Users/benjamin/utils/mem/src/utils/migrate.py`
+- `/Users/benjamin/utils/mem/src/commands/lite.py`
+- `/Users/benjamin/utils/mem/src/templates/mem_lite/AGENTS.md`
+- `/Users/benjamin/utils/mem/src/templates/mem_lite/agent_rules/commands/`
+
+As with the `.mem -> .agent_core` route, the dirty global `mem` repository is treated as the effective implementation. The migration command is expected to be a final-use bridge, not a long-lived code path.
+
+### Current Command Surface
+
+For this route, the command sequence is:
+
+```bash
+mem migrate --lite-to-mem [--dry-run]
+mem migrate --to-harness [--dry-run]
+```
+
+`--lite-to-mem` calls `run_lite_to_mem(target_dir, dry_run)`. The target directory defaults to the current directory.
+
+### Current `agent_rules -> .mem` Behavior
+
+The route is conservative about top-level state, but less complete than the later `.mem -> .agent_core` route:
+
+- It refuses to run if `agent_rules/` does not exist.
+- It refuses to run if `.mem/` already exists.
+- It does not check for `agent_rules.bak/` before renaming `agent_rules/` to `agent_rules.bak/`, so an existing backup can fail late.
+- It does not check git cleanliness, current branch, remote sync, or GitHub authentication.
+- It does not create or relabel GitHub issues. Generated `.mem` specs and todos have no issue IDs unless a later manual process adds them.
+
+Dry-run mode detects branch names, counts specs, logs, todos, and memories, then exits without writing files or renaming `agent_rules/`.
+
+In non-dry-run mode, it creates `.mem/` directories, converts records, writes `.mem/config.toml`, creates an empty `.mem/user_mappings.toml`, and renames `agent_rules/` to `agent_rules.bak/`.
+
+### Parser Behavior
+
+The parser is deterministic and expects mem-lite's generated markdown shape. It is not an AI-assisted semantic parser.
+
+Specs:
+
+- It reads spec files matching `agent_rules/spec/s_*__*.md`, plus `agent_rules/spec/completed/s_*__*.md` and `agent_rules/spec/abandoned/s_*__*.md`.
+- `parse_lite_spec_filename()` expects `s_YYYYMMDD_username__slug.md`; if the filename does not match, created time falls back to now and assigned user may be missing.
+- The spec title is the first `# ` heading, falling back to a titleized file slug.
+- Status is read from an inline marker exactly like `` `%% Status: Active %%` `` and mapped through `LITE_TO_MEM_STATUS`.
+- Branch is read from an inline marker exactly like `` `%% Branch: branch-name %%` `` and copied into `.mem` spec frontmatter.
+- The spec body is the exact `## Description` section, with a `## Completion Report` section appended only when it is present and not the placeholder text.
+- Tasks are parsed only from the `## Tasks` section and only when each task is a `###` heading.
+- A task is marked completed if any line in its task body contains a checked markdown checkbox, regardless of which checkbox is checked.
+- Task body content is reconstructed from `#### Description`, `#### Implementation Details`, and `#### Key Files`. Placeholder text starting with `*(migrated` is skipped.
+- Task file order follows the sorted order of parsed `###` task section titles because `_split_sections()` returns a dict keyed by heading title. If duplicate task headings exist, later content overwrites earlier content.
+
+Logs:
+
+- It reads flat `agent_rules/log/*.md` files.
+- Filenames must match `YYYYMMDDHHmm_username.md` or `YYYYMMDDHHMMSS_username.md`; non-matching logs are skipped.
+- If the first line matches `# Work Log - ...`, that title is parsed but not used in the generated filename.
+- A spec reference is detected from `## Spec: `path`` and only converted to `spec_slug` if the path resembles `s_<date>_<user>__<slug>.md`.
+- The original log content is kept as the generated `.mem` log body.
+
+Todos:
+
+- It reads open todos from `agent_rules/todos/t_*.md` and claimed todos from `agent_rules/todos/claimed/t_*.md`.
+- The title is the first `# ` heading, falling back to a titleized slug.
+- `**Created:**` and `**Claimed:**` values are treated as dates and converted by appending `T00:00:00`.
+- Generated todos always have `issue_id = null` and `issue_url = null`.
+- Generated claimed todos have `claimed_by = null`, even when the source file has a claimed date.
+
+Memories:
+
+- It reads `agent_rules/memories/m_*.md`.
+- The first `# ` heading becomes the memory title; the body is everything after that heading.
+- Created and updated timestamps are the migration time, not the original authoring time.
+
+Docs and config:
+
+- It copies `agent_rules/docs/core/*.md` into `.mem/docs/core/`.
+- It copies only top-level `agent_rules/docs/*.md` into `.mem/docs/`.
+- Nested non-core docs are not copied.
+- `agent_rules/project_description.md` becomes the `.mem` project description unless it starts with `TODO:`.
+- `.mem/user_mappings.toml` is created empty.
+
+### Where Manual or AI-Assisted Review Is Needed
+
+The existing parser is sufficient when the project was produced by the mem-lite templates and not heavily hand-edited. It is risky for looser `agent_rules` projects because the structured conversion depends on exact filenames and headings.
+
+Manual review is required for:
+
+- specs whose filenames do not match `s_YYYYMMDD_username__slug.md`;
+- specs without `## Description`, `## Tasks`, or `###` task headings;
+- tasks represented only as checklists under one heading instead of one `###` heading per task;
+- duplicate task headings;
+- branch markers that are missing, stale, or point to deleted feature branches;
+- completed specs whose status marker disagrees with their directory;
+- logs with non-standard filenames or spec references;
+- claimed todos where the claimer matters;
+- nested docs under `agent_rules/docs/` outside `core/`;
+- any source content that used prose structure instead of the mem-lite template.
+
+AI-assisted interpretation may be useful before running `--lite-to-mem` when a spec's task structure is ambiguous. The safer approach is to normalize the `agent_rules` files first into the expected template shape, then run the deterministic migration and review the generated `.mem` output.
+
+### Branch Mapping Findings
+
+This route has two branch-handling gaps.
+
+First, `run_lite_to_mem()` detects branch names from root `AGENTS.md` by importing `_detect_branches()` from `src.commands.lite`. That helper scans for branch bullets in the mem-lite branching model:
+
+- a line containing `the main working branch` becomes `dev_branch`;
+- a line containing `production branch` becomes `prod_branch`;
+- a line containing `test/staging branch` becomes `test_branch`;
+- missing values default to `dev`, `main`, and `test`.
+
+This is reasonable for mem-lite projects created from the bundled template, but it is fragile for hand-edited `AGENTS.md` files. The operator should verify the detected branch names during dry-run output.
+
+Second, `create_mem_config(mem_dir, project_name, project_description, dev_branch, prod_branch, test_branch)` accepts `dev_branch` but does not persist it. It calls `generate_default_config_toml(..., main_branch=prod_branch, test_branch=test_branch)`, and the legacy `.mem` config generator writes only:
+
+```toml
+[branches]
+main = "..."
+test = "..."
+```
+
+That was acceptable for legacy `mem`, which hardcoded or derived `dev` elsewhere, but it compounds the later `.mem -> .agent_core` blocker: without a fix, the final harness config still cannot reliably know the intended development branch.
+
+### Allowed Source Branch
+
+The complete `agent_rules -> .mem -> .agent_core` migration should run from the configured mem-lite development branch, not from `main`, `test`, a detached HEAD, or an old spec branch.
+
+Recommended rule for the first command:
+
+- Run `mem migrate --lite-to-mem --dry-run` from the target project root.
+- Confirm dry-run detected the intended `dev`, `prod`, and `test` branch names.
+- Require `git branch --show-current` to equal the detected mem-lite development branch before non-dry-run `--lite-to-mem`.
+- Require a clean working tree before non-dry-run `--lite-to-mem`.
+- Fetch origin and require local development branch to be in sync with `origin/<dev>`.
+- Require `agent_rules.bak/` not to exist before non-dry-run migration.
+
+Recommended rule for the second command:
+
+- Review and fix generated `.mem` state on the same development branch.
+- Commit the `.mem` migration result if the operator wants an audit point before the final harness conversion.
+- Run `mem migrate --to-harness --dry-run` from that same development branch.
+- Run non-dry-run `mem migrate --to-harness` only after the `.mem -> .agent_core` quick fixes from the previous section are present.
+
+Running both commands from the development branch matters because the first command renames `agent_rules/`, writes `.mem/`, and rewrites local state, while the second command installs the project-local harness, relabels GitHub issues, removes old instructions, and renames `.mem/`. Those are development-branch migration commits, not production or staging mutations.
+
+### Required Quick Fixes Before First Real `agent_rules -> .mem -> .agent_core` Migration
+
+No current `agent_harnesses/coding` harness change appears necessary for this route. The final-use fixes belong in the `mem` migration path or the operator procedure.
+
+Recommended quick-and-dirty changes to `mem` before the real run:
+
+1. Persist the detected development branch somewhere that survives into the final harness migration.
+   - Best option: teach `create_mem_config()` and `generate_default_config_toml()` to write `[branches].dev`.
+   - Acceptable one-time option: manually add `dev = "<detected-dev>"` to `.mem/config.toml` after `--lite-to-mem` and before `--to-harness`, then ensure `--to-harness` preserves it into `.agent_core/config.toml`.
+
+2. Gate non-dry-run `--lite-to-mem` on branch and git state.
+   - Block detached HEAD.
+   - Block current branch != detected development branch.
+   - Block dirty working tree.
+   - Fetch and block when local development branch differs from `origin/<dev>`.
+   - Block when `agent_rules.bak/` already exists.
+
+3. Improve review guidance after `--lite-to-mem`.
+   - Tell the operator to inspect `.mem/specs/**/spec.md`, `.mem/specs/**/tasks/*.md`, `.mem/todos/`, `.mem/logs/`, `.mem/memories/`, `.mem/docs/`, `.mem/config.toml`, and `.mem/user_mappings.toml`.
+   - Make clear that linked GitHub issues are not preserved or relabeled until the later harness migration, and generated lite-to-mem records usually have no issue IDs.
+
+4. Apply the `.mem -> .agent_core` fixes from the previous section before running the second command.
+   - Generate current-compatible `[branches].dev`.
+   - Run only from the resolved development branch.
+   - Install the current `coding` harness instead of stale `mem/harnesses/mem`.
+   - Use `python -B` in final stdout guidance.
+
+### Recommended Command Sequence
+
+For a mem-lite `agent_rules` project:
+
+```bash
+git status --short
+git branch --show-current
+git fetch origin
+git status -sb
+mem migrate --lite-to-mem --dry-run
+mem migrate --lite-to-mem
+git diff -- .mem
+```
+
+Then review the generated `.mem` state. Fix parser misses before proceeding. At minimum, verify branch config before the second command:
+
+```bash
+cat .mem/config.toml
+mem migrate --to-harness --dry-run
+GITHUB_TOKEN=<token> mem migrate --to-harness
+python -B .agent_core/harness/main.py onboard
+```
+
+Both non-dry-run migration commands should be executed only from the resolved development branch. If the project uses custom branch names, do not proceed until the intended development branch is visible in the intermediate `.mem/config.toml` and final `.agent_core/config.toml`.
+
+### Manual Verification Checklist
+
+After `--lite-to-mem`:
+
+- Confirm `agent_rules/` is gone and `agent_rules.bak/` exists.
+- Confirm `.mem/specs/` contains active specs, `.mem/specs/completed/` contains completed specs, and `.mem/specs/abandoned/` contains abandoned specs.
+- Confirm spec titles, status, assigned user, branch, created/completed timestamps, and bodies are sensible.
+- Confirm each spec's `tasks/` directory has the expected task count, order, titles, statuses, and body content.
+- Confirm duplicate or prose-only task sections were not lost.
+- Confirm `.mem/logs/` contains all expected logs and spec references resolve where possible.
+- Confirm `.mem/todos/` and `.mem/todos/claimed/` preserve open vs claimed status.
+- Confirm `.mem/memories/` content is complete, accepting that timestamps are migration-time values.
+- Confirm `.mem/docs/core/` and `.mem/docs/` contain the expected docs.
+- Confirm no important nested non-core docs were skipped.
+- Confirm `.mem/config.toml` has the intended project name, description, main branch, test branch, and either a persisted development branch or a documented manual correction before continuing.
+- Confirm `.mem/user_mappings.toml` is intentionally empty or manually populate it before harness migration.
+
+After the later `--to-harness`, use the `.mem -> .agent_core` verification checklist above.
