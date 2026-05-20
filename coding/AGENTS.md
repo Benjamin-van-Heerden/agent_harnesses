@@ -104,6 +104,15 @@ Repair commands are for explicit recovery or reconciliation. Do not run them as 
 
 ---------------------------------------------------------------
 
+### Source Formatting
+
+- Do not hard-wrap lines just to satisfy an arbitrary line length. This project assumes modern editors with line wrapping.
+- Keep user-facing strings, command strings, markdown output fragments, and simple expressions on one line when that is clearer.
+- Only split a line when it improves structure or readability, such as a genuinely complex expression, a long data literal, or nested call arguments. When applicable use multiline strings for this.
+- Do not reflow existing prose or strings unless the requested change requires it.
+
+---------------------------------------------------------------
+
 ## Behavioral Guidelines
 
 **Tradeoff:** These guidelines bias toward caution over speed. For trivial tasks, use judgment.
