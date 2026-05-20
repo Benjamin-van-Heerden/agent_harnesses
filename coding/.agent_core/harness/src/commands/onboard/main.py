@@ -1,5 +1,9 @@
 import typer
 
+from src.commands.onboard.assigned_worktrees import (
+    AssignedWorktreeResult,
+    create_missing_for_authenticated_user,
+)
 from src.commands.onboard.content import build_context, relative
 from src.commands.onboard.output import write_output
 from src.commands.onboard.preflight import (
@@ -9,7 +13,7 @@ from src.commands.onboard.preflight import (
 )
 from src.commands.sync.main import sync_all
 from src.utils import auto_update
-from src.utils.errors import GitError
+from src.utils.errors import GitError, GitHubError
 
 app = typer.Typer(help="Build local project context")
 
@@ -33,6 +37,7 @@ def run(
     ),
 ) -> None:
     sync_warning: str | None = None
+    assigned_worktrees: list[AssignedWorktreeResult] = []
     if not no_sync:
         try:
             run_git_preflight(continue_requested)
@@ -79,8 +84,21 @@ def run(
             sync_warning = str(error)
             typer.echo(f"Onboard sync warning: {sync_warning}", err=True)
 
+        if sync_warning is None:
+            try:
+                assigned_worktrees = create_missing_for_authenticated_user()
+            except (GitError, GitHubError, ValueError) as error:
+                typer.echo("Onboard stopped while creating assigned spec worktrees.", err=True)
+                typer.echo(str(error), err=True)
+                typer.echo("", err=True)
+                typer.echo(
+                    "You must resolve the assigned worktree failure, then rerun onboard.",
+                    err=True,
+                )
+                raise typer.Exit(code=1) from error
+
     try:
-        content = build_context(sync_warning)
+        content = build_context(sync_warning, assigned_worktrees)
     except ValueError as error:
         typer.echo(str(error), err=True)
         raise typer.Exit(code=1) from error

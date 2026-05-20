@@ -1,13 +1,12 @@
 import typer
-from typing_extensions import Annotated
-
 from src.commands.task.utils.active import resolve_spec_slug
 from src.state import tasks
+from typing_extensions import Annotated
 
 
 def _permission_command(slug: str) -> str:
     return (
-        f'python -B .agent_core/harness/main.py task complete {slug} '
+        f"python -B .agent_core/harness/main.py task complete {slug} "
         '"detailed notes about what was done" --user-gave-explicit-permission'
     )
 
@@ -29,7 +28,9 @@ def _print_permission_workflow(slug: str, title: str) -> None:
     typer.echo("3. Only after explicit user confirmation, re-run:")
     typer.echo(f"   {_permission_command(slug)}")
     typer.echo("")
-    typer.echo("Never pass --user-gave-explicit-permission without explicit user approval.")
+    typer.echo(
+        "Never pass --user-gave-explicit-permission without explicit user approval."
+    )
     typer.echo("----------------------------------------------------------------------")
 
 
@@ -43,8 +44,12 @@ def _print_completion_followup(spec_slug: str) -> None:
         typer.echo("")
         typer.echo("AGENT INSTRUCTION:")
         typer.echo("1. Summarize what was done for this task.")
-        typer.echo("2. Ask the user if there is anything else to wrap up before completing the spec.")
-        typer.echo("3. If the user is ready, create a work log and then complete the spec.")
+        typer.echo(
+            "2. Ask the user if there is anything else to wrap up before completing the spec."
+        )
+        typer.echo(
+            "3. If the user is ready, create a work log and then complete the spec."
+        )
         typer.echo("")
         typer.echo("Do not complete the spec without explicit user confirmation.")
         return
@@ -55,10 +60,12 @@ def _print_completion_followup(spec_slug: str) -> None:
         for record in pending:
             typer.echo(f"  - {record.slug}: {record.title}")
         typer.echo("")
-        typer.echo("You may continue with the next task.")
+        typer.echo("You must now continue with the next task. Do not stop here.")
+        typer.echo("")
         typer.echo(
             "Before marking it complete, summarize the work and ask the user whether it is complete and acceptable."
         )
+        typer.echo("")
         typer.echo("Never assume permission carries over between tasks.")
 
 
