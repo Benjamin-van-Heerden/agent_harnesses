@@ -178,6 +178,10 @@ def push(branch: str | None = None, cwd: Path | None = None, set_upstream: bool 
     run_git(args, cwd=cwd)
 
 
+def push_ref(source: str, branch: str, cwd: Path | None = None) -> None:
+    run_git(["push", "origin", f"{source}:refs/heads/{branch}"], cwd=cwd)
+
+
 def push_force_with_lease(branch: str, cwd: Path | None = None) -> None:
     run_git(["push", "--force-with-lease", "origin", branch], cwd=cwd)
 

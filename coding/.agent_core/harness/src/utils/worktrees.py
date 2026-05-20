@@ -104,6 +104,22 @@ def create(slug: str, branch: str, main_repo_path: Path | None = None) -> Path:
     return target
 
 
+def create_from_remote(slug: str, branch: str, main_repo_path: Path | None = None) -> Path:
+    root = main_repo_path or PROJECT_PATHS.project_root
+    target = path_for(slug, root)
+    target.parent.mkdir(parents=True, exist_ok=True)
+    result = run_git(["branch", "--list", branch], cwd=root, check=False)
+    if result.stdout.strip():
+        run_git(["worktree", "add", str(target), branch], cwd=root)
+    else:
+        run_git(
+            ["worktree", "add", "--track", "-b", branch, str(target), f"origin/{branch}"],
+            cwd=root,
+        )
+    _create_configured_symlinks(root, target)
+    return target
+
+
 def remove(slug: str, force: bool = False, main_repo_path: Path | None = None) -> bool:
     root = main_repo_path or PROJECT_PATHS.project_root
     target = path_for(slug, root)

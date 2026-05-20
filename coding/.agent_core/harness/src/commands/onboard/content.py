@@ -1,6 +1,7 @@
 from datetime import datetime
 from pathlib import Path
 
+from src.commands.onboard.assigned_worktrees import AssignedWorktreeResult
 from src.commands.onboard.formatting import file, heading, subsection
 from src.config.branches import get_branch_names
 from src.config.main import load_project_config, summarize_validation_error
@@ -299,7 +300,10 @@ def _spec_worktrees() -> list[worktrees.WorktreeInfo]:
     return [record for record in worktrees.list_all() if not record.is_main]
 
 
-def _available_specs_section(branch: str) -> list[str]:
+def _available_specs_section(
+    branch: str,
+    assigned_worktrees: list[AssignedWorktreeResult],
+) -> list[str]:
     lines = subsection("📋 AVAILABLE SPECS")
     branches = get_branch_names()
     lines.append(
@@ -312,6 +316,15 @@ def _available_specs_section(branch: str) -> list[str]:
     lines.append("")
 
     spec_worktrees = _spec_worktrees()
+
+    if assigned_worktrees:
+        lines.append("### Assigned worktrees created")
+        for result in assigned_worktrees:
+            lines.append(
+                f"- Spec {result.spec_slug} was assigned to you; a worktree has been created at {result.path}."
+            )
+        lines.append("")
+
     if spec_worktrees:
         lines.append("### Open spec worktrees")
         lines.append("These specs are already checked out in isolated workspaces.")
@@ -473,7 +486,7 @@ def _workflow_hints_section(active_spec: Spec | None, branch: str) -> list[str]:
         lines.append("")
         lines.append("Important workflow rules:")
         lines.append(
-            "- Complete one task at a time, then stop and await further instructions."
+            "- Complete one task at a time, mark it complete when you are done."
         )
         lines.append("- Mark each task complete as soon as you finish it.")
         lines.append("- Do not batch task completions.")
@@ -607,7 +620,10 @@ def _codebase_and_conventions_section(config: AgentCoreConfig) -> list[str]:
     return lines
 
 
-def _onboard_output_section(sync_warning: str | None) -> list[str]:
+def _onboard_output_section(
+    sync_warning: str | None,
+    assigned_worktrees: list[AssignedWorktreeResult],
+) -> list[str]:
     branch = _current_branch()
     active_spec = _active_spec_for_branch(branch)
     open_todos = todos.list_all(status="open")
@@ -621,7 +637,7 @@ def _onboard_output_section(sync_warning: str | None) -> list[str]:
     if active_spec is not None:
         lines.extend(_format_active_spec(active_spec))
     else:
-        lines.extend(_available_specs_section(branch))
+        lines.extend(_available_specs_section(branch, assigned_worktrees))
 
     lines.extend(_work_logs_section(active_spec))
 
@@ -634,7 +650,10 @@ def _onboard_output_section(sync_warning: str | None) -> list[str]:
     return lines
 
 
-def build_context(sync_warning: str | None = None) -> str:
+def build_context(
+    sync_warning: str | None = None,
+    assigned_worktrees: list[AssignedWorktreeResult] | None = None,
+) -> str:
     result = load_project_config(PROJECT_PATHS.config_file)
     if result.config is None:
         if result.validation_error is not None:
@@ -643,5 +662,5 @@ def build_context(sync_warning: str | None = None) -> str:
         raise ValueError(f"Missing or empty {PROJECT_PATHS.config_file_display}")
 
     lines = _codebase_and_conventions_section(result.config)
-    lines.extend(_onboard_output_section(sync_warning))
+    lines.extend(_onboard_output_section(sync_warning, assigned_worktrees or []))
     return "\n".join(lines).rstrip() + "\n"

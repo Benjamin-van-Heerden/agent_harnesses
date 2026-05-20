@@ -53,8 +53,12 @@ def run(title: str, body: str | None = None) -> None:
     typer.echo(
         f"5. Run `python -B .agent_core/harness/main.py spec sync {result.slug}` to create the GitHub issue after the body and tasks are complete."
     )
+    typer.echo("6. Assign the spec only after explicit user approval:")
     typer.echo(
-        f"6. Run `python -B .agent_core/harness/main.py spec assign {result.slug}` to claim it and create a worktree."
+        f"   - Current user: `python -B .agent_core/harness/main.py spec assign {result.slug}` assigns it to the authenticated GitHub user and creates a local worktree."
+    )
+    typer.echo(
+        f"   - Another user: `python -B .agent_core/harness/main.py spec assign {result.slug} --assignee <github_username>` assigns it to another mapped GitHub user, pushes the remote branch, and creates no local worktree for the current user."
     )
     typer.echo("")
     typer.echo("If this spec addresses any open todos, claim them.")
@@ -66,7 +70,9 @@ def run(title: str, body: str | None = None) -> None:
     typer.echo("IMPORTANT: Worktree Workflow")
     typer.echo("")
     typer.echo("Create tasks before running `spec assign`.")
-    typer.echo("After assignment, start a new agent session in the worktree.")
+    typer.echo("Bare `spec assign` creates a local worktree for the authenticated GitHub user.")
+    typer.echo("`spec assign --assignee <github_username>` creates remote assignment state only; the assignee receives the worktree on onboard.")
+    typer.echo("After local assignment, start a new agent session in the worktree.")
     typer.echo("")
     typer.echo("Remember:")
     typer.echo("A new agent session will handle implementation work after assignment.")

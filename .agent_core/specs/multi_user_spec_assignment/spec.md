@@ -1,13 +1,13 @@
 ---
 title: Multi-user spec assignment
-status: todo
+status: merge_ready
 assigned_to: Benjamin-van-Heerden
 issue_id: 7
 issue_url: https://github.com/Benjamin-van-Heerden/agent_harnesses/issues/7
 branch: dev-benjamin_van_heerden-multi_user_spec_assignment
-pr_url: null
+pr_url: https://github.com/Benjamin-van-Heerden/agent_harnesses/pull/8
 created_at: '2026-05-20T13:09:52.754930'
-updated_at: '2026-05-20T13:13:59.178759'
+updated_at: '2026-05-20T14:58:25.529886'
 completed_at: null
 last_synced_at: null
 local_content_hash: null
