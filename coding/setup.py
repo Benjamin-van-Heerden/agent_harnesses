@@ -11,6 +11,7 @@ import tempfile
 import tomllib
 import urllib.request
 import zipfile
+from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import NoReturn, cast
@@ -21,12 +22,30 @@ TEMPLATE_SUBPATH = "coding"
 CORE_START_TAG = "<AGENT_CORE>"
 CORE_END_TAG = "</AGENT_CORE>"
 DEFAULT_DOCS = ("coding_general", "coding_testing")
-WORKTREE_SYMLINK_PATHS_COMMENT = [
+WORKTREE_SYMLINK_PATHS_COMMENT = (
     "# Project-root relative paths to symlink from the main checkout into spec worktrees.",
     "# Every listed path is automatically added to .gitignore and must be safe to keep untracked.",
     "# Typical examples are .env, .claude, .venv, node_modules, or deps. Use care with manifests and lock files such as pyproject.toml, package.json, or bun.lock; list them only when the project deliberately treats them as local-only.",
-]
+)
 LEGACY_WORKTREE_SYMLINK_PATHS_COMMENT = "# Paths to symlink into worktrees instead of copying"
+
+
+@dataclass(frozen=True)
+class ConfigKeyCommentPatch:
+    section: str
+    key: str
+    comment_lines: tuple[str, ...]
+    legacy_comment_blocks: tuple[tuple[str, ...], ...] = ()
+
+
+CONFIG_PATCHES = (
+    ConfigKeyCommentPatch(
+        section="worktree",
+        key="symlink_paths",
+        comment_lines=WORKTREE_SYMLINK_PATHS_COMMENT,
+        legacy_comment_blocks=((LEGACY_WORKTREE_SYMLINK_PATHS_COMMENT,),),
+    ),
+)
 
 
 class SetupError(Exception):
@@ -196,22 +215,40 @@ def find_section_key_line(lines: list[str], section: str, key: str) -> int | Non
     return None
 
 
-def ensure_key_comment(content: str, section: str, key: str, comment_lines: list[str]) -> str:
+def _matching_comment_start(lines: list[str], key_index: int, block: tuple[str, ...]) -> int | None:
+    block_start = key_index - len(block)
+    if block_start < 0:
+        return None
+    if tuple(line.strip() for line in lines[block_start:key_index]) == block:
+        return block_start
+    return None
+
+
+def apply_key_comment_patch(content: str, patch: ConfigKeyCommentPatch) -> str:
     lines = content.splitlines()
-    key_index = find_section_key_line(lines, section, key)
+    key_index = find_section_key_line(lines, patch.section, patch.key)
     if key_index is None:
         return content
 
-    comment_count = len(comment_lines)
-    comment_start = key_index - comment_count
-    if comment_start >= 0 and lines[comment_start:key_index] == comment_lines:
+    comment_start = _matching_comment_start(lines, key_index, patch.comment_lines)
+    if comment_start is not None:
         return content
 
-    if key_index > 0 and lines[key_index - 1].strip() == LEGACY_WORKTREE_SYMLINK_PATHS_COMMENT:
-        lines[key_index - 1 : key_index] = comment_lines
-    else:
-        lines[key_index:key_index] = comment_lines
+    for legacy_block in patch.legacy_comment_blocks:
+        comment_start = _matching_comment_start(lines, key_index, legacy_block)
+        if comment_start is None:
+            continue
+        lines[comment_start:key_index] = patch.comment_lines
+        return "\n".join(lines).rstrip() + "\n"
+
+    lines[key_index:key_index] = patch.comment_lines
     return "\n".join(lines).rstrip() + "\n"
+
+
+def apply_config_patches(content: str) -> str:
+    for patch in CONFIG_PATCHES:
+        content = apply_key_comment_patch(content, patch)
+    return content
 
 
 def upsert_config(path: Path, project_name: str) -> None:
@@ -256,7 +293,6 @@ symlink_paths = [".claude"]''',
             "worktree",
             'symlink_paths = [".claude"]',
         )
-    content = ensure_key_comment(content, "worktree", "symlink_paths", WORKTREE_SYMLINK_PATHS_COMMENT)
 
     if not section_declared(content, "harness"):
         content = append_if_missing(
@@ -289,7 +325,7 @@ test = "test"
         if section_exists(content, "branches") and not key_declared(content, "branches", "test"):
             content = insert_key(content, "branches", 'test = "test"')
 
-    path.write_text(content)
+    path.write_text(apply_config_patches(content))
 
 
 def read_toml(path: Path) -> dict[str, object]:

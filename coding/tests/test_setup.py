@@ -196,6 +196,38 @@ main = "main"
     assert lines.count("nested/cache/") == 1
 
 
+def test_setup_config_patch_registry_updates_comments_without_resetting_values(tmp_path: Path) -> None:
+    target = tmp_path / "project"
+    target.mkdir()
+    init_git_project(target)
+
+    config_path = target / ".agent_core" / "config.toml"
+    config_path.parent.mkdir(parents=True)
+    config_path.write_text(
+        '''[project]
+name = "Patch Registry"
+description = "Project description."
+
+[worktree]
+# Paths to symlink into worktrees instead of copying
+symlink_paths = [".custom_link"]
+
+[branches]
+dev = "dev"
+test = "test"
+main = "main"
+'''
+    )
+
+    install_harness(target)
+    install_harness(target)
+
+    content = config_path.read_text()
+    assert "# Paths to symlink into worktrees instead of copying" not in content
+    assert content.count("# Project-root relative paths to symlink from the main checkout into spec worktrees.") == 1
+    assert 'symlink_paths = [".custom_link"]' in content
+
+
 def test_setup_optional_docs_commands_manage_project_local_docs(tmp_path: Path) -> None:
     target = tmp_path / "project"
     target.mkdir()
