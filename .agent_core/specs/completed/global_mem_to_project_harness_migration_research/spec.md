@@ -1,14 +1,14 @@
 ---
 title: Global mem to project harness migration research
-status: merge_ready
+status: completed
 assigned_to: Benjamin-van-Heerden
 issue_id: 4
 issue_url: https://github.com/Benjamin-van-Heerden/agent_harnesses/issues/4
 branch: dev-benjamin_van_heerden-global_mem_to_project_harness_migration_research
 pr_url: https://github.com/Benjamin-van-Heerden/agent_harnesses/pull/6
 created_at: '2026-05-19T14:15:45.015441'
-updated_at: '2026-05-20T10:13:37.603583'
-completed_at: null
+updated_at: '2026-05-20T10:14:13.811601'
+completed_at: '2026-05-20T10:14:13.811601'
 last_synced_at: null
 local_content_hash: null
 remote_content_hash: null
