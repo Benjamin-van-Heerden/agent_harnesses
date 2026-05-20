@@ -1,8 +1,8 @@
 # Harness Structure
 
-`coding/` is the reference shape for project-native harnesses. Other harnesses do not need to copy its coding-specific workflow concepts, but they should follow the same installation model, runtime layout, command composition pattern, and agent-facing stdout behavior.
+`coding/` is the reference shape for project-native harnesses. Other harnesses do not need to copy its coding-specific workflow concepts, but they should stay close to its installation model, runtime layout, command composition pattern, and agent-facing stdout behavior.
 
-This document is descriptive guidance. It explains how native harnesses are expected to fit together so future harnesses feel consistent and can be installed, updated, and operated the same way.
+This document is descriptive guidance, not a rigid framework specification. Future harnesses can adapt the state concepts and workflow names to their domain, but the core shape should not drift much. A native harness should still be recognizable as an Agent Core harness when someone opens its template directory or an installed `.agent_core/` runtime.
 
 ## Core Model
 
@@ -11,6 +11,8 @@ A native harness has three main surfaces:
 - `AGENTS.md`: the agent entrypoint and workflow contract.
 - `setup.py`: the stdlib-only installer and updater for any target project directory.
 - `.agent_core/harness/`: the project-local Python runtime that implements the CLI commands.
+
+Every native harness must have a template-level `AGENTS.md` and `setup.py`. A harness can add human README files, optional docs, tests, support scripts, or domain-specific state directories, but those are secondary to the installable agent contract.
 
 The installed project also has a root-level `.agent_core/` directory that holds project-owned state. That root-level state is not where harness development happens. Harness implementation changes belong in the harness template itself, for example `coding/.agent_core/harness/`, then get propagated by `setup.py`.
 
@@ -24,13 +26,13 @@ The installed project also has a root-level `.agent_core/` directory that holds 
 - commands the agent is expected to know about;
 - hard rules around sequencing, permissions, and stopping points.
 
-The file may intentionally expose only part of the harness capability surface. That is acceptable. Some commands or workflows may be obscured to force agents through a safer or more deliberate path.
+The file should explain how the harness works from the agent's point of view, not document every internal module. It may intentionally expose only part of the harness capability surface. That is acceptable. Some commands or workflows may be obscured to force agents through a safer or more deliberate path.
 
 The installed `AGENTS.md` should contain a managed core block from the harness template. If an installed project already has an `AGENTS.md`, setup should update the managed block without deleting project-specific notes outside that block.
 
 ## setup.py
 
-`setup.py` installs the harness into the current working directory. It should be possible to run it from any chosen target project directory. The installer must use only the Python standard library so it can run before harness dependencies have been installed.
+`setup.py` installs the harness into the current working directory. It should be possible to run it from any chosen target project directory. The installer must use only the Python standard library so it can run before harness dependencies have been installed. This file is required for every native harness.
 
 In the reference harness, setup does the following:
 
@@ -40,6 +42,7 @@ In the reference harness, setup does the following:
   project choices;
 - validates required repository assumptions, such as protected branches;
 - replaces `.agent_core/harness/` with the template runtime;
+- installs or refreshes a human-facing `.agent_core/README.md` when the template provides one;
 - creates durable support files such as `.agent_core/user_mappings.toml` when
   needed;
 - installs or updates the managed block in `AGENTS.md`;
@@ -70,7 +73,16 @@ Other harnesses can choose different state concepts, but should keep the same se
 
 ## Runtime Layout
 
-The Python runtime layout used by `coding/` should be treated as canonical for native harnesses:
+The Python runtime layout used by `coding/` should be treated as the template for native harnesses. The exact helper directories can vary by domain, but the command runtime should always have this core shape:
+
+```text
+.agent_core/harness/
+  main.py
+  src/
+    commands/
+```
+
+The coding harness adds dependency and domain modules around that core:
 
 ```text
 .agent_core/harness/
@@ -115,6 +127,8 @@ if __name__ == "__main__":
 
 Commands should be split by workflow area under `src/commands/`. Each command group gets a `main.py` that owns the Typer sub-app and registers individual command files.
 
+Command implementations should be Python files, not markdown files. Markdown belongs to project state, durable docs, templates, and generated human-readable artifacts. The command surface itself should live in importable modules so the harness stays testable, typed, and easy to compose.
+
 The reference shape is:
 
 ```text
@@ -127,7 +141,7 @@ src/commands/
     complete.py
 ```
 
-`task/main.py` should be mostly wiring:
+Each command verb should have its own file when it contains real behavior. The group `main.py` should be mostly wiring:
 
 ```python
 import typer
@@ -141,13 +155,13 @@ app.command("show")(show.run)
 app.command("complete")(complete.run)
 ```
 
-Each command file should expose a focused `run(...)` function. The command file should handle user-facing CLI behavior: argument definitions, error conversion to `typer.Exit`, and stdout/stderr messages. Shared business logic should live in `state/` or `utils/` rather than being duplicated across commands.
+Each verb file should expose a focused `run(...)` function. The command file should handle user-facing CLI behavior: argument definitions, error conversion to `typer.Exit`, and stdout/stderr messages. Shared business logic should live in `state/` or `utils/` rather than being duplicated across commands.
 
 This split keeps command registration obvious, makes command files small, and lets future harnesses add or remove workflow areas without turning `main.py` into a large command implementation file.
 
 ## stdout As Agent Guidance
 
-Harness stdout is part of the control surface. It is not just status reporting. Commands should print clear instructions that guide the agent's next action.
+Harness stdout is part of the control surface. It is not just status reporting. Commands should print clear instructions that guide the agent's next action. This is one of the most important parts of the harness design.
 
 Good stdout tells the agent:
 
@@ -164,6 +178,8 @@ Examples from the reference harness include:
 - `log new` creates a log file and tells the agent to replace every placeholder, then either complete the spec or commit and push.
 - `spec complete` refuses to proceed with incomplete tasks and lists the tasks.
 - cleanup commands refuse protected branch deletion and say which branch was protected.
+
+Command output should assume an agent will read it and decide what to do next. When a command creates a file, stdout should say whether the agent must read or edit it. When a command stops because a precondition failed, stderr should say what state is wrong and how to recover. When a command completes a workflow step, stdout should identify the next required harness command or explicitly say that the agent should return to the user.
 
 Use assertive, authoritative phrasing. Prefer "You must ..." for required agent actions. Avoid deferential phrasing when the harness is enforcing workflow.
 

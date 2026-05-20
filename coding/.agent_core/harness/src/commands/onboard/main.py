@@ -11,14 +11,53 @@ from src.commands.onboard.preflight import (
     run_git_preflight,
     sync_warning_from_exit,
 )
+from src.config.branches import get_branch_names
 from src.config.main import load_project_config, summarize_validation_error
 from src.config.paths import PROJECT_PATHS
 from src.commands.sync.main import sync_all
-from src.utils import auto_update
+from src.utils import auto_update, git, worktrees
 from src.utils.errors import GitError, GitHubError
 from src.utils.gitignore import ensure_symlink_paths_ignored
 
 app = typer.Typer(help="Build local project context")
+
+
+def _main_repo_non_dev_branch_message() -> str | None:
+    if worktrees.is_worktree():
+        return None
+
+    branch = git.current_branch()
+    if branch is None:
+        return None
+
+    branches = get_branch_names()
+    if branch == branches.dev:
+        return None
+
+    protected_note = ""
+    if branch in branches.protected:
+        protected_note = " This is a protected branch."
+
+    return "\n".join(
+        [
+            "Onboard stopped before building project context.",
+            f"Current branch: {branch}",
+            "",
+            f"This checkout is not on the configured development branch `{branches.dev}`.{protected_note}",
+            "Normal development must not be done from this branch.",
+            "The coding harness is designed to start from the configured development branch or from a dedicated spec worktree.",
+            "",
+            "Here be dragons.",
+            "You must notify the user that onboarding was stopped because this session is on a non-development branch.",
+            f"You must tell the user that the current branch is `{branch}` and ask them to confirm they deliberately want to work from this branch.",
+            f"You must ask the user whether they want to switch back to the configured development branch. If they confirm, run `git switch {branches.dev}` and then run onboard again.",
+            "If the user confirms they deliberately want to stay on this branch and gives explicit permission, run `python -B .agent_core/harness/main.py onboard --no-sync` so the session still has project context.",
+            "Only continue from this branch if the user deliberately chose it and understands the consequences.",
+            f"To resume the normal workflow, switch back to `{branches.dev}` and rerun onboard.",
+            "",
+            "No onboard context file was created.",
+        ]
+    )
 
 
 @app.callback(invoke_without_command=True)
@@ -85,6 +124,11 @@ def run(
                 raise
             sync_warning = sync_warning_from_exit(error)
             if isinstance(error.__cause__, GitError):
+                non_dev_branch_message = _main_repo_non_dev_branch_message()
+                if non_dev_branch_message is not None:
+                    typer.echo(non_dev_branch_message, err=True)
+                    raise typer.Exit(code=1) from error
+
                 typer.echo("Onboard stopped before building project context.", err=True)
                 typer.echo(f"Reason: {sync_warning}", err=True)
                 typer.echo("", err=True)
