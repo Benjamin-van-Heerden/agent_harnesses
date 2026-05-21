@@ -106,17 +106,23 @@ def protected_branch_sync(branches: BranchNames, cwd: Path | None = None) -> Non
     if has_tracked_changes(cwd):
         raise GitError("Working tree has uncommitted tracked changes.")
 
-    original = current_branch(cwd)
+    current = current_branch(cwd)
     fetch(cwd)
     assert_protected_branches_available(branches, cwd)
     for branch in branches.protected:
-        checkout(branch, cwd)
+        if branch == current:
+            if local_ahead_of_remote(branch, cwd):
+                rebase_onto(f"origin/{branch}", cwd)
+            elif remote_ahead_of_local(branch, cwd):
+                run_git(["merge", "--ff-only", f"origin/{branch}"], cwd=cwd)
+            continue
+
         if local_ahead_of_remote(branch, cwd):
-            rebase_onto(f"origin/{branch}", cwd)
-        elif remote_ahead_of_local(branch, cwd):
-            run_git(["merge", "--ff-only", f"origin/{branch}"], cwd=cwd)
-    return_branch = original if original is not None and branches.noswitch_branches.has_child(original) else branches.dev
-    checkout(return_branch, cwd)
+            raise GitError(
+                f"Protected branch '{branch}' has local commits that are not on origin/{branch}. "
+                "Onboard will not checkout or mutate non-current protected branches. "
+                f"You must inspect and sync '{branch}' deliberately."
+            )
 
 
 def sync_current_branch(branches: BranchNames, cwd: Path | None = None) -> None:

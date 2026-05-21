@@ -51,7 +51,7 @@ def _entry_for(path: Path) -> SnapshotEntry:
         return SnapshotEntry(kind="other", signature=f"unreadable:{error.__class__.__name__}")
 
     if path.is_dir():
-        return SnapshotEntry(kind="directory", signature=f"mode:{stat.st_mode}:mtime:{stat.st_mtime_ns}")
+        return SnapshotEntry(kind="directory", signature="directory")
     if path.is_file():
         return SnapshotEntry(kind="file", signature=_file_signature(path))
     return SnapshotEntry(kind="other", signature=f"mode:{stat.st_mode}:mtime:{stat.st_mtime_ns}:size:{stat.st_size}")
@@ -80,13 +80,21 @@ def summarize_mutations(
 
 
 def render_mutation_summary(summary: MutationSummary) -> list[str]:
-    if not summary.changed:
-        return ["Onboard .agent_core mutation audit: no changes detected."]
-
     lines = [
-        "Onboard mutated .agent_core/: "
-        f"created {len(summary.created)}, modified {len(summary.modified)}, deleted {len(summary.deleted)}."
+        "---",
+        ".agent_core changes",
+        "---",
     ]
+    if not summary.changed:
+        return [
+            *lines,
+            "No .agent_core changes detected.",
+            "---",
+        ]
+
+    lines.append(
+        f"Created: {len(summary.created)} | Modified: {len(summary.modified)} | Deleted: {len(summary.deleted)}"
+    )
     for label, paths in (
         ("Created", summary.created),
         ("Modified", summary.modified),
@@ -97,4 +105,5 @@ def render_mutation_summary(summary: MutationSummary) -> list[str]:
         lines.append(f"{label}:")
         for path in paths:
             lines.append(f"  - {path}")
+    lines.append("---")
     return lines

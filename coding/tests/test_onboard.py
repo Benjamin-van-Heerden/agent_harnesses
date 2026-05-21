@@ -1,8 +1,10 @@
 import os
 from pathlib import Path
+from types import ModuleType
 
+import pytest
 from constants import GIT_USER_NAME
-from helpers import command_env, harness_command, init_git_project, install_harness, run_command
+from helpers import HARNESS_ROOT, command_env, harness_command, init_git_project, install_harness, run_command
 
 
 def test_template_onboard_reads_docs_without_indexing(tmp_path: Path) -> None:
@@ -33,7 +35,8 @@ def test_template_onboard_reads_docs_without_indexing(tmp_path: Path) -> None:
 
     assert "Alpha doc body" in result.stdout
     assert "Beta doc body" in result.stdout
-    assert "Onboard .agent_core mutation audit: no changes detected." in result.stdout
+    assert ".agent_core changes" in result.stdout
+    assert "No .agent_core changes detected." in result.stdout
     gitignore_lines = (target / ".gitignore").read_text().splitlines()
     assert ".env" in gitignore_lines
     assert ".env/" in gitignore_lines
@@ -125,8 +128,31 @@ def test_template_onboard_reports_agent_core_tmp_mutations(tmp_path: Path) -> No
         env=command_env(),
     )
 
-    assert "Onboard mutated .agent_core/:" in result.stdout
+    assert ".agent_core changes" in result.stdout
     assert "Created:" in result.stdout
     assert ".agent_core/tmp/onboard_" in result.stdout
     assert "Deleted:" in result.stdout
     assert ".agent_core/tmp/onboard_20000101_000000.md" in result.stdout
+
+
+def test_agent_core_mutation_summary_ignores_directory_mtime_changes(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.syspath_prepend(str(HARNESS_ROOT / ".agent_core" / "harness"))
+    mutations = __import__("src.commands.onboard.mutations", fromlist=[""])
+    assert isinstance(mutations, ModuleType)
+
+    state_root = tmp_path / ".agent_core"
+    nested_dir = state_root / "specs" / "completed"
+    nested_dir.mkdir(parents=True)
+    (nested_dir / "spec.md").write_text("spec body\n")
+
+    before = mutations.snapshot_agent_core(state_root)
+    os.utime(state_root / "specs")
+    os.utime(nested_dir)
+    after = mutations.snapshot_agent_core(state_root)
+
+    summary = mutations.summarize_mutations(before, after)
+
+    assert not summary.changed

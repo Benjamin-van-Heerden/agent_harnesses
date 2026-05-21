@@ -208,9 +208,13 @@ def run(
         if stdout or len(content) <= 14000:
             typer.echo(content)
             _ensure_tmp_ignored()
+            report_agent_core_mutations()
             return
 
         output_path = write_output(content)
+        _ensure_tmp_ignored()
+        report_agent_core_mutations()
+        typer.echo("")
         typer.echo(f"✅ Onboard context written to: {relative(output_path)}")
         typer.echo(f"📏 Line count: {content.count(chr(10))}")
         typer.echo("")
@@ -219,6 +223,5 @@ def run(
             "document contains important context. An overview or partial reading of "
             "the document is not enough, it must be read in its entirety (every line)."
         )
-        _ensure_tmp_ignored()
     finally:
         report_agent_core_mutations()
