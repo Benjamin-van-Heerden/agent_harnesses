@@ -220,3 +220,24 @@ def test_spec_new_stdout_distinguishes_assignment_modes(
     assert "Another user:" in output
     assert "--assignee <github_username>" in output
     assert "creates no local worktree for the current user" in output
+
+
+def test_spec_create_suffixes_duplicate_slugs_across_status_directories(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _prepare_project(tmp_path, monkeypatch)
+    specs = _load_module(monkeypatch, "src.state.specs")
+
+    first = specs.create("Duplicate Spec", body="First")
+    first_slug = first.parent.name
+    specs.update_status(first_slug, "completed")
+    second = specs.create("Duplicate Spec", body="Second")
+    third = specs.create("Duplicate Spec", body="Third")
+
+    assert first_slug == "duplicate_spec"
+    assert second.parent.name == "duplicate_spec_2"
+    assert third.parent.name == "duplicate_spec_3"
+    assert (tmp_path / "project" / ".agent_core" / "specs" / "completed" / "duplicate_spec" / "spec.md").is_file()
+    assert (tmp_path / "project" / ".agent_core" / "specs" / "duplicate_spec_2" / "spec.md").is_file()
+    assert (tmp_path / "project" / ".agent_core" / "specs" / "duplicate_spec_3" / "spec.md").is_file()

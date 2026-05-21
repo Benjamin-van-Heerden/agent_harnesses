@@ -47,16 +47,30 @@ def _candidate_paths(slug: str) -> list[Path]:
     return [_active_path(slug), _completed_path(slug), _abandoned_path(slug)]
 
 
+def _slug_exists(slug: str) -> bool:
+    return any(candidate.exists() for candidate in _candidate_paths(slug))
+
+
+def _available_slug(base_slug: str) -> str:
+    if not _slug_exists(base_slug):
+        return base_slug
+
+    index = 2
+    while True:
+        candidate = f"{base_slug}_{index}"
+        if not _slug_exists(candidate):
+            return candidate
+        index += 1
+
+
 def _to_spec(slug: str, path: Path, metadata: object, body: str) -> Spec:
     frontmatter = SpecFrontmatter.model_validate(metadata)
     return Spec(slug=slug, path=path, body=body, frontmatter=frontmatter)
 
 
 def create(title: str, body: str = DEFAULT_BODY) -> Path:
-    slug = slugify(title)
+    slug = _available_slug(slugify(title))
     path = _active_path(slug)
-    if any(candidate.exists() for candidate in _candidate_paths(slug)):
-        raise ValueError(f"Spec '{slug}' already exists")
     metadata = create_spec_frontmatter(title)
     write_markdown(path, metadata.to_dict(), body)
     return path
