@@ -241,3 +241,25 @@ def test_spec_create_suffixes_duplicate_slugs_across_status_directories(
     assert (tmp_path / "project" / ".agent_core" / "specs" / "completed" / "duplicate_spec" / "spec.md").is_file()
     assert (tmp_path / "project" / ".agent_core" / "specs" / "duplicate_spec_2" / "spec.md").is_file()
     assert (tmp_path / "project" / ".agent_core" / "specs" / "duplicate_spec_3" / "spec.md").is_file()
+
+
+def test_spec_status_move_preserves_additional_spec_files(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    target = _prepare_project(tmp_path, monkeypatch)
+    specs = _load_module(monkeypatch, "src.state.specs")
+
+    spec_path = specs.create("Research Spec", body="Spec body")
+    spec_dir = spec_path.parent
+    (spec_dir / "legal_migration_research.md").write_text("Research notes\n")
+    (spec_dir / "tasks").mkdir()
+    (spec_dir / "tasks" / "01_task.md").write_text("---\ntitle: Task\nstatus: completed\n---\nTask body\n")
+
+    specs.update_status("research_spec", "completed")
+
+    completed_dir = target / ".agent_core" / "specs" / "completed" / "research_spec"
+    assert not spec_dir.exists()
+    assert (completed_dir / "spec.md").is_file()
+    assert (completed_dir / "legal_migration_research.md").read_text() == "Research notes\n"
+    assert (completed_dir / "tasks" / "01_task.md").is_file()
