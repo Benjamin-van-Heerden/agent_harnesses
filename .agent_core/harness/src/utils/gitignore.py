@@ -4,6 +4,8 @@ from src.config.models import AgentCoreConfig
 
 
 HEADER = "# Agent Core worktree symlinks"
+TMP_IGNORE_ENTRY = ".agent_core/tmp/"
+LEGACY_TMP_IGNORE_ENTRY = ".agent_core/tmp"
 
 
 def _normalized_symlink_path(value: str) -> str:
@@ -48,3 +50,27 @@ def ensure_symlink_paths_ignored(config: AgentCoreConfig, gitignore_file: Path) 
     lines.extend(missing)
     gitignore_file.write_text("\n".join(lines).rstrip() + "\n")
     return missing
+
+
+def ensure_agent_core_tmp_ignored(gitignore_file: Path) -> bool:
+    existing = gitignore_file.read_text().splitlines() if gitignore_file.exists() else []
+    changed = False
+    lines: list[str] = []
+
+    for line in existing:
+        if line.strip() == LEGACY_TMP_IGNORE_ENTRY:
+            lines.append(TMP_IGNORE_ENTRY)
+            changed = True
+            continue
+        lines.append(line)
+
+    seen = {line.strip() for line in lines}
+    if TMP_IGNORE_ENTRY not in seen:
+        if lines and lines[-1].strip():
+            lines.append("")
+        lines.append(TMP_IGNORE_ENTRY)
+        changed = True
+
+    if changed:
+        gitignore_file.write_text("\n".join(lines).rstrip() + "\n")
+    return changed

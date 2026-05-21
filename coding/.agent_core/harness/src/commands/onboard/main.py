@@ -17,9 +17,16 @@ from src.config.paths import PROJECT_PATHS
 from src.commands.sync.main import sync_all
 from src.utils import auto_update, git, worktrees
 from src.utils.errors import GitError, GitHubError
-from src.utils.gitignore import ensure_symlink_paths_ignored
+from src.utils.gitignore import ensure_agent_core_tmp_ignored, ensure_symlink_paths_ignored
 
 app = typer.Typer(help="Build local project context")
+
+
+def _ensure_tmp_ignored() -> None:
+    try:
+        ensure_agent_core_tmp_ignored(PROJECT_PATHS.project_root / ".gitignore")
+    except OSError as error:
+        typer.echo(f"Warning: could not ensure .agent_core/tmp/ is ignored: {error}", err=True)
 
 
 def _main_repo_non_dev_branch_message() -> str | None:
@@ -167,6 +174,7 @@ def run(
 
     if stdout or len(content) <= 14000:
         typer.echo(content)
+        _ensure_tmp_ignored()
         return
 
     output_path = write_output(content)
@@ -178,3 +186,4 @@ def run(
         "document contains important context. An overview or partial reading of "
         "the document is not enough, it must be read in its entirety (every line)."
     )
+    _ensure_tmp_ignored()

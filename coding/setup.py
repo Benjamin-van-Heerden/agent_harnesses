@@ -28,6 +28,8 @@ WORKTREE_SYMLINK_PATHS_COMMENT = (
     "# Typical examples are .env, .claude, .venv, node_modules, or deps. Use care with manifests and lock files such as pyproject.toml, package.json, or bun.lock; list them only when the project deliberately treats them as local-only.",
 )
 LEGACY_WORKTREE_SYMLINK_PATHS_COMMENT = "# Paths to symlink into worktrees instead of copying"
+AGENT_CORE_TMP_IGNORE_ENTRY = ".agent_core/tmp/"
+LEGACY_AGENT_CORE_TMP_IGNORE_ENTRY = ".agent_core/tmp"
 
 
 @dataclass(frozen=True)
@@ -386,6 +388,29 @@ def ensure_symlink_paths_ignored(config_file: Path, gitignore_file: Path) -> Non
     lines.append("# Agent Core worktree symlinks")
     lines.extend(missing)
     gitignore_file.write_text("\n".join(lines).rstrip() + "\n")
+
+
+def ensure_agent_core_tmp_ignored(gitignore_file: Path) -> None:
+    existing = gitignore_file.read_text().splitlines() if gitignore_file.exists() else []
+    changed = False
+    lines: list[str] = []
+
+    for line in existing:
+        if line.strip() == LEGACY_AGENT_CORE_TMP_IGNORE_ENTRY:
+            lines.append(AGENT_CORE_TMP_IGNORE_ENTRY)
+            changed = True
+            continue
+        lines.append(line)
+
+    seen = {line.strip() for line in lines}
+    if AGENT_CORE_TMP_IGNORE_ENTRY not in seen:
+        if lines and lines[-1].strip():
+            lines.append("")
+        lines.append(AGENT_CORE_TMP_IGNORE_ENTRY)
+        changed = True
+
+    if changed:
+        gitignore_file.write_text("\n".join(lines).rstrip() + "\n")
 
 
 def branch_names(config_file: Path) -> tuple[str, str, str]:
@@ -750,6 +775,7 @@ def install(template_root: Path, target_root: Path, update: bool) -> None:
     config_created = ensure_config(config_file, target_root)
     if config_created and not update and sys.stdin.isatty():
         prompt_branch_mapping(target_root, config_file)
+    ensure_agent_core_tmp_ignored(target_root / ".gitignore")
     ensure_symlink_paths_ignored(config_file, target_root / ".gitignore")
     ensure_branches_exist(target_root, config_file)
     ensure_update_branch(target_root, config_file, update)
