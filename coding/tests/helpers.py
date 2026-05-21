@@ -8,7 +8,7 @@ from constants import GIT_USER_EMAIL, GIT_USER_NAME
 
 
 HARNESS_ROOT = Path(__file__).resolve().parents[1]
-PROJECT_ROOT = Path(__file__).resolve().parents[3]
+PROJECT_ROOT = Path(__file__).resolve().parents[1]
 
 
 def run_command(
@@ -54,7 +54,7 @@ def init_git_project(project_path: Path, branch: str = "main") -> None:
     run_command(["git", "init", "-b", branch], cwd=project_path)
     configure_git(project_path)
     run_command(["git", "commit", "--allow-empty", "-m", "initial commit"], cwd=project_path)
-    for protected_branch in ("dev", "test"):
+    for protected_branch in ("dev", "test", "main"):
         if protected_branch != branch:
             run_command(["git", "branch", protected_branch], cwd=project_path)
 

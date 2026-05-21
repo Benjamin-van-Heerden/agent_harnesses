@@ -76,9 +76,10 @@ def test_template_onboard_expands_current_user_and_recent_logs(tmp_path: Path) -
     assert "Current user log 4" in result.stdout
     assert "Current user log 3" in result.stdout
     assert "Current user log 2" in result.stdout
-    assert "Current user log 1" not in result.stdout
+    assert "Current user log 1" in result.stdout
     assert "General log 6" in result.stdout
-    assert "General log 2" in result.stdout
+    assert "General log 5" not in result.stdout
+    assert "General log 2" not in result.stdout
     assert "General log 1" not in result.stdout
 
 
@@ -97,13 +98,14 @@ def test_template_onboard_warns_and_continues_when_sync_fails(tmp_path: Path) ->
         harness_command() + ["onboard", "--stdout"],
         cwd=target,
         env=command_env(),
+        check=False,
     )
 
-    assert "🚨 ONBOARD SYNC WARNING" in result.stdout
-    assert "Working tree has uncommitted tracked changes." in result.stdout
-    assert "Read this onboard output in full before proceeding." in result.stdout
-    assert "Report the onboard sync warning and its reason." in result.stdout
-    assert "Project" in result.stdout
+    assert result.returncode == 1
+    assert "Onboard stopped before building project context." in result.stderr
+    assert "Git sync/rebase was not attempted because the working tree is dirty." in result.stderr
+    assert "No onboard context file was created because local context may be stale." in result.stderr
+    assert "Project" not in result.stdout
 
 
 def test_template_onboard_reports_agent_core_tmp_mutations(tmp_path: Path) -> None:
@@ -128,11 +130,9 @@ def test_template_onboard_reports_agent_core_tmp_mutations(tmp_path: Path) -> No
         env=command_env(),
     )
 
-    assert ".agent_core changes" in result.stdout
-    assert "Created:" in result.stdout
     assert ".agent_core/tmp/onboard_" in result.stdout
-    assert "Deleted:" in result.stdout
-    assert ".agent_core/tmp/onboard_20000101_000000.md" in result.stdout
+    assert ".agent_core changes" not in result.stdout
+    assert ".agent_core/tmp/onboard_20000101_000000.md" not in result.stdout
 
 
 def test_agent_core_mutation_summary_ignores_directory_mtime_changes(

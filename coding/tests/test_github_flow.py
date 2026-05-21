@@ -1,5 +1,4 @@
 import re
-import shutil
 from pathlib import Path
 
 from conftest import RemoteHarnessProject
@@ -105,7 +104,7 @@ def test_remote_assignment_completion_and_merge_flow(
     env = command_env({"GITHUB_TOKEN": token})
 
     run_command(command + ["spec", "new", "Remote Lifecycle", "--body", "Lifecycle body"], cwd=project_path, env=env)
-    run_command(command + ["task", "new", "remote_lifecycle", "Finish It", "Task body"], cwd=project_path, env=env)
+    run_command(command + ["task", "new", "Finish It", "Task body", "--spec", "remote_lifecycle"], cwd=project_path, env=env)
     run_command(command + ["sync", "issues"], cwd=project_path, env=env)
     run_command(["git", "add", "."], cwd=project_path)
     run_command(["git", "commit", "-m", "record remote lifecycle spec"], cwd=project_path)
@@ -115,7 +114,12 @@ def test_remote_assignment_completion_and_merge_flow(
     worktree_path = project_path.parent / "project-worktrees" / "remote_lifecycle"
     assert worktree_path.is_dir()
 
-    run_command(command + ["task", "complete", "remote_lifecycle", "finish_it", "Done"], cwd=worktree_path, env=env)
+    run_command(
+        command + ["task", "complete", "finish_it", "Done", "--user-gave-explicit-permission"],
+        cwd=worktree_path,
+        env=env,
+    )
+    run_command(command + ["log", "new"], cwd=worktree_path, env=env)
     run_command(command + ["spec", "complete", "remote_lifecycle", "finish lifecycle"], cwd=worktree_path, env=env)
 
     worktree_spec = worktree_path / ".agent_core" / "specs" / "remote_lifecycle" / "spec.md"
@@ -124,9 +128,7 @@ def test_remote_assignment_completion_and_merge_flow(
     branch = f"dev-{_slugify(repo.owner.login)}-remote_lifecycle"
     assert list(repo.get_pulls(state="open", head=f"{repo.owner.login}:{branch}"))
 
-    main_spec = project_path / ".agent_core" / "specs" / "remote_lifecycle" / "spec.md"
-    shutil.copy2(worktree_spec, main_spec)
-    run_command(command + ["merge", "pr", "remote_lifecycle", "--message", "merge lifecycle"], cwd=project_path, env=env)
+    run_command(command + ["merge", "pr", pull_url, "--message", "merge lifecycle"], cwd=project_path, env=env)
 
     assert (project_path / ".agent_core" / "specs" / "completed" / "remote_lifecycle" / "spec.md").is_file()
     assert not worktree_path.exists()
