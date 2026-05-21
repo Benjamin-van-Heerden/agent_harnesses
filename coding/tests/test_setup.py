@@ -78,6 +78,30 @@ def test_template_setup_preserves_state_and_avoids_removed_surfaces(tmp_path: Pa
         assert re.search(pattern, lowered) is None
 
 
+def test_setup_updates_managed_harness_without_replacing_directory(tmp_path: Path) -> None:
+    target = tmp_path / "project"
+    target.mkdir()
+    init_git_project(target)
+
+    run_command([sys.executable, str(HARNESS_ROOT / "setup.py")], cwd=target)
+    harness_main = target / ".agent_core" / "harness" / "main.py"
+    original_mtime = harness_main.stat().st_mtime_ns
+    stale_file = target / ".agent_core" / "harness" / "stale.txt"
+    stale_dir = target / ".agent_core" / "harness" / "stale_dir"
+    stale_dir.mkdir()
+    stale_file.write_text("stale\n")
+    (stale_dir / "old.txt").write_text("old\n")
+
+    result = run_command([sys.executable, str(HARNESS_ROOT / "setup.py")], cwd=target)
+
+    assert harness_main.stat().st_mtime_ns == original_mtime
+    assert not stale_file.exists()
+    assert not stale_dir.exists()
+    assert "Removed stale managed file: .agent_core/harness/stale.txt" in result.stdout
+    assert "Removed stale managed file: .agent_core/harness/stale_dir/old.txt" in result.stdout
+    assert "Removed stale managed directory: .agent_core/harness/stale_dir" in result.stdout
+
+
 def test_setup_creates_missing_configured_protected_branches(tmp_path: Path) -> None:
     target = tmp_path / "project"
     target.mkdir()

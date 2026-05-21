@@ -58,13 +58,21 @@ def _harness_config() -> tuple[datetime | None, int]:
     return last_updated_at, interval_days
 
 
-def _update_due() -> bool:
+def _update_due_reason() -> tuple[bool, str]:
     last_updated_at, interval_days = _harness_config()
     if interval_days == 0:
-        return False
+        return False, "disabled by update_interval_days = 0"
     if last_updated_at is None:
-        return True
-    return datetime.now(UTC) - last_updated_at >= timedelta(days=interval_days)
+        return True, "no last_updated_at is recorded"
+    elapsed = datetime.now(UTC) - last_updated_at
+    if elapsed >= timedelta(days=interval_days):
+        return True, f"last update was at {last_updated_at.isoformat()}; interval is {interval_days} day(s)"
+    return False, f"last update was at {last_updated_at.isoformat()}; interval is {interval_days} day(s)"
+
+
+def _update_due() -> bool:
+    due, _reason = _update_due_reason()
+    return due
 
 
 def _run_remote_setup_update() -> None:
@@ -117,8 +125,13 @@ def update(force: bool = False) -> AutoUpdateResult:
             updated=False,
             skipped_reason=f"current branch is not configured dev branch '{branches.dev}'",
         )
-    if not force and not _update_due():
-        return AutoUpdateResult(updated=False)
+    if not force:
+        due, reason = _update_due_reason()
+        if not due:
+            return AutoUpdateResult(updated=False, skipped_reason=f"not due; {reason}")
+        print(f"Harness auto-update: update due; updating. Reason: {reason}")
+    else:
+        print("Harness auto-update: force update requested; updating.")
 
     _run_remote_setup_update()
     _commit_update_changes()

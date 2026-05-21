@@ -257,9 +257,11 @@ def upsert_config(path: Path, project_name: str) -> None:
     if not path.exists():
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(default_config(project_name))
+        print("Created managed file: .agent_core/config.toml")
         return
 
     content = path.read_text()
+    original_content = content
 
     if not section_declared(content, "project"):
         content = append_if_missing(
@@ -327,7 +329,10 @@ test = "test"
         if section_exists(content, "branches") and not key_declared(content, "branches", "test"):
             content = insert_key(content, "branches", 'test = "test"')
 
-    path.write_text(apply_config_patches(content))
+    content = apply_config_patches(content)
+    if content != original_content:
+        path.write_text(content)
+        print("Updated managed file: .agent_core/config.toml")
 
 
 def read_toml(path: Path) -> dict[str, object]:
@@ -341,7 +346,11 @@ def read_toml(path: Path) -> dict[str, object]:
 
 def ensure_state_dirs(state_dir: Path) -> None:
     for name in ("", "specs", "todos", "memories", "logs", "docs"):
-        (state_dir / name).mkdir(parents=True, exist_ok=True)
+        path = state_dir / name
+        if not path.exists():
+            path.mkdir(parents=True, exist_ok=True)
+            display_path = ".agent_core" if not name else f".agent_core/{name}"
+            print(f"Created managed directory: {display_path}")
 
 
 def ensure_config(config_file: Path, target_root: Path) -> bool:
@@ -388,6 +397,7 @@ def ensure_symlink_paths_ignored(config_file: Path, gitignore_file: Path) -> Non
     lines.append("# Agent Core worktree symlinks")
     lines.extend(missing)
     gitignore_file.write_text("\n".join(lines).rstrip() + "\n")
+    print("Updated .gitignore: added configured worktree symlink ignores: " + ", ".join(missing))
 
 
 def ensure_agent_core_tmp_ignored(gitignore_file: Path) -> None:
@@ -411,6 +421,7 @@ def ensure_agent_core_tmp_ignored(gitignore_file: Path) -> None:
 
     if changed:
         gitignore_file.write_text("\n".join(lines).rstrip() + "\n")
+        print("Updated .gitignore: ensured .agent_core/tmp/ is ignored.")
 
 
 def branch_names(config_file: Path) -> tuple[str, str, str]:
@@ -598,26 +609,76 @@ def ensure_update_branch(target_root: Path, config_file: Path, update: bool) -> 
     )
 
 
+def sync_managed_directory(source: Path, target: Path, display_path: str) -> None:
+    if not target.exists():
+        target.mkdir(parents=True, exist_ok=True)
+        print(f"Created managed directory: {display_path}")
+
+    source_files = {path.relative_to(source) for path in source.rglob("*") if path.is_file()}
+    target_files = {path.relative_to(target) for path in target.rglob("*") if path.is_file()}
+    source_dirs = {path.relative_to(source) for path in source.rglob("*") if path.is_dir()}
+
+    for relative_path in sorted(source_dirs):
+        target_dir = target / relative_path
+        if target_dir.exists():
+            continue
+        target_dir.mkdir(parents=True, exist_ok=True)
+        print(f"Created managed directory: {display_path}/{relative_path.as_posix()}")
+
+    for relative_path in sorted(source_files):
+        source_file = source / relative_path
+        target_file = target / relative_path
+        display_file = f"{display_path}/{relative_path.as_posix()}"
+        if not target_file.exists():
+            shutil.copy2(source_file, target_file)
+            print(f"Created managed file: {display_file}")
+            continue
+        if target_file.read_bytes() == source_file.read_bytes():
+            continue
+        shutil.copy2(source_file, target_file)
+        print(f"Updated managed file: {display_file}")
+
+    for relative_path in sorted(target_files - source_files, reverse=True):
+        target_file = target / relative_path
+        target_file.unlink()
+        print(f"Removed stale managed file: {display_path}/{relative_path.as_posix()}")
+
+    target_dirs = {path.relative_to(target) for path in target.rglob("*") if path.is_dir()}
+    stale_dirs = sorted(target_dirs - source_dirs, key=lambda path: len(path.parts), reverse=True)
+    for relative_path in stale_dirs:
+        target_dir = target / relative_path
+        try:
+            target_dir.rmdir()
+        except OSError:
+            continue
+        print(f"Removed stale managed directory: {display_path}/{relative_path.as_posix()}")
+
+
 def install_harness(template_root: Path, state_dir: Path) -> None:
-    source = template_root / ".agent_core" / "harness"
-    target = state_dir / "harness"
-    if target.exists():
-        shutil.rmtree(target)
-    state_dir.mkdir(parents=True, exist_ok=True)
-    shutil.copytree(source, target)
+    sync_managed_directory(
+        template_root / ".agent_core" / "harness",
+        state_dir / "harness",
+        ".agent_core/harness",
+    )
 
 
 def install_harness_readme(template_root: Path, state_dir: Path) -> None:
     source = template_root / "README.md"
     if not source.is_file():
         return
-    shutil.copyfile(source, state_dir / "README.md")
+    target = state_dir / "README.md"
+    existed = target.exists()
+    if target.exists() and target.read_text() == source.read_text():
+        return
+    shutil.copyfile(source, target)
+    print("Updated managed file: .agent_core/README.md" if existed else "Created managed file: .agent_core/README.md")
 
 
 def ensure_user_mappings(state_dir: Path) -> None:
     path = state_dir / "user_mappings.toml"
     if not path.exists():
         path.write_text("# GitHub username to git user mappings\n")
+        print("Created managed file: .agent_core/user_mappings.toml")
 
 
 def install_agents_file(template_root: Path, target_root: Path) -> None:
@@ -741,6 +802,7 @@ def upsert_last_updated_at(config_file: Path) -> None:
 
     if not section_exists(content, "harness"):
         config_file.write_text(append_if_missing(content, f'[harness]\nlast_updated_at = "{timestamp}"'))
+        print("Updated managed file: .agent_core/config.toml")
         return
 
     lines = content.splitlines()
@@ -763,7 +825,10 @@ def upsert_last_updated_at(config_file: Path) -> None:
     if in_section and not updated:
         lines.append(f'last_updated_at = "{timestamp}"')
 
-    config_file.write_text("\n".join(lines).rstrip() + "\n")
+    updated_content = "\n".join(lines).rstrip() + "\n"
+    if updated_content != content:
+        config_file.write_text(updated_content)
+        print("Updated managed file: .agent_core/config.toml")
 
 
 def install(template_root: Path, target_root: Path, update: bool) -> None:
