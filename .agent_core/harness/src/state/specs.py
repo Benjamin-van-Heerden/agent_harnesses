@@ -133,9 +133,14 @@ def update_status(slug: str, status: SpecStatus) -> Path:
     elif status == "abandoned":
         target_path = _abandoned_path(slug)
 
-    write_markdown(target_path, frontmatter.to_dict(), record.body)
     if target_path != record.path:
-        shutil.rmtree(record.path.parent)
+        target_dir = target_path.parent
+        if target_dir.exists():
+            raise ValueError(f"Cannot move spec '{slug}' because target already exists: {target_dir}")
+        target_dir.parent.mkdir(parents=True, exist_ok=True)
+        shutil.move(str(record.path.parent), str(target_dir))
+
+    write_markdown(target_path, frontmatter.to_dict(), record.body)
     return target_path
 
 

@@ -24,7 +24,8 @@ app = typer.Typer(help="Build local project context")
 
 def _ensure_tmp_ignored() -> None:
     try:
-        ensure_agent_core_tmp_ignored(PROJECT_PATHS.project_root / ".gitignore")
+        if ensure_agent_core_tmp_ignored(PROJECT_PATHS.project_root / ".gitignore"):
+            typer.echo("Onboard mutated .gitignore: ensured .agent_core/tmp/ is ignored.")
     except OSError as error:
         typer.echo(f"Warning: could not ensure .agent_core/tmp/ is ignored: {error}", err=True)
 
@@ -97,7 +98,15 @@ def run(
         raise typer.Exit(code=1)
 
     try:
-        ensure_symlink_paths_ignored(config_result.config, PROJECT_PATHS.project_root / ".gitignore")
+        missing_ignores = ensure_symlink_paths_ignored(
+            config_result.config,
+            PROJECT_PATHS.project_root / ".gitignore",
+        )
+        if missing_ignores:
+            typer.echo(
+                "Onboard mutated .gitignore: added configured worktree symlink ignores: "
+                + ", ".join(missing_ignores)
+            )
     except ValueError as error:
         typer.echo(str(error), err=True)
         raise typer.Exit(code=1) from error
@@ -120,6 +129,8 @@ def run(
                 err=True,
             )
             raise typer.Exit(code=1) from error
+        if update_result.skipped_reason:
+            typer.echo(f"Harness auto-update skipped: {update_result.skipped_reason}")
         if update_result.reexec_required:
             typer.echo("Harness updated. Restarting onboard with the refreshed harness.")
             auto_update.reexec_current_command()

@@ -1,6 +1,7 @@
 from typing import cast
 
 import typer
+from github.Issue import Issue
 from github.Repository import Repository
 
 from src.config.branches import get_branch_names
@@ -25,6 +26,30 @@ from src.utils.github import (
 
 
 app = typer.Typer(help="Synchronize repository and remote state")
+
+
+def _label_names(issue: Issue) -> set[str]:
+    labels = issue.labels
+    return {label.name for label in labels}
+
+
+def _issue_needs_update(
+    issue: Issue,
+    *,
+    title: str,
+    body: str,
+    labels: list[str],
+    state: str | None = None,
+) -> bool:
+    if issue.title != title:
+        return True
+    if (issue.body or "") != body:
+        return True
+    if _label_names(issue) != set(labels):
+        return True
+    if state is not None and issue.state != state:
+        return True
+    return False
 
 
 @app.command("branches")
@@ -79,14 +104,16 @@ def _sync_specs(repo: Repository) -> int:
 
         issue = remote_by_number.get(record.issue_id)
         if issue is not None:
-            update_issue(
-                repo,
-                record.issue_id,
-                title=record.title,
-                body=record.body,
-                labels=issue_labels("spec", record.status),
-            )
-            actions += 1
+            labels = issue_labels("spec", record.status)
+            if _issue_needs_update(issue, title=record.title, body=record.body, labels=labels):
+                update_issue(
+                    repo,
+                    record.issue_id,
+                    title=record.title,
+                    body=record.body,
+                    labels=labels,
+                )
+                actions += 1
 
     for issue in remote_by_number.values():
         if issue.number in local_by_issue:
@@ -128,15 +155,18 @@ def _sync_todos(repo: Repository) -> int:
 
         issue = remote_by_number.get(record.issue_id)
         if issue is not None:
-            update_issue(
-                repo,
-                record.issue_id,
-                title=record.title,
-                body=record.body,
-                state="closed" if record.status == "claimed" else "open",
-                labels=issue_labels("todo", record.status),
-            )
-            actions += 1
+            state = "closed" if record.status == "claimed" else "open"
+            labels = issue_labels("todo", record.status)
+            if _issue_needs_update(issue, title=record.title, body=record.body, labels=labels, state=state):
+                update_issue(
+                    repo,
+                    record.issue_id,
+                    title=record.title,
+                    body=record.body,
+                    state=state,
+                    labels=labels,
+                )
+                actions += 1
 
     for issue in remote_by_number.values():
         if issue.number in local_by_issue:

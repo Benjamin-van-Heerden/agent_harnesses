@@ -101,6 +101,17 @@ Repair commands are for explicit recovery or reconciliation. Do not run them as 
 - Run commands from the project root unless a command explicitly says otherwise.
 - When you encounter a file or changes that you did not make, you must stop and ask about them. Removing such files or changes is NOT ACCEPTABLE unless explicit consent is given.
 - When you are interrupted by the user with "Stop" or "No" or similar, you must **IMMEDIATELY** stop what you are doing, give a brief explanation of what you were busy with, and wait for further instructions. DO NOT continue working.
+- Refrain from performing actions without user consent unless the action is trivial or has very low risk. Always explain choices and invite user feedback.
+- Strive for a workflow loop where:
+    > - The *user* gives an instruction.
+    > (loop)
+    >   - *You* do research, establish and understand the problem.
+    >   - *You* provide context and diagnostics. to the user and ask clarifying questions
+    >   - The *user* gives feedback.
+    > (end loop if feedback intends for implementation to proceed)
+    > - *You* implement the changes/updates as discussed with the *user*.
+    > - *You* provide a clear and informative summary of what you did and what changed. 
+  This kind of workflow is not always possible nor practical, but especially when larger changes need to happen, this should be adhered to. "Quick and dirty" changes prompted via direct instruction can be implemented at your discretion. 
 
 ---------------------------------------------------------------
 
@@ -110,69 +121,6 @@ Repair commands are for explicit recovery or reconciliation. Do not run them as 
 - Keep user-facing strings, command strings, markdown output fragments, and simple expressions on one line when that is clearer.
 - Only split a line when it improves structure or readability, such as a genuinely complex expression, a long data literal, or nested call arguments. When applicable use multiline strings for this.
 - Do not reflow existing prose or strings unless the requested change requires it.
-
----------------------------------------------------------------
-
-## Behavioral Guidelines
-
-**Tradeoff:** These guidelines bias toward caution over speed. For trivial tasks, use judgment.
-
-### 1. Think Before Coding
-
-**Don't assume. Don't hide confusion. Surface tradeoffs.**
-
-Before implementing:
-- State your assumptions explicitly. If uncertain, ask.
-- If multiple interpretations exist, present them - don't pick silently.
-- If a simpler approach exists, say so. Push back when warranted.
-- If something is unclear, stop. Name what's confusing. Ask.
-
-### 2. Simplicity First
-
-**Minimum code that solves the problem. Nothing speculative.**
-
-- No features beyond what was asked.
-- No abstractions for single-use code.
-- No "flexibility" or "configurability" that wasn't requested.
-- No error handling for impossible scenarios.
-- If you write 200 lines and it could be 50, rewrite it.
-
-Ask yourself: "Would a senior engineer say this is overcomplicated?" If yes, simplify.
-
-### 3. Surgical Changes
-
-**Touch only what you must. Clean up only your own mess.**
-
-When editing existing code:
-- Don't "improve" adjacent code, comments, or formatting.
-- Don't refactor things that aren't broken.
-- Match existing style, even if you'd do it differently.
-- If you notice unrelated dead code, mention it - don't delete it.
-
-When your changes create orphans:
-- Remove imports/variables/functions that YOUR changes made unused.
-- Don't remove pre-existing dead code unless asked.
-
-The test: Every changed line should trace directly to the user's request.
-
-### 4. Goal-Driven Execution
-
-**Define success criteria. Loop until verified.**
-
-Transform tasks into verifiable goals:
-- "Add validation" -> "Write tests for invalid inputs, then make them pass"
-- "Fix the bug" -> "Write a test that reproduces it, then make it pass"
-- "Refactor X" -> "Ensure tests pass before and after"
-
-For multi-step tasks, state a brief plan:
-
-```text
-1. [Step] -> verify: [check]
-2. [Step] -> verify: [check]
-3. [Step] -> verify: [check]
-```
-
-Strong success criteria let you loop independently. Weak criteria like "make it work" require constant clarification.
 </AGENT_CORE>
 
 # Very Important Scoping Context
