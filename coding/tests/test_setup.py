@@ -113,6 +113,25 @@ def test_setup_updates_managed_harness_without_replacing_directory(tmp_path: Pat
     assert "Removed stale managed directory: .agent_core/harness/stale_dir" in result.stdout
 
 
+def test_setup_replaces_legacy_agents_core_block(tmp_path: Path) -> None:
+    target = tmp_path / "project"
+    target.mkdir()
+    init_git_project(target)
+    (target / "AGENTS.md").write_text(
+        "<AGENT_CORE>\nOld managed instructions\n</AGENT_CORE>\n\nUser notes\n"
+    )
+
+    install_harness(target)
+
+    content = (target / "AGENTS.md").read_text()
+    assert "<core_instructions>" in content
+    assert "</core_instructions>" in content
+    assert "<AGENT_CORE>" not in content
+    assert "</AGENT_CORE>" not in content
+    assert "Old managed instructions" not in content
+    assert "User notes" in content
+
+
 def test_sync_managed_directory_ignores_python_cache_artifacts(tmp_path: Path) -> None:
     setup = _load_setup_module()
     source = tmp_path / "source"

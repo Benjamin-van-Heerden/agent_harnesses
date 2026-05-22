@@ -1,4 +1,4 @@
-<AGENT_CORE>
+<core_instructions>
 # Working With Agent Core
 
 This project uses a project-local harness for context management and version control in AI-assisted development.
@@ -121,7 +121,7 @@ Repair commands are for explicit recovery or reconciliation. Do not run them as 
 - Keep user-facing strings, command strings, markdown output fragments, and simple expressions on one line when that is clearer.
 - Only split a line when it improves structure or readability, such as a genuinely complex expression, a long data literal, or nested call arguments. When applicable use multiline strings for this.
 - Do not reflow existing prose or strings unless the requested change requires it.
-</AGENT_CORE>
+</core_instructions>
 
 # Very Important Scoping Context
 

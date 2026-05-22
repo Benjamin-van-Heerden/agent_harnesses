@@ -19,8 +19,10 @@ from typing import NoReturn, cast
 
 REPO_ARCHIVE_URL = "https://github.com/Benjamin-van-Heerden/agent_harnesses/archive/refs/heads/main.zip"
 TEMPLATE_SUBPATH = "coding"
-CORE_START_TAG = "<AGENT_CORE>"
-CORE_END_TAG = "</AGENT_CORE>"
+CORE_START_TAG = "<core_instructions>"
+CORE_END_TAG = "</core_instructions>"
+LEGACY_CORE_START_TAG = "<AGENT_CORE>"
+LEGACY_CORE_END_TAG = "</AGENT_CORE>"
 DEFAULT_DOCS = ("coding_general", "coding_testing")
 WORKTREE_SYMLINK_PATHS_COMMENT = (
     "# Project-root relative paths to symlink from the main checkout into spec worktrees.",
@@ -723,11 +725,22 @@ def install_agents_file(template_root: Path, target_root: Path) -> None:
         return
 
     content = target_file.read_text()
-    start_index = content.find(CORE_START_TAG)
-    end_index = content.find(CORE_END_TAG)
+    start_tag = CORE_START_TAG
+    end_tag = CORE_END_TAG
+    start_index = content.find(start_tag)
+    end_index = content.find(end_tag)
+
+    if start_index == -1 or end_index == -1 or end_index <= start_index:
+        legacy_start_index = content.find(LEGACY_CORE_START_TAG)
+        legacy_end_index = content.find(LEGACY_CORE_END_TAG)
+        if legacy_start_index != -1 and legacy_end_index != -1 and legacy_end_index > legacy_start_index:
+            start_tag = LEGACY_CORE_START_TAG
+            end_tag = LEGACY_CORE_END_TAG
+            start_index = legacy_start_index
+            end_index = legacy_end_index
 
     if start_index != -1 and end_index != -1 and end_index > start_index:
-        end_index += len(CORE_END_TAG)
+        end_index += len(end_tag)
         updated = content[:start_index] + template.strip() + content[end_index:]
     else:
         updated = template + "\n" + content
