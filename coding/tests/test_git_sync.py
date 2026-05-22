@@ -64,3 +64,44 @@ def test_protected_branch_sync_does_not_mutate_non_current_protected_branches(
     assert not (project / ".agent_core" / "test.txt").exists()
     assert _rev_parse(project, "main") != _rev_parse(project, "origin/main")
     assert _rev_parse(project, "test") != _rev_parse(project, "origin/test")
+
+
+def test_sync_git_state_rebases_spec_worktree_and_reports_success(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    sync_module = _load_module(monkeypatch, "src.commands.sync.main")
+    config_models = _load_module(monkeypatch, "src.config.models")
+    calls: list[tuple[str, str]] = []
+
+    monkeypatch.setattr(
+        sync_module,
+        "get_branch_names",
+        lambda: config_models.BranchNames(dev="dev", test="test", main="main"),
+    )
+    monkeypatch.setattr(sync_module.git, "current_branch", lambda: "dev-octo-example")
+    monkeypatch.setattr(sync_module.git, "has_uncommitted_changes", lambda: False)
+    monkeypatch.setattr(sync_module.git, "fetch", lambda: calls.append(("fetch", "")))
+    monkeypatch.setattr(sync_module.worktrees, "is_worktree", lambda: True)
+    monkeypatch.setattr(
+        sync_module.git,
+        "rebase_onto",
+        lambda branch: calls.append(("rebase", branch)),
+    )
+    monkeypatch.setattr(
+        sync_module.git,
+        "push_force_with_lease",
+        lambda branch: calls.append(("push_force_with_lease", branch)),
+    )
+
+    sync_module.sync_git_state()
+
+    assert calls == [
+        ("fetch", ""),
+        ("rebase", "origin/dev"),
+        ("push_force_with_lease", "dev-octo-example"),
+    ]
+    assert (
+        "Spec branch rebased onto origin/dev and pushed with --force-with-lease."
+        in capsys.readouterr().out
+    )

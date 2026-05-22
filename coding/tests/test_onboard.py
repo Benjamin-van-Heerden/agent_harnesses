@@ -44,6 +44,39 @@ def test_template_onboard_reads_docs_without_indexing(tmp_path: Path) -> None:
     assert not (target / ".agent_core" / "docs" / "data").exists()
 
 
+def test_template_onboard_hides_management_commands_on_non_dev_branch(tmp_path: Path) -> None:
+    target = tmp_path / "project"
+    target.mkdir()
+    (target / "README.md").write_text("# Project\n")
+    init_git_project(target)
+    install_harness(target)
+
+    todo_path = target / ".agent_core" / "todos" / "example.md"
+    todo_path.write_text(
+        "---\n"
+        "title: Example\n"
+        "status: open\n"
+        "issue_id: null\n"
+        "issue_url: null\n"
+        "created_at: 2026-05-22T10:00:00\n"
+        "claimed_by: null\n"
+        "claimed_at: null\n"
+        "---\n"
+        "Example body\n"
+    )
+
+    result = run_command(
+        harness_command() + ["onboard", "--stdout", "--no-sync"],
+        cwd=target,
+        env=command_env(),
+    )
+
+    assert "No specs available. Spec creation must run from mission control on `dev`." in result.stdout
+    assert "Todo claim/create/delete commands must run from mission control on `dev`." in result.stdout
+    assert "Create or manage a spec if needed" not in result.stdout
+    assert "Or claim a todo if directed" not in result.stdout
+
+
 def test_template_onboard_expands_current_user_and_recent_logs(tmp_path: Path) -> None:
     target = tmp_path / "project"
     target.mkdir()
