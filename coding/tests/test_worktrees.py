@@ -8,8 +8,6 @@ def test_installed_harness_local_worktree_commands(tmp_path: Path) -> None:
     target.mkdir()
     init_git_project(target)
     install_harness(target)
-    run_command(["git", "add", "."], cwd=target)
-    run_command(["git", "commit", "-m", "initial harness state"], cwd=target)
 
     command = harness_command()
     env = command_env({"GITHUB_TOKEN": ""})

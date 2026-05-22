@@ -15,8 +15,11 @@ def test_installed_harness_command_smoke(tmp_path: Path) -> None:
     target = tmp_path / "project"
     target.mkdir()
     (target / "README.md").write_text("# Project\n")
-    init_git_project(target, branch="dev")
+    init_git_project(target)
+    run_command(["git", "add", "README.md"], cwd=target)
+    run_command(["git", "commit", "-m", "add readme"], cwd=target)
     install_harness(target)
+    run_command(["git", "checkout", "dev"], cwd=target)
 
     command = harness_command()
     env = command_env({"GITHUB_TOKEN": ""})

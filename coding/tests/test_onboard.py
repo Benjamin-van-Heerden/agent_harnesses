@@ -12,6 +12,8 @@ def test_template_onboard_reads_docs_without_indexing(tmp_path: Path) -> None:
     target.mkdir()
     (target / "README.md").write_text("# Project\n")
     init_git_project(target)
+    run_command(["git", "add", "README.md"], cwd=target)
+    run_command(["git", "commit", "-m", "track readme"], cwd=target)
     install_harness(target)
 
     config_path = target / ".agent_core" / "config.toml"
@@ -49,6 +51,8 @@ def test_template_onboard_hides_management_commands_on_non_dev_branch(tmp_path: 
     target.mkdir()
     (target / "README.md").write_text("# Project\n")
     init_git_project(target)
+    run_command(["git", "add", "README.md"], cwd=target)
+    run_command(["git", "commit", "-m", "track readme"], cwd=target)
     install_harness(target)
 
     todo_path = target / ".agent_core" / "todos" / "example.md"
@@ -82,6 +86,8 @@ def test_template_onboard_expands_current_user_and_recent_logs(tmp_path: Path) -
     target.mkdir()
     (target / "README.md").write_text("# Project\n")
     init_git_project(target)
+    run_command(["git", "add", "README.md"], cwd=target)
+    run_command(["git", "commit", "-m", "track readme"], cwd=target)
     install_harness(target)
 
     (target / ".agent_core" / "user_mappings.toml").write_text(
@@ -146,6 +152,8 @@ def test_template_onboard_reports_agent_core_tmp_mutations(tmp_path: Path) -> No
     target.mkdir()
     (target / "README.md").write_text("# Project\n")
     init_git_project(target)
+    run_command(["git", "add", "README.md"], cwd=target)
+    run_command(["git", "commit", "-m", "track readme"], cwd=target)
     install_harness(target)
 
     docs_dir = target / ".agent_core" / "docs"

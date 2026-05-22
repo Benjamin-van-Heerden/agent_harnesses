@@ -9,6 +9,8 @@ import subprocess
 import sys
 import tempfile
 import tomllib
+import urllib.error
+import urllib.parse
 import urllib.request
 import zipfile
 from dataclasses import dataclass
@@ -32,6 +34,18 @@ WORKTREE_SYMLINK_PATHS_COMMENT = (
 LEGACY_WORKTREE_SYMLINK_PATHS_COMMENT = "# Paths to symlink into worktrees instead of copying"
 AGENT_CORE_TMP_IGNORE_ENTRY = ".agent_core/tmp/"
 LEGACY_AGENT_CORE_TMP_IGNORE_ENTRY = ".agent_core/tmp"
+INSTALL_COMMIT_MESSAGE = "install agent harness"
+UNINSTALL_COMMIT_MESSAGE = "uninstall agent harness"
+UNINSTALL_CONFIRMATION = "I am sure"
+HARNESS_GITHUB_LABELS = (
+    "spec",
+    "todo",
+    "status:todo",
+    "status:merge-ready",
+    "status:completed",
+    "status:abandoned",
+)
+HARNESS_MANAGED_PATHS = (".agent_core", "AGENTS.md", "CLAUDE.md", ".gitignore")
 
 
 @dataclass(frozen=True)
@@ -73,6 +87,7 @@ def normalize_argv(argv: list[str]) -> list[str]:
 def usage() -> str:
     return """Usage:
   setup.py [--update]
+  setup.py --uninstall
   setup.py docs list
   setup.py docs add <slug> [slug ...]
   setup.py docs update [slug ...]
@@ -119,6 +134,42 @@ def run_git(target_root: Path, args: list[str], check: bool = True) -> subproces
         message = result.stderr.strip() or result.stdout.strip() or "git command failed"
         fail(message)
     return result
+
+
+def git_stdout(target_root: Path, args: list[str]) -> str:
+    return run_git(target_root, args).stdout.strip()
+
+
+def current_branch(target_root: Path) -> str:
+    branch = git_stdout(target_root, ["branch", "--show-current"])
+    if not branch:
+        fail("Error: setup must run on a named branch, not detached HEAD.")
+    return branch
+
+
+def ensure_git_repository(target_root: Path) -> None:
+    if shutil.which("git") is None:
+        fail("Error: git is required but was not found on PATH.")
+    if run_git(target_root, ["rev-parse", "--git-dir"], check=False).returncode != 0:
+        fail("Error: setup must be run from an initialized git repository.")
+    if run_git(target_root, ["rev-parse", "--verify", "HEAD"], check=False).returncode != 0:
+        fail("Error: setup requires at least one commit before protected branches can be managed.")
+
+
+def status_lines(target_root: Path) -> list[str]:
+    output = git_stdout(target_root, ["status", "--porcelain"])
+    return [line for line in output.splitlines() if line]
+
+
+def ensure_clean_worktree(target_root: Path, action: str) -> None:
+    lines = status_lines(target_root)
+    if not lines:
+        return
+    eprint(f"Error: cannot {action} with a dirty working tree.")
+    eprint("Resolve these changes before running setup:")
+    for line in lines:
+        eprint(f"  {line}")
+    raise SetupError("Working tree is dirty.")
 
 
 def default_config(project_name: str) -> str:
@@ -485,6 +536,58 @@ def has_origin(target_root: Path) -> bool:
     return run_git(target_root, ["remote", "get-url", "origin"], check=False).returncode == 0
 
 
+def local_branch_exists(target_root: Path, branch: str) -> bool:
+    return git_ref_exists(target_root, f"refs/heads/{branch}")
+
+
+def remote_branch_exists(target_root: Path, branch: str) -> bool:
+    return git_ref_exists(target_root, f"refs/remotes/origin/{branch}")
+
+
+def fetch_origin_if_available(target_root: Path) -> bool:
+    origin_exists = has_origin(target_root)
+    if origin_exists:
+        result = run_git(target_root, ["fetch", "--prune", "origin"], check=False)
+        if result.returncode != 0:
+            fail("Error: failed to fetch origin while validating protected branches.")
+    return origin_exists
+
+
+def rev_parse(target_root: Path, revision: str) -> str:
+    return git_stdout(target_root, ["rev-parse", revision])
+
+
+def is_ancestor(target_root: Path, ancestor: str, descendant: str) -> bool:
+    return run_git(target_root, ["merge-base", "--is-ancestor", ancestor, descendant], check=False).returncode == 0
+
+
+def branches_are_aligned(target_root: Path, branch: str) -> bool:
+    if not remote_branch_exists(target_root, branch):
+        return True
+    return rev_parse(target_root, branch) == rev_parse(target_root, f"origin/{branch}")
+
+
+def ensure_branch_names_are_distinct(config_file: Path) -> None:
+    dev, test, main = branch_names(config_file)
+    if len({dev, test, main}) != 3:
+        fail("Error: configured main, test, and dev branch names must be distinct.")
+
+
+def ensure_current_branch(target_root: Path, branch: str, action: str) -> None:
+    current = current_branch(target_root)
+    if current != branch:
+        fail(f"Error: {action} must run from '{branch}'. Current branch: {current}")
+
+
+def ensure_local_branch_from_remote_or_fail(target_root: Path, branch: str) -> None:
+    if local_branch_exists(target_root, branch):
+        return
+    if remote_branch_exists(target_root, branch):
+        run_git(target_root, ["branch", "--track", branch, f"origin/{branch}"])
+        return
+    fail(f"Error: configured main branch must exist before setup can continue: {branch}")
+
+
 def print_existing_branches(target_root: Path, origin_exists: bool) -> None:
     print("Existing branches:")
 
@@ -550,45 +653,34 @@ def prompt_branch_mapping(target_root: Path, config_file: Path) -> None:
 
 
 def ensure_branches_exist(target_root: Path, config_file: Path) -> None:
-    if shutil.which("git") is None:
-        fail("Error: git is required but was not found on PATH.")
-    if run_git(target_root, ["rev-parse", "--git-dir"], check=False).returncode != 0:
-        fail("Error: setup must be run from an initialized git repository.")
-
-    origin_exists = has_origin(target_root)
-    if origin_exists:
-        result = run_git(target_root, ["fetch", "--prune", "origin"], check=False)
-        if result.returncode != 0:
-            fail("Error: failed to fetch origin while validating protected branches.")
-
-    if run_git(target_root, ["rev-parse", "--verify", "HEAD"], check=False).returncode != 0:
-        fail("Error: setup requires at least one commit before protected branches can be created.")
+    ensure_git_repository(target_root)
+    origin_exists = fetch_origin_if_available(target_root)
 
     dev, test, main = branch_names(config_file)
-    if not git_ref_exists(target_root, f"refs/heads/{main}"):
-        if origin_exists and git_ref_exists(target_root, f"refs/remotes/origin/{main}"):
+    if not local_branch_exists(target_root, main):
+        if origin_exists and remote_branch_exists(target_root, main):
             run_git(target_root, ["branch", "--track", main, f"origin/{main}"])
         else:
             print("Configured protected branches are missing.")
             print_existing_branches(target_root, origin_exists)
             fail(f"Error: configured main branch must exist before setup can continue: {main}")
 
-    if not git_ref_exists(target_root, f"refs/heads/{test}"):
-        if origin_exists and git_ref_exists(target_root, f"refs/remotes/origin/{test}"):
+    if not local_branch_exists(target_root, test):
+        if origin_exists and remote_branch_exists(target_root, test):
             run_git(target_root, ["branch", "--track", test, f"origin/{test}"])
         else:
             run_git(target_root, ["branch", test, main])
         print(f"Created local protected branch: {test}")
 
-    if not git_ref_exists(target_root, f"refs/heads/{dev}"):
-        if origin_exists and git_ref_exists(target_root, f"refs/remotes/origin/{dev}"):
+    if not local_branch_exists(target_root, dev):
+        if origin_exists and remote_branch_exists(target_root, dev):
             run_git(target_root, ["branch", "--track", dev, f"origin/{dev}"])
         else:
             run_git(target_root, ["branch", dev, test])
         print(f"Created local protected branch: {dev}")
 
     for branch in (main, test, dev):
-        if origin_exists and not git_ref_exists(target_root, f"refs/remotes/origin/{branch}"):
+        if origin_exists and not remote_branch_exists(target_root, branch):
             result = run_git(target_root, ["push", "-u", "origin", f"{branch}:{branch}"], check=False)
             if result.returncode != 0:
                 fail(f"Error: failed to create origin/{branch}.")
@@ -609,6 +701,137 @@ def ensure_update_branch(target_root: Path, config_file: Path, update: bool) -> 
         f"Error: setup --update must run from the configured dev branch '{dev}' "
         f"or a '{dev}-*' spec branch. Current branch: {current}"
     )
+
+
+def staged_changes_exist(target_root: Path) -> bool:
+    return run_git(target_root, ["diff", "--cached", "--quiet"], check=False).returncode != 0
+
+
+def status_path(line: str) -> str:
+    value = line[2:].strip()
+    if " -> " in value:
+        value = value.rsplit(" -> ", 1)[1]
+    return value.strip().strip('"')
+
+
+def is_harness_managed_status_path(path: str) -> bool:
+    return path == ".agent_core" or path.startswith(".agent_core/") or path in HARNESS_MANAGED_PATHS
+
+
+def ensure_only_harness_managed_changes(target_root: Path) -> None:
+    unexpected = [path for path in (status_path(line) for line in status_lines(target_root)) if not is_harness_managed_status_path(path)]
+    if not unexpected:
+        return
+    eprint("Error: setup produced changes outside harness-managed paths:")
+    for path in unexpected:
+        eprint(f"  {path}")
+    raise SetupError("Refusing to commit unexpected setup changes.")
+
+
+def stage_harness_managed_paths(target_root: Path) -> None:
+    ensure_only_harness_managed_changes(target_root)
+    run_git(target_root, ["add", "-A"])
+
+
+def commit_and_push_current_branch(target_root: Path, message: str, branch: str, origin_exists: bool) -> bool:
+    stage_harness_managed_paths(target_root)
+    if not staged_changes_exist(target_root):
+        print("No harness commit was needed.")
+        return False
+    run_git(target_root, ["commit", "-m", message])
+    print(f'Created commit on {branch}: "{message}"')
+    if origin_exists:
+        run_git(target_root, ["push", "-u", "origin", branch])
+        print(f"Pushed {branch} to origin.")
+    return True
+
+
+def sync_branch_from_remote(target_root: Path, branch: str) -> None:
+    if not remote_branch_exists(target_root, branch):
+        return
+    if branches_are_aligned(target_root, branch):
+        return
+    local = branch
+    remote = f"origin/{branch}"
+    if is_ancestor(target_root, local, remote):
+        run_git(target_root, ["checkout", branch])
+        run_git(target_root, ["merge", "--ff-only", remote])
+        print(f"Fast-forwarded local {branch} to {remote}.")
+        return
+    if is_ancestor(target_root, remote, local):
+        fail(f"Error: local '{branch}' has commits that are not on origin/{branch}. Push or inspect them before setup continues.")
+    fail(f"Error: local '{branch}' and origin/{branch} have diverged. Resolve the divergence before setup continues.")
+
+
+def rebase_current_branch(target_root: Path, branch: str, base: str) -> bool:
+    before = rev_parse(target_root, "HEAD")
+    result = run_git(target_root, ["rebase", base], check=False)
+    if result.returncode != 0:
+        run_git(target_root, ["rebase", "--abort"], check=False)
+        message = result.stderr.strip() or result.stdout.strip() or "rebase failed"
+        fail(f"Error: could not rebase '{branch}' onto '{base}'. {message}")
+    after = rev_parse(target_root, "HEAD")
+    return before != after
+
+
+def ensure_branch_contains_base(target_root: Path, branch: str, base: str, origin_exists: bool) -> None:
+    if not local_branch_exists(target_root, branch):
+        if origin_exists and remote_branch_exists(target_root, branch):
+            run_git(target_root, ["branch", "--track", branch, f"origin/{branch}"])
+            print(f"Created local protected branch: {branch}")
+        else:
+            run_git(target_root, ["branch", branch, base])
+            print(f"Created local protected branch: {branch}")
+
+    sync_branch_from_remote(target_root, branch)
+    run_git(target_root, ["checkout", branch])
+    rebased = rebase_current_branch(target_root, branch, base)
+    if rebased:
+        print(f"Rebased {branch} onto {base}.")
+    else:
+        print(f"{branch} already contains {base}.")
+
+    if origin_exists:
+        if remote_branch_exists(target_root, branch):
+            run_git(target_root, ["push", "--force-with-lease", "origin", branch])
+        else:
+            run_git(target_root, ["push", "-u", "origin", branch])
+        print(f"Pushed {branch} to origin.")
+
+
+def complete_initial_install_git_flow(target_root: Path, config_file: Path) -> None:
+    _dev, _test, main = branch_names(config_file)
+    ensure_branch_names_are_distinct(config_file)
+    ensure_git_repository(target_root)
+    origin_exists = fetch_origin_if_available(target_root)
+    ensure_local_branch_from_remote_or_fail(target_root, main)
+    ensure_current_branch(target_root, main, "agent harness install")
+    if origin_exists and not branches_are_aligned(target_root, main):
+        fail(f"Error: local '{main}' and origin/{main} must be aligned before installing the harness.")
+
+
+def preflight_initial_install_git_flow(target_root: Path, config_file: Path) -> None:
+    ensure_git_repository(target_root)
+    ensure_clean_worktree(target_root, "install the agent harness")
+    main = branch_names(config_file)[2] if config_file.exists() else "main"
+    origin_exists = fetch_origin_if_available(target_root)
+    ensure_current_branch(target_root, main, "agent harness install")
+    if origin_exists and remote_branch_exists(target_root, main) and not branches_are_aligned(target_root, main):
+        fail(f"Error: local '{main}' and origin/{main} must be aligned before installing the harness.")
+
+
+def finalize_initial_install_git_flow(target_root: Path, config_file: Path) -> None:
+    dev, test, main = branch_names(config_file)
+    origin_exists = has_origin(target_root)
+    commit_and_push_current_branch(target_root, INSTALL_COMMIT_MESSAGE, main, origin_exists)
+    ensure_branch_contains_base(target_root, test, main, origin_exists)
+    ensure_branch_contains_base(target_root, dev, test, origin_exists)
+    checkout_branch = dev if origin_exists else main
+    run_git(target_root, ["checkout", checkout_branch])
+    if checkout_branch == dev:
+        print(f"Checked out mission-control branch: {dev}")
+    else:
+        print(f"Checked out branch: {main}")
 
 
 def is_python_cache_path(path: Path) -> bool:
@@ -826,6 +1049,221 @@ def docs_update(optional_docs_dir: Path, state_dir: Path, slugs: list[str]) -> N
         print("No installed optional docs to update.")
 
 
+def remove_lines_exact(path: Path, entries: set[str]) -> None:
+    if not path.exists():
+        return
+    lines = path.read_text().splitlines()
+    kept = [line for line in lines if line.strip() not in entries]
+    content = "\n".join(kept).rstrip()
+    if content:
+        path.write_text(content + "\n")
+    else:
+        path.unlink()
+
+
+def uninstall_agents_file(target_root: Path) -> None:
+    target_file = target_root / "AGENTS.md"
+    if not target_file.exists():
+        return
+    content = target_file.read_text()
+    for start_tag, end_tag in ((CORE_START_TAG, CORE_END_TAG), (LEGACY_CORE_START_TAG, LEGACY_CORE_END_TAG)):
+        start_index = content.find(start_tag)
+        end_index = content.find(end_tag)
+        if start_index == -1 or end_index == -1 or end_index <= start_index:
+            continue
+        end_index += len(end_tag)
+        updated = (content[:start_index] + content[end_index:]).strip()
+        if updated:
+            target_file.write_text(updated + "\n")
+        else:
+            target_file.unlink()
+        print("Removed managed AGENTS.md instructions.")
+        return
+
+
+def uninstall_claude_file(target_root: Path) -> None:
+    target_file = target_root / "CLAUDE.md"
+    if not target_file.exists() and not target_file.is_symlink():
+        return
+    if target_file.is_symlink():
+        if os.readlink(target_file) == "AGENTS.md":
+            target_file.unlink()
+            print("Removed managed CLAUDE.md symlink.")
+        return
+    agents_file = target_root / "AGENTS.md"
+    if not agents_file.exists() or target_file.read_text() == agents_file.read_text():
+        target_file.unlink()
+        print("Removed managed CLAUDE.md file.")
+
+
+def uninstall_gitignore_entries(config_file: Path, target_root: Path) -> None:
+    entries = {AGENT_CORE_TMP_IGNORE_ENTRY, LEGACY_AGENT_CORE_TMP_IGNORE_ENTRY, "# Agent Core worktree symlinks"}
+    if config_file.exists():
+        entries.update(symlink_ignore_entries(config_file))
+    remove_lines_exact(target_root / ".gitignore", entries)
+    print("Removed managed .gitignore entries.")
+
+
+def uninstall_local_files(target_root: Path) -> None:
+    config_file = target_root / ".agent_core" / "config.toml"
+    uninstall_gitignore_entries(config_file, target_root)
+    state_dir = target_root / ".agent_core"
+    if state_dir.exists():
+        shutil.rmtree(state_dir)
+        print("Removed .agent_core.")
+    uninstall_agents_file(target_root)
+    uninstall_claude_file(target_root)
+
+
+def parse_github_repo(remote_url: str) -> tuple[str, str] | None:
+    remote_url = remote_url.strip()
+    if remote_url.startswith("git@github.com:"):
+        path = remote_url.removeprefix("git@github.com:")
+    elif remote_url.startswith("https://github.com/"):
+        path = urllib.parse.urlparse(remote_url).path.lstrip("/")
+    else:
+        return None
+    if path.endswith(".git"):
+        path = path[:-4]
+    owner, separator, repo = path.partition("/")
+    if not owner or not separator or not repo:
+        return None
+    return owner, repo
+
+
+def github_request(method: str, url: str, token: str, payload: dict[str, object] | None = None) -> tuple[int, object | None, dict[str, str]]:
+    data = None if payload is None else json.dumps(payload).encode()
+    request = urllib.request.Request(
+        url,
+        data=data,
+        method=method,
+        headers={
+            "Accept": "application/vnd.github+json",
+            "Authorization": f"Bearer {token}",
+            "Content-Type": "application/json",
+            "X-GitHub-Api-Version": "2022-11-28",
+        },
+    )
+    try:
+        with urllib.request.urlopen(request) as response:
+            body = response.read().decode()
+            parsed = json.loads(body) if body else None
+            return response.status, parsed, dict(response.headers.items())
+    except urllib.error.HTTPError as error:
+        body = error.read().decode()
+        try:
+            parsed = json.loads(body) if body else None
+        except json.JSONDecodeError:
+            parsed = body
+        return error.code, parsed, dict(error.headers.items())
+
+
+def next_link(headers: dict[str, str]) -> str | None:
+    link_header = headers.get("Link") or headers.get("link")
+    if not link_header:
+        return None
+    for part in link_header.split(","):
+        section = part.strip()
+        if 'rel="next"' not in section:
+            continue
+        start = section.find("<")
+        end = section.find(">")
+        if start != -1 and end != -1 and end > start:
+            return section[start + 1 : end]
+    return None
+
+
+def close_harness_issues(owner: str, repo: str, token: str, label: str) -> int:
+    closed = 0
+    encoded_label = urllib.parse.quote(label)
+    url: str | None = f"https://api.github.com/repos/{owner}/{repo}/issues?state=open&labels={encoded_label}&per_page=100"
+    while url is not None:
+        status, parsed, headers = github_request("GET", url, token)
+        if status >= 400:
+            fail(f"Error: could not list GitHub issues for label '{label}'.")
+        if not isinstance(parsed, list):
+            break
+        for item in parsed:
+            if not isinstance(item, dict) or "pull_request" in item:
+                continue
+            issue = cast(dict[str, object], item)
+            issue_url = issue.get("url")
+            if not isinstance(issue_url, str):
+                continue
+            issue_status, _body, _headers = github_request("PATCH", issue_url, token, {"state": "closed"})
+            if issue_status >= 400:
+                fail(f"Error: could not close GitHub issue for label '{label}'.")
+            closed += 1
+        url = next_link(headers)
+    return closed
+
+
+def delete_github_label(owner: str, repo: str, token: str, label: str) -> bool:
+    encoded_label = urllib.parse.quote(label, safe="")
+    url = f"https://api.github.com/repos/{owner}/{repo}/labels/{encoded_label}"
+    status, _body, _headers = github_request("DELETE", url, token)
+    if status == 404:
+        return False
+    if status >= 400:
+        fail(f"Error: could not delete GitHub label '{label}'.")
+    return True
+
+
+def cleanup_github_harness_state(target_root: Path, origin_exists: bool) -> None:
+    if not origin_exists:
+        return
+    token = os.environ.get("GITHUB_TOKEN") or os.environ.get("GH_TOKEN")
+    if not token:
+        print("Skipped GitHub issue and label cleanup because GITHUB_TOKEN/GH_TOKEN is not set.")
+        return
+    remote_url = git_stdout(target_root, ["remote", "get-url", "origin"])
+    repo = parse_github_repo(remote_url)
+    if repo is None:
+        print("Skipped GitHub issue and label cleanup because origin is not a GitHub repository URL.")
+        return
+    owner, name = repo
+    closed = close_harness_issues(owner, name, token, "spec") + close_harness_issues(owner, name, token, "todo")
+    deleted = sum(1 for label in HARNESS_GITHUB_LABELS if delete_github_label(owner, name, token, label))
+    print(f"Closed {closed} harness GitHub issue(s).")
+    print(f"Deleted {deleted} harness GitHub label(s).")
+
+
+def delete_branch_refs(target_root: Path, branch: str, origin_exists: bool) -> None:
+    if origin_exists and remote_branch_exists(target_root, branch):
+        run_git(target_root, ["push", "origin", "--delete", branch])
+        print(f"Deleted origin/{branch}.")
+    if local_branch_exists(target_root, branch):
+        run_git(target_root, ["branch", "-D", branch])
+        print(f"Deleted local branch: {branch}")
+
+
+def uninstall(target_root: Path) -> None:
+    config_file = target_root / ".agent_core" / "config.toml"
+    if not config_file.exists():
+        fail("Error: .agent_core/config.toml was not found. This does not look like an installed Agent Core project.")
+    dev, test, main = branch_names(config_file)
+    ensure_branch_names_are_distinct(config_file)
+    ensure_git_repository(target_root)
+    ensure_clean_worktree(target_root, "uninstall the agent harness")
+    origin_exists = fetch_origin_if_available(target_root)
+    ensure_current_branch(target_root, main, "agent harness uninstall")
+    if origin_exists and not branches_are_aligned(target_root, main):
+        fail(f"Error: local '{main}' and origin/{main} must be aligned before uninstalling the harness.")
+    try:
+        confirmation = input(f"Type the exact uninstall confirmation phrase to delete Agent Core state and {test}/{dev}: ")
+    except EOFError:
+        fail("Error: uninstall requires interactive confirmation. No changes were made.")
+    if confirmation != UNINSTALL_CONFIRMATION:
+        fail("Error: uninstall confirmation did not match. No changes were made.")
+
+    cleanup_github_harness_state(target_root, origin_exists)
+    uninstall_local_files(target_root)
+    commit_and_push_current_branch(target_root, UNINSTALL_COMMIT_MESSAGE, main, origin_exists)
+    delete_branch_refs(target_root, dev, origin_exists)
+    delete_branch_refs(target_root, test, origin_exists)
+    print("Uninstalled project-local harness.")
+
+
 def handle_docs_command(optional_docs_dir: Path, state_dir: Path, args: list[str]) -> None:
     subcommand = args[0] if args else ""
     if subcommand == "list":
@@ -882,14 +1320,19 @@ def install(template_root: Path, target_root: Path, update: bool) -> None:
     config_file = state_dir / "config.toml"
     optional_docs_dir = template_root / "optional_docs"
 
+    if not update:
+        preflight_initial_install_git_flow(target_root, config_file)
     ensure_state_dirs(state_dir)
     config_created = ensure_config(config_file, target_root)
     if config_created and not update and sys.stdin.isatty():
         prompt_branch_mapping(target_root, config_file)
+    if not update:
+        complete_initial_install_git_flow(target_root, config_file)
     ensure_agent_core_tmp_ignored(target_root / ".gitignore")
     ensure_symlink_paths_ignored(config_file, target_root / ".gitignore")
-    ensure_branches_exist(target_root, config_file)
-    ensure_update_branch(target_root, config_file, update)
+    if update:
+        ensure_branches_exist(target_root, config_file)
+        ensure_update_branch(target_root, config_file, update)
     install_harness(template_root, state_dir)
     install_harness_readme(template_root, state_dir)
     ensure_user_mappings(state_dir)
@@ -899,6 +1342,8 @@ def install(template_root: Path, target_root: Path, update: bool) -> None:
         docs_update(optional_docs_dir, state_dir, [])
     install_default_docs(optional_docs_dir, state_dir)
     upsert_last_updated_at(config_file)
+    if not update:
+        finalize_initial_install_git_flow(target_root, config_file)
     print("Updated project-local harness." if update else "Installed project-local harness.")
 
 
@@ -910,6 +1355,7 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
         description=usage(),
     )
     parser.add_argument("--update", action="store_true")
+    parser.add_argument("--uninstall", action="store_true")
     parser.add_argument("command", nargs="?")
     parser.add_argument("subargs", nargs=argparse.REMAINDER)
     return parser.parse_args(normalize_argv(argv))
@@ -922,6 +1368,12 @@ def main(argv: list[str] | None = None) -> int:
     try:
         if args.command == "docs":
             handle_docs_command(template_root / "optional_docs", target_root / ".agent_core", args.subargs)
+            return 0
+        if args.uninstall:
+            if args.command is not None or args.update:
+                eprint(usage())
+                return 1
+            uninstall(target_root)
             return 0
         if args.command is not None:
             eprint(usage())
