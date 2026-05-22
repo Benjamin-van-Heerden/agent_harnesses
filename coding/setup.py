@@ -609,14 +609,45 @@ def ensure_update_branch(target_root: Path, config_file: Path, update: bool) -> 
     )
 
 
+def is_python_cache_path(path: Path) -> bool:
+    return "__pycache__" in path.parts or path.suffix == ".pyc"
+
+
+def remove_python_cache_artifacts(root: Path, display_path: str) -> None:
+    if not root.exists():
+        return
+
+    for cache_dir in sorted(
+        (path for path in root.rglob("__pycache__") if path.is_dir()),
+        key=lambda path: len(path.parts),
+        reverse=True,
+    ):
+        relative_path = cache_dir.relative_to(root)
+        shutil.rmtree(cache_dir)
+        print(f"Removed Python cache directory: {display_path}/{relative_path.as_posix()}")
+
+    for cache_file in sorted(path for path in root.rglob("*.pyc") if path.is_file()):
+        relative_path = cache_file.relative_to(root)
+        cache_file.unlink()
+        print(f"Removed Python cache file: {display_path}/{relative_path.as_posix()}")
+
+
 def sync_managed_directory(source: Path, target: Path, display_path: str) -> None:
     if not target.exists():
         target.mkdir(parents=True, exist_ok=True)
         print(f"Created managed directory: {display_path}")
 
-    source_files = {path.relative_to(source) for path in source.rglob("*") if path.is_file()}
+    source_files = {
+        path.relative_to(source)
+        for path in source.rglob("*")
+        if path.is_file() and not is_python_cache_path(path.relative_to(source))
+    }
     target_files = {path.relative_to(target) for path in target.rglob("*") if path.is_file()}
-    source_dirs = {path.relative_to(source) for path in source.rglob("*") if path.is_dir()}
+    source_dirs = {
+        path.relative_to(source)
+        for path in source.rglob("*")
+        if path.is_dir() and not is_python_cache_path(path.relative_to(source))
+    }
 
     for relative_path in sorted(source_dirs):
         target_dir = target / relative_path
@@ -652,6 +683,8 @@ def sync_managed_directory(source: Path, target: Path, display_path: str) -> Non
         except OSError:
             continue
         print(f"Removed stale managed directory: {display_path}/{relative_path.as_posix()}")
+
+    remove_python_cache_artifacts(target, display_path)
 
 
 def install_harness(template_root: Path, state_dir: Path) -> None:

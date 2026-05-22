@@ -2,11 +2,11 @@
 created_at: '2026-05-22T11:19:07.272057'
 username: benjamin_van_heerden
 ---
-Work Log - Mission Control Todo Guards And Spec Rebase Messaging
+Work Log - Mission Control Todo Guards And Cache Cleanup
 
 ## Overarching Goals
 
-Tighten the coding harness around the intended branch roles: `dev` is mission control for project management, non-`dev` non-spec branches should not advertise or allow spec/todo management actions, and spec worktree onboarding should make its automatic `origin/dev` rebase behavior explicit.
+Tighten the coding harness around the intended branch roles: `dev` is mission control for project management, non-`dev` non-spec branches should not advertise or allow spec/todo management actions, spec worktree onboarding should make its automatic `origin/dev` rebase behavior explicit, and generated Python cache artifacts must not be installed or retained as managed harness files.
 
 ## What Was Accomplished
 
@@ -38,6 +38,14 @@ Changed spec worktree sync so successful `dev-*` worktree sync prints that the b
 
 Aligned sync dirtiness checks with onboard preflight by blocking all uncommitted changes before sync/rebase, not just tracked changes.
 
+### Removed Python cache artifacts from managed harness updates
+
+Updated the coding setup installer so managed harness sync excludes any source path under `__pycache__` and any `.pyc` file. Setup now also actively removes Python cache directories and stray `.pyc` files from the installed `.agent_core/harness` target if they are found.
+
+Updated auto-update so it also removes Python cache artifacts from the installed harness before deciding whether a remote update is skipped or run. This means cache cleanup still happens when auto-update is skipped because it is not due, disabled, running from a worktree, or on a non-dev branch.
+
+Reran `python -B coding/setup.py --update` to propagate the auto-update cleanup behavior into the project-local installed runtime and confirmed there are no `__pycache__` directories or `.pyc` files under either `coding/.agent_core/harness` or `.agent_core/harness`.
+
 ### Verification
 
 Verification completed:
@@ -47,6 +55,9 @@ Verification completed:
 - `uv run pytest coding/tests/test_todo_context.py`
 - `uv run pytest coding/tests/test_git_sync.py -k sync_git_state`
 - `uv run pytest coding/tests/test_onboard.py -k non_dev_branch`
+- `uvx ruff check coding/setup.py coding/.agent_core/harness/src/utils/auto_update.py coding/tests/test_setup.py coding/tests/test_auto_update.py`
+- `uv run ty check coding/setup.py coding/.agent_core/harness/src/utils/auto_update.py coding/tests/test_setup.py coding/tests/test_auto_update.py`
+- `uv run pytest coding/tests/test_setup.py -k python_cache coding/tests/test_auto_update.py`
 - `git diff --check`
 
 ## Key Files Affected
@@ -57,11 +68,12 @@ Verification completed:
 - `coding/.agent_core/harness/src/commands/todo/delete.py` - requires mission-control context before deleting todos.
 - `coding/.agent_core/harness/src/commands/onboard/content.py` - made available-spec, open-todo, workflow-hint, next-step, and agent-instruction sections branch-aware.
 - `coding/.agent_core/harness/src/commands/sync/main.py` - blocks all uncommitted changes before sync/rebase and prints successful spec-worktree rebase/push guidance.
+- `coding/.agent_core/harness/src/utils/auto_update.py` - removes installed harness Python cache artifacts before auto-update skip/run decisions.
+- `coding/setup.py` - excludes Python cache artifacts from managed sync and removes them from the installed `.agent_core/harness` target when found.
 - `coding/tests/test_todo_context.py` - added coverage for dev-only todo mutation guards.
 - `coding/tests/test_onboard.py` - added coverage that non-`dev` onboard output does not advertise spec/todo management commands.
 - `coding/tests/test_git_sync.py` - added coverage that spec worktree sync rebases onto `origin/dev`, pushes with lease, and reports success.
+- `coding/tests/test_setup.py` - added coverage that managed setup sync excludes source cache artifacts and removes installed cache artifacts.
+- `coding/tests/test_auto_update.py` - added coverage that auto-update removes installed cache artifacts even when skipped.
+- `.agent_core/harness/...` - refreshed installed runtime from the coding template via `python -B coding/setup.py --update`.
 - `.agent_core/logs/benjamin_van_heerden_20260522_111907_session.md` - this work log.
-
-## What Comes Next
-
-Propagate the coding harness template update into installed runtimes after the change is committed and pushed.

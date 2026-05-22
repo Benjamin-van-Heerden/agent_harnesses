@@ -1,5 +1,6 @@
 import typer
 
+from src.commands.todo.utils.context import require_dev_main_repo
 from src.commands.todo.utils.resolve import resolve_or_exit
 from src.state import todos
 from src.utils import git
@@ -8,6 +9,7 @@ from src.utils.github import close_issue_with_comment, issue_labels, repository
 
 
 def run(identifier: str, claimed_by: str) -> None:
+    branch = require_dev_main_repo("claim todos")
     slug = resolve_or_exit(identifier)
     record = todos.get(slug)
     if record is None:
@@ -18,11 +20,6 @@ def run(identifier: str, claimed_by: str) -> None:
         raise typer.Exit(code=1)
 
     try:
-        branch = git.current_branch()
-        if branch is None:
-            typer.echo("Todo claim stopped before changing state.", err=True)
-            typer.echo("Reason: git is currently in detached HEAD state.", err=True)
-            raise typer.Exit(code=1)
         if git.has_uncommitted_changes():
             typer.echo("Todo claim stopped before changing state.", err=True)
             typer.echo("Reason: the working tree has pre-existing uncommitted changes.", err=True)

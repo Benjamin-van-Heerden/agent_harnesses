@@ -1,8 +1,19 @@
+import importlib.util
 import re
 import sys
 from pathlib import Path
+from types import ModuleType
 
 from helpers import HARNESS_ROOT, init_git_project, install_harness, read_toml, run_command
+
+
+def _load_setup_module() -> ModuleType:
+    spec = importlib.util.spec_from_file_location("coding_setup", HARNESS_ROOT / "setup.py")
+    assert spec is not None
+    assert spec.loader is not None
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
 
 
 def test_template_setup_preserves_state_and_avoids_removed_surfaces(tmp_path: Path) -> None:
@@ -100,6 +111,29 @@ def test_setup_updates_managed_harness_without_replacing_directory(tmp_path: Pat
     assert "Removed stale managed file: .agent_core/harness/stale.txt" in result.stdout
     assert "Removed stale managed file: .agent_core/harness/stale_dir/old.txt" in result.stdout
     assert "Removed stale managed directory: .agent_core/harness/stale_dir" in result.stdout
+
+
+def test_sync_managed_directory_ignores_python_cache_artifacts(tmp_path: Path) -> None:
+    setup = _load_setup_module()
+    source = tmp_path / "source"
+    target = tmp_path / "target"
+    (source / "__pycache__").mkdir(parents=True)
+    (source / "pkg" / "__pycache__").mkdir(parents=True)
+    (source / "pkg").mkdir(exist_ok=True)
+    (source / "pkg" / "module.py").write_text("VALUE = 1\n")
+    (source / "__pycache__" / "setup.cpython-314.pyc").write_bytes(b"cache")
+    (source / "pkg" / "__pycache__" / "module.cpython-314.pyc").write_bytes(b"cache")
+
+    (target / "__pycache__").mkdir(parents=True)
+    (target / "pkg" / "__pycache__").mkdir(parents=True)
+    (target / "__pycache__" / "stale.cpython-314.pyc").write_bytes(b"stale")
+    (target / "pkg" / "__pycache__" / "stale.cpython-314.pyc").write_bytes(b"stale")
+
+    setup.sync_managed_directory(source, target, "target")
+
+    assert (target / "pkg" / "module.py").read_text() == "VALUE = 1\n"
+    assert not (target / "__pycache__").exists()
+    assert not (target / "pkg" / "__pycache__").exists()
 
 
 def test_setup_creates_missing_configured_protected_branches(tmp_path: Path) -> None:
