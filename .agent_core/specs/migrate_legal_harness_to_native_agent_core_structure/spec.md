@@ -1,13 +1,13 @@
 ---
 title: Migrate legal harness to native Agent Core structure
-status: todo
+status: merge_ready
 assigned_to: Benjamin-van-Heerden
 issue_id: 12
 issue_url: https://github.com/Benjamin-van-Heerden/agent_harnesses/issues/12
 branch: dev-benjamin_van_heerden-migrate_legal_harness_to_native_agent_core_structure
-pr_url: null
+pr_url: https://github.com/Benjamin-van-Heerden/agent_harnesses/pull/13
 created_at: '2026-05-21T09:41:40.306345'
-updated_at: '2026-05-21T10:00:09.444044'
+updated_at: '2026-05-22T13:30:55.038805'
 completed_at: null
 last_synced_at: null
 local_content_hash: null
