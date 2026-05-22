@@ -20,7 +20,7 @@ class MatterStatus:
     opened: str
     client: str
     billing: str
-    next_deadline: str
+    next_obligation: str
     path: Path
     matter_dir: Path
 
@@ -35,11 +35,14 @@ class MatterRef:
 
 
 @dataclass(frozen=True)
-class DeadlineEntry:
+class ObligationRecord:
+    obligation_id: str
+    kind: str
     status: str
     due_date: str
-    category: str
     description: str
+    source_event: str
+    path: Path
 
 
 @dataclass(frozen=True)

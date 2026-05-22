@@ -1,21 +1,21 @@
 from pathlib import Path
 
 from src.config.paths import PROJECT_PATHS, ProjectPaths, client_dir, client_profile
+from src.models.frontmatter import ClientFrontmatter
 from src.state.models import ClientProfile
 from src.state.templates import render_template
 from src.state.time import today
 from src.state.validation import validate_slug
-from src.utils.markdown import read_markdown
+from src.utils.markdown import MarkdownDocument, frontmatter_get, write_markdown
 
 
 def parse_client_profile(path: Path) -> ClientProfile:
-    document = read_markdown(path)
     return ClientProfile(
-        client_slug=document.frontmatter.get("client_slug", ""),
-        display_name=document.frontmatter.get("display_name", ""),
-        client_type=document.frontmatter.get("client_type", ""),
-        opened=document.frontmatter.get("opened", ""),
-        status=document.frontmatter.get("status", ""),
+        client_slug=frontmatter_get(path, "client_slug"),
+        display_name=frontmatter_get(path, "display_name"),
+        client_type=frontmatter_get(path, "client_type"),
+        opened=frontmatter_get(path, "opened"),
+        status=frontmatter_get(path, "status"),
         path=path,
     )
 
@@ -47,14 +47,17 @@ def create_client(slug: str, display_name: str, client_type: str, paths: Project
     (path / "matters" / "resolved").mkdir(parents=True, exist_ok=True)
 
     profile = client_profile(slug, paths)
-    profile.write_text(
-        render_template(
-            "profile",
-            paths,
-            CLIENT_SLUG=slug,
-            DISPLAY_NAME=display_name,
-            CLIENT_TYPE=client_type,
-            TODAY=today(),
-        )
+    body = render_template("profile", paths)
+    write_markdown(
+        profile,
+        MarkdownDocument(
+            frontmatter=ClientFrontmatter(
+                client_slug=slug,
+                display_name=display_name,
+                client_type=client_type,
+                opened=today(),
+            ).to_dict(),
+            body=body,
+        ),
     )
     return profile

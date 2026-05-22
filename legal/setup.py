@@ -18,6 +18,12 @@ TEMPLATE_SUBPATH = "legal"
 CORE_TAGS = (("<AGENT_CORE>", "</AGENT_CORE>"), ("<core_instructions>", "</core_instructions>"))
 LEGAL_GITIGNORE_START = "# >>> legal agent core gitignore >>>"
 LEGAL_GITIGNORE_END = "# <<< legal agent core gitignore <<<"
+DEFAULT_DOCS = (
+    "legal_harness_function",
+    "legal_harness_typst_basic_reference",
+    "legal_harness_typst_soft_typesystem_and_house_rules",
+)
+OPTIONAL_DOC_SUFFIXES = (".md", ".typ")
 
 
 class SetupError(Exception):
@@ -41,9 +47,16 @@ def normalize_argv(argv: list[str]) -> list[str]:
 def usage() -> str:
     return """Usage:
   setup.py [--update]
+  setup.py docs list
+  setup.py docs add <slug> [slug ...]
+  setup.py docs update [slug ...]
 
 Install or refresh the native legal Agent Core harness in the current directory.
 Setup refreshes managed runtime/reference files and preserves lawyer-owned practice state.
+
+Docs commands copy optional docs into .agent_core/docs/.
+When docs update is run without slugs, it updates installed docs that still
+match a document in the harness optional_docs directory.
 """
 
 
@@ -95,6 +108,7 @@ Describe this legal practice workspace.
 [harness]
 name = "legal"
 local_git_snapshots = true
+update_interval_days = 3
 
 [legal]
 jurisdiction = ""
@@ -148,9 +162,10 @@ def ensure_state_dirs(state_dir: Path, target_root: Path) -> None:
         state_dir / "practice",
         state_dir / "practice" / "memories",
         state_dir / "practice" / "logs",
-        state_dir / "practice" / "todos" / "open",
-        state_dir / "practice" / "todos" / "claimed",
+        state_dir / "todos" / "open",
+        state_dir / "todos" / "claimed",
         state_dir / "practice" / "templates",
+        target_root / ".agent_docs",
         target_root / "clients",
         target_root / "src" / "constants",
         target_root / "src" / "functions",
@@ -304,38 +319,130 @@ def install_harness_readme(template_root: Path, state_dir: Path) -> None:
 
 def install_practice_defaults(template_root: Path, state_dir: Path) -> None:
     copy_if_missing(
-        template_root / "agent_rules" / "lawyer_profile.md",
+        template_root / ".agent_core" / "practice" / "lawyer_profile.md",
         state_dir / "practice" / "lawyer_profile.md",
         ".agent_core/practice/lawyer_profile.md",
     )
     copy_if_missing(
-        template_root / "agent_rules" / "docs" / "core" / "legal_context.typ",
+        template_root / ".agent_core" / "docs" / "legal_context.typ",
         state_dir / "docs" / "legal_context.typ",
         ".agent_core/docs/legal_context.typ",
     )
     copy_tree_missing(
-        template_root / "agent_rules" / "skeletons",
+        template_root / ".agent_core" / "practice" / "templates",
         state_dir / "practice" / "templates",
         ".agent_core/practice/templates",
     )
 
 
-def install_managed_docs(template_root: Path, state_dir: Path) -> None:
-    docs_root = template_root / "agent_rules" / "docs"
-    copy_or_update(
-        docs_root / "core" / "typst_basic_reference.typ",
-        state_dir / "docs" / "typst_basic_reference.typ",
-        ".agent_core/docs/typst_basic_reference.typ",
+def optional_doc_path(optional_docs_dir: Path, slug: str) -> Path | None:
+    if "/" in slug or "\\" in slug or slug.startswith(".") or Path(slug).suffix:
+        return None
+    matches = [
+        optional_docs_dir / f"{slug}{suffix}"
+        for suffix in OPTIONAL_DOC_SUFFIXES
+        if (optional_docs_dir / f"{slug}{suffix}").is_file()
+    ]
+    return matches[0] if len(matches) == 1 else None
+
+
+def docs_list(optional_docs_dir: Path) -> list[str]:
+    return sorted(
+        path.stem
+        for path in optional_docs_dir.glob("*")
+        if path.is_file() and path.suffix in OPTIONAL_DOC_SUFFIXES
     )
+
+
+def copy_optional_doc(optional_docs_dir: Path, state_dir: Path, slug: str) -> None:
+    source = optional_doc_path(optional_docs_dir, slug)
+    if source is None:
+        eprint(f"Error: unknown optional doc: {slug}")
+        eprint("Available docs:")
+        for available in docs_list(optional_docs_dir):
+            eprint(available)
+        raise SystemExit(1)
+    shutil.copyfile(source, state_dir / "docs" / source.name)
+
+
+def docs_add(optional_docs_dir: Path, state_dir: Path, slugs: list[str]) -> None:
+    if not slugs:
+        eprint("Error: docs add requires at least one doc slug.")
+        eprint(usage())
+        raise SystemExit(1)
+
+    (state_dir / "docs").mkdir(parents=True, exist_ok=True)
+    for slug in slugs:
+        copy_optional_doc(optional_docs_dir, state_dir, slug)
+        print(f"Added optional doc: {slug}")
+
+
+def install_default_docs(optional_docs_dir: Path, state_dir: Path) -> None:
+    (state_dir / "docs").mkdir(parents=True, exist_ok=True)
+    for slug in DEFAULT_DOCS:
+        source = optional_doc_path(optional_docs_dir, slug)
+        if source is None:
+            continue
+        target = state_dir / "docs" / source.name
+        if target.exists():
+            continue
+        shutil.copyfile(source, target)
+        print(f"Included default doc: {slug}")
+
+
+def docs_update(optional_docs_dir: Path, state_dir: Path, slugs: list[str]) -> None:
+    (state_dir / "docs").mkdir(parents=True, exist_ok=True)
+    if slugs:
+        docs_add(optional_docs_dir, state_dir, slugs)
+        return
+
+    updated = False
+    for source in sorted(optional_docs_dir.glob("*")):
+        if not source.is_file() or source.suffix not in OPTIONAL_DOC_SUFFIXES:
+            continue
+        target = state_dir / "docs" / source.name
+        if not target.exists():
+            continue
+        shutil.copyfile(source, target)
+        print(f"Updated optional doc: {source.stem}")
+        updated = True
+
+    if not updated:
+        print("No installed optional docs to update.")
+
+
+def remove_renamed_managed_docs(state_dir: Path) -> None:
+    for name in (
+        "typst_basic_reference.typ",
+        "typst_soft_typesystem_and_house_rules_updated.typ",
+    ):
+        path = state_dir / "docs" / name
+        if path.exists():
+            path.unlink()
+            print(f"Removed renamed managed doc: .agent_core/docs/{name}")
+
+
+def handle_docs_command(optional_docs_dir: Path, state_dir: Path, args: list[str]) -> None:
+    subcommand = args[0] if args else ""
+    if subcommand == "list":
+        for slug in docs_list(optional_docs_dir):
+            print(slug)
+        return
+    if subcommand == "add":
+        docs_add(optional_docs_dir, state_dir, args[1:])
+        return
+    if subcommand == "update":
+        docs_update(optional_docs_dir, state_dir, args[1:])
+        return
+    eprint(usage())
+    raise SystemExit(1)
+
+
+def install_agent_docs(template_root: Path, state_dir: Path) -> None:
     copy_or_update(
-        docs_root / "core" / "typst_soft_typesystem_and_house_rules_updated.typ",
-        state_dir / "docs" / "typst_soft_typesystem_and_house_rules_updated.typ",
-        ".agent_core/docs/typst_soft_typesystem_and_house_rules_updated.typ",
-    )
-    copy_or_update(
-        docs_root / "typst_detailed_reference.typ",
-        state_dir / "docs" / "typst_detailed_reference.typ",
-        ".agent_core/docs/typst_detailed_reference.typ",
+        template_root / ".agent_docs" / "typst_detailed_reference.typ",
+        state_dir.parent / ".agent_docs" / "typst_detailed_reference.typ",
+        ".agent_docs/typst_detailed_reference.typ",
     )
 
 
@@ -376,7 +483,7 @@ def legacy_todo_target(target_root: Path, source_file: Path, claimed: bool) -> P
             bucket = "claimed" if claimed else ""
             return matter_dir / "info" / "todos" / bucket / source_file.name if bucket else matter_dir / "info" / "todos" / source_file.name
     bucket = "claimed" if claimed else "open"
-    return target_root / ".agent_core" / "practice" / "todos" / bucket / source_file.name
+    return target_root / ".agent_core" / "todos" / bucket / source_file.name
 
 
 def copy_legacy_todos(target_root: Path, legacy_todos: Path) -> None:
@@ -459,6 +566,7 @@ def ensure_claude_file(target_root: Path) -> None:
 
 def install(template_root: Path, target_root: Path, update: bool) -> None:
     state_dir = target_root / ".agent_core"
+    optional_docs_dir = template_root / "optional_docs"
     if update and not state_dir.exists() and not (target_root / "agent_rules").exists():
         fail("Error: no legal harness state found. Run setup.py without --update first.")
 
@@ -470,7 +578,11 @@ def install(template_root: Path, target_root: Path, update: bool) -> None:
     install_harness(template_root, state_dir)
     install_harness_readme(template_root, state_dir)
     install_practice_defaults(template_root, state_dir)
-    install_managed_docs(template_root, state_dir)
+    if update:
+        docs_update(optional_docs_dir, state_dir, [])
+    install_default_docs(optional_docs_dir, state_dir)
+    remove_renamed_managed_docs(state_dir)
+    install_agent_docs(template_root, state_dir)
     install_typst_source(template_root, target_root)
     install_agents_file(template_root, target_root)
     ensure_claude_file(target_root)
@@ -488,18 +600,22 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
     )
     parser.add_argument("--update", action="store_true")
     parser.add_argument("command", nargs="?")
+    parser.add_argument("subargs", nargs=argparse.REMAINDER)
     return parser.parse_args(normalize_argv(argv))
 
 
 def main(argv: list[str] | None = None) -> int:
     args = parse_args(sys.argv[1:] if argv is None else argv)
-    if args.command is not None:
-        eprint(usage())
-        return 1
 
     target_root = Path.cwd()
     template_root, temp_dir = resolve_template_root()
     try:
+        if args.command == "docs":
+            handle_docs_command(template_root / "optional_docs", target_root / ".agent_core", args.subargs)
+            return 0
+        if args.command is not None:
+            eprint(usage())
+            return 1
         install(template_root, target_root, args.update)
         return 0
     finally:

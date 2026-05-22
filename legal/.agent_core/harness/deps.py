@@ -11,7 +11,9 @@ class PythonPackage:
 
 
 REQUIRED_PACKAGES = [
+    PythonPackage(import_name="pydantic", package_name="pydantic"),
     PythonPackage(import_name="typer", package_name="typer"),
+    PythonPackage(import_name="yaml", package_name="PyYAML"),
 ]
 
 REQUIRED_COMMANDS = ["git"]

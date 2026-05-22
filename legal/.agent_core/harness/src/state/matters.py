@@ -1,28 +1,29 @@
 import shutil
 from datetime import datetime
 from pathlib import Path
+from typing import cast
 
 from src.config.paths import PROJECT_PATHS, ProjectPaths
+from src.models.frontmatter import MatterStatusFrontmatter, Priority
 from src.state.clients import resolve_client
+from src.state.chronology import write_chronology_event
 from src.state.models import ChronologyEntry, MatterRef, MatterStatus
-from src.state.records import append_record
 from src.state.templates import render_template
 from src.state.time import today
 from src.state.validation import validate_priority, validate_slug
-from src.utils.markdown import frontmatter_get, frontmatter_set, read_markdown
+from src.utils.markdown import MarkdownDocument, frontmatter_get, frontmatter_set, write_markdown
 
 
 def parse_matter_status(path: Path) -> MatterStatus:
-    document = read_markdown(path)
     matter_dir = path.parent.parent
     return MatterStatus(
-        matter_type=document.frontmatter.get("matter_type", ""),
-        status=document.frontmatter.get("status", ""),
-        priority=document.frontmatter.get("priority", ""),
-        opened=document.frontmatter.get("opened", ""),
-        client=document.frontmatter.get("client", ""),
-        billing=document.frontmatter.get("billing", ""),
-        next_deadline=document.frontmatter.get("next_deadline", ""),
+        matter_type=frontmatter_get(path, "matter_type"),
+        status=frontmatter_get(path, "status"),
+        priority=frontmatter_get(path, "priority"),
+        opened=frontmatter_get(path, "opened"),
+        client=frontmatter_get(path, "client"),
+        billing=frontmatter_get(path, "billing"),
+        next_obligation=frontmatter_get(path, "next_obligation"),
         path=path,
         matter_dir=matter_dir,
     )
@@ -123,22 +124,25 @@ def create_matter(
     (matter_dir / "raw").mkdir(parents=True, exist_ok=True)
     (matter_dir / "reference").mkdir(parents=True, exist_ok=True)
 
-    (matter_dir / "info" / "status.md").write_text(
-        render_template(
-            "status",
-            paths,
-            MATTER_TYPE=matter_type,
-            PRIORITY=priority,
-            TODAY=today(),
-            CLIENT=client_slug,
-            BILLING=billing,
-        )
+    status_body = render_template("status", paths)
+    write_markdown(
+        matter_dir / "info" / "status.md",
+        MarkdownDocument(
+            frontmatter=MatterStatusFrontmatter(
+                matter_type=matter_type,
+                priority=cast(Priority, priority),
+                opened=today(),
+                client=client_slug,
+                billing=billing,
+            ).to_dict(),
+            body=status_body,
+        ),
     )
-    append_record(
+    write_chronology_event(
         matter_dir,
         ChronologyEntry(
             date=today(),
-            kind="matter:opened",
+            kind="matter_opened",
             summary=f"{matter_type} — {matter_slug} (priority {priority}, {billing})",
         ),
     )
@@ -165,6 +169,6 @@ def close_matter(input_ref: str, paths: ProjectPaths = PROJECT_PATHS) -> Path:
         raise FileExistsError(f"destination already exists: {destination}")
 
     frontmatter_set(status_file, "status", "resolved")
-    append_record(matter_dir, ChronologyEntry(date=today(), kind="matter:resolved", summary="Matter closed."))
+    write_chronology_event(matter_dir, ChronologyEntry(date=today(), kind="matter_resolved", summary="Matter closed."))
     shutil.move(str(matter_dir), str(destination))
     return destination

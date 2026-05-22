@@ -18,6 +18,10 @@ def _bool(value: object, default: bool = False) -> bool:
     return value if isinstance(value, bool) else default
 
 
+def _int(value: object, default: int = 0) -> int:
+    return value if isinstance(value, int) else default
+
+
 def load_config(path: Path) -> LegalHarnessConfig:
     try:
         with open(path, "rb") as file:
@@ -38,6 +42,7 @@ def load_config(path: Path) -> LegalHarnessConfig:
             name=_string(harness.get("name"), "legal"),
             local_git_snapshots=_bool(harness.get("local_git_snapshots"), True),
             last_updated_at=_string(harness.get("last_updated_at")),
+            update_interval_days=_int(harness.get("update_interval_days"), 3),
         ),
         legal=LegalConfig(jurisdiction=_string(legal.get("jurisdiction"))),
     )

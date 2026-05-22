@@ -12,6 +12,7 @@ class HarnessConfig:
     name: str
     local_git_snapshots: bool
     last_updated_at: str
+    update_interval_days: int
 
 
 @dataclass(frozen=True)

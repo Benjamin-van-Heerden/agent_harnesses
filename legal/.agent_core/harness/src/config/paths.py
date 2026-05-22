@@ -8,6 +8,7 @@ class ProjectPaths:
     state_root: Path
     harness_root: Path
     config_file: Path
+    agent_docs_root: Path
     docs_root: Path
     legal_context: Path
     typst_basic_reference: Path
@@ -19,9 +20,9 @@ class ProjectPaths:
     clients_root: Path
     memories_root: Path
     logs_root: Path
-    practice_todos_root: Path
-    practice_open_todos_root: Path
-    practice_claimed_todos_root: Path
+    global_todos_root: Path
+    global_open_todos_root: Path
+    global_claimed_todos_root: Path
     templates_root: Path
     src_root: Path
     src_types_root: Path
@@ -50,20 +51,21 @@ def build_project_paths(project_root: Path | None = None) -> ProjectPaths:
         state_root=state_root,
         harness_root=harness_root,
         config_file=state_root / "config.toml",
+        agent_docs_root=root / ".agent_docs",
         docs_root=state_root / "docs",
         legal_context=state_root / "docs" / "legal_context.typ",
-        typst_basic_reference=state_root / "docs" / "typst_basic_reference.typ",
-        typst_house_rules_reference=state_root / "docs" / "typst_soft_typesystem_and_house_rules_updated.typ",
-        typst_detailed_reference=state_root / "docs" / "typst_detailed_reference.typ",
+        typst_basic_reference=state_root / "docs" / "legal_harness_typst_basic_reference.typ",
+        typst_house_rules_reference=state_root / "docs" / "legal_harness_typst_soft_typesystem_and_house_rules.typ",
+        typst_detailed_reference=root / ".agent_docs" / "typst_detailed_reference.typ",
         practice_root=practice_root,
         lawyer_profile=practice_root / "lawyer_profile.md",
         firm_profile=practice_root / "firm_profile.md",
         clients_root=root / "clients",
         memories_root=practice_root / "memories",
         logs_root=practice_root / "logs",
-        practice_todos_root=practice_root / "todos",
-        practice_open_todos_root=practice_root / "todos" / "open",
-        practice_claimed_todos_root=practice_root / "todos" / "claimed",
+        global_todos_root=state_root / "todos",
+        global_open_todos_root=state_root / "todos" / "open",
+        global_claimed_todos_root=state_root / "todos" / "claimed",
         templates_root=practice_root / "templates",
         src_root=root / "src",
         src_types_root=root / "src" / "types",

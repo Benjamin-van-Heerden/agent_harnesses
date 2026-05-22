@@ -7,15 +7,14 @@ deps.require_dependencies()
 
 import typer  # noqa: E402
 
+from src.commands.chronology.main import app as chronology_app  # noqa: E402
 from src.commands.client.main import app as client_app  # noqa: E402
-from src.commands.deadline.main import app as deadline_app  # noqa: E402
 from src.commands.lint.main import app as lint_app  # noqa: E402
 from src.commands.log.main import app as log_app  # noqa: E402
 from src.commands.matter.main import app as matter_app  # noqa: E402
 from src.commands.memory.main import app as memory_app  # noqa: E402
 from src.commands.obligation.main import app as obligation_app  # noqa: E402
 from src.commands.onboard.main import app as onboard_app  # noqa: E402
-from src.commands.record.main import app as record_app  # noqa: E402
 from src.commands.todo.main import app as todo_app  # noqa: E402
 from src.config.main import load_config  # noqa: E402
 from src.config.paths import PROJECT_PATHS, matter_chronology_dir, matter_obligations_dir, matter_todos_dir  # noqa: E402
@@ -28,9 +27,8 @@ app.add_typer(config_app, name="config")
 app.add_typer(onboard_app, name="onboard")
 app.add_typer(client_app, name="client")
 app.add_typer(matter_app, name="matter")
-app.add_typer(deadline_app, name="deadline")
+app.add_typer(chronology_app, name="chronology")
 app.add_typer(obligation_app, name="obligation")
-app.add_typer(record_app, name="record")
 app.add_typer(todo_app, name="todo")
 app.add_typer(memory_app, name="memory")
 app.add_typer(log_app, name="log")
