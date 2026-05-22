@@ -52,6 +52,12 @@ Changed the coding harness template `AGENTS.md` managed block tags from `<AGENT_
 
 Updated `coding/setup.py` to use the new tag names for future installs and updates while still detecting and replacing existing legacy `<AGENT_CORE>` blocks. Reran `python -B coding/setup.py --update` so the repository root `AGENTS.md` was migrated to the new tags.
 
+### Moved shared listing helpers to global utils
+
+Moved the shared list-command table and date formatting helpers from `src/commands/utils/listing.py` to `src/utils/listing.py`. Updated log, memory, spec, task, and todo list commands to import from the global utility module.
+
+Reran `python -B coding/setup.py --update` so the installed project-local runtime created `.agent_core/harness/src/utils/listing.py` and removed the stale `.agent_core/harness/src/commands/utils/listing.py`.
+
 ### Verification
 
 Verification completed:
@@ -67,6 +73,8 @@ Verification completed:
 - `uvx ruff check coding/setup.py coding/tests/test_setup.py`
 - `uv run ty check coding/setup.py coding/tests/test_setup.py`
 - `uv run pytest coding/tests/test_setup.py -k "legacy_agents_core_block or python_cache"`
+- `uvx ruff check coding/.agent_core/harness/src/utils/listing.py coding/.agent_core/harness/src/commands/log/list.py coding/.agent_core/harness/src/commands/memory/list.py coding/.agent_core/harness/src/commands/spec/list.py coding/.agent_core/harness/src/commands/task/list.py coding/.agent_core/harness/src/commands/todo/list.py`
+- `uv run ty check coding/.agent_core/harness/src/utils/listing.py coding/.agent_core/harness/src/commands/log/list.py coding/.agent_core/harness/src/commands/memory/list.py coding/.agent_core/harness/src/commands/spec/list.py coding/.agent_core/harness/src/commands/task/list.py coding/.agent_core/harness/src/commands/todo/list.py`
 - `git diff --check`
 
 ## Key Files Affected
@@ -81,6 +89,9 @@ Verification completed:
 - `coding/AGENTS.md` - renamed the managed block tags to `<core_instructions>`.
 - `coding/setup.py` - excludes Python cache artifacts from managed sync, removes them from the installed `.agent_core/harness` target when found, and migrates legacy AGENTS managed blocks to the new tag names.
 - `AGENTS.md` - refreshed by `python -B coding/setup.py --update` so the installed project instructions use `<core_instructions>`.
+- `coding/.agent_core/harness/src/utils/listing.py` - new location for shared table and date formatting helpers used by list commands.
+- `coding/.agent_core/harness/src/commands/utils/listing.py` - removed old command-scoped location.
+- `coding/.agent_core/harness/src/commands/{log,memory,spec,task,todo}/list.py` - imports updated to use `src.utils.listing`.
 - `coding/tests/test_todo_context.py` - added coverage for dev-only todo mutation guards.
 - `coding/tests/test_onboard.py` - added coverage that non-`dev` onboard output does not advertise spec/todo management commands.
 - `coding/tests/test_git_sync.py` - added coverage that spec worktree sync rebases onto `origin/dev`, pushes with lease, and reports success.

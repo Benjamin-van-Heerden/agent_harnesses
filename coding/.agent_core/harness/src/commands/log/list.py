@@ -1,6 +1,6 @@
 import typer
 
-from src.commands.utils.listing import short_datetime, table_lines
+from src.utils.listing import short_datetime, table_lines
 from src.state import logs
 
 
