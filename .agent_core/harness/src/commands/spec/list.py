@@ -1,7 +1,7 @@
 import typer
 from typing import cast
 
-from src.commands.utils.listing import short_date, short_datetime, table_lines
+from src.utils.listing import short_date, short_datetime, table_lines
 from src.models.frontmatter import SpecStatus
 from src.state import specs
 from src.state.models import Spec

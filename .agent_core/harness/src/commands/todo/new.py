@@ -3,6 +3,7 @@ from pathlib import Path
 import typer
 from typing_extensions import Annotated
 
+from src.commands.todo.utils.context import require_dev_main_repo
 from src.config.paths import PROJECT_PATHS
 from src.state import todos
 from src.utils import git
@@ -32,6 +33,7 @@ def _commit_and_push(path: Path, slug: str) -> None:
 
 
 def run(title: str, description: Annotated[str, typer.Argument()] = "") -> None:
+    require_dev_main_repo("create todos")
     slug = slugify(title)
     if todos.get(slug) is not None:
         typer.echo(f"Todo '{slug}' already exists.", err=True)

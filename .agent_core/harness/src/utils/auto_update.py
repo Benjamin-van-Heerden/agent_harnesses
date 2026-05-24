@@ -1,8 +1,10 @@
 import os
+import shutil
 import subprocess
 import sys
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
+from pathlib import Path
 from typing import cast
 
 from src.config.branches import get_branch_names
@@ -75,6 +77,23 @@ def _update_due() -> bool:
     return due
 
 
+def _remove_python_cache_artifacts(root: Path) -> None:
+    if not root.exists():
+        return
+
+    for cache_dir in sorted(
+        (path for path in root.rglob("__pycache__") if path.is_dir()),
+        key=lambda path: len(path.parts),
+        reverse=True,
+    ):
+        shutil.rmtree(cache_dir)
+        print(f"Removed Python cache directory: {cache_dir.relative_to(PROJECT_PATHS.project_root)}")
+
+    for cache_file in sorted(path for path in root.rglob("*.pyc") if path.is_file()):
+        cache_file.unlink()
+        print(f"Removed Python cache file: {cache_file.relative_to(PROJECT_PATHS.project_root)}")
+
+
 def _run_remote_setup_update() -> None:
     code = (
         "import urllib.request; "
@@ -113,6 +132,8 @@ def _commit_update_changes() -> None:
 
 
 def update(force: bool = False) -> AutoUpdateResult:
+    _remove_python_cache_artifacts(PROJECT_PATHS.harness_root)
+
     if os.environ.get(SKIP_ENV_VAR):
         return AutoUpdateResult(updated=False, skipped_reason=f"{SKIP_ENV_VAR} is set")
     if worktrees.is_worktree():
