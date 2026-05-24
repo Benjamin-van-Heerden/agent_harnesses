@@ -1,7 +1,7 @@
 import typer
 from typing import cast
 
-from src.utils.listing import short_datetime, table_lines
+from src.commands.utils.listing import short_datetime, table_lines
 from src.models.frontmatter import TodoStatus
 from src.state import todos
 

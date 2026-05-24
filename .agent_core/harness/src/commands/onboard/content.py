@@ -344,14 +344,9 @@ def _available_specs_section(
             if record.pr_url:
                 lines.append(f"  PR: {record.pr_url}")
         lines.append("")
-        if branch == branches.dev:
-            lines.append(
-                "Run `python -B .agent_core/harness/main.py merge pr` to merge a PR."
-            )
-        else:
-            lines.append(
-                f"Merge management must run from mission control on `{branches.dev}`."
-            )
+        lines.append(
+            "Run `python -B .agent_core/harness/main.py merge pr` to merge a PR."
+        )
         lines.append("")
 
     todo_specs = specs.list_all(status="todo")
@@ -373,14 +368,9 @@ def _available_specs_section(
                 lines.append(f"Tasks: {completed}/{len(task_records)} completed")
             lines.append("")
     elif not merge_ready_specs:
-        if branch == branches.dev:
-            lines.append(
-                'No specs available. Create one with `python -B .agent_core/harness/main.py spec new "title"`.'
-            )
-        else:
-            lines.append(
-                f"No specs available. Spec creation must run from mission control on `{branches.dev}`."
-            )
+        lines.append(
+            'No specs available. Create one with `python -B .agent_core/harness/main.py spec new "title"`.'
+        )
         completed_specs = specs.list_all(status="completed")
         if completed_specs:
             lines.append("")
@@ -451,11 +441,10 @@ def _work_logs_section(active_spec: Spec | None) -> list[str]:
     return lines
 
 
-def _open_todos_section(records: list[Todo], branch: str) -> list[str]:
+def _open_todos_section(records: list[Todo]) -> list[str]:
     if not records:
         return []
 
-    branches = get_branch_names()
     lines = subsection("📌 OPEN TODOS")
     lines.append("These are standalone work items not tied to any spec.")
     lines.append("")
@@ -468,17 +457,12 @@ def _open_todos_section(records: list[Todo], branch: str) -> list[str]:
             lines.append(body)
         lines.append("")
     lines.append("Commands:")
-    if branch == branches.dev:
-        lines.append(
-            '- Claim a todo: `python -B .agent_core/harness/main.py todo claim "<title or slug>" <user>`'
-        )
-        lines.append(
-            '- Create new todo: `python -B .agent_core/harness/main.py todo new "title" "description"`'
-        )
-    else:
-        lines.append(
-            f"- Todo claim/create/delete commands must run from mission control on `{branches.dev}`."
-        )
+    lines.append(
+        '- Claim a todo: `python -B .agent_core/harness/main.py todo claim "<title or slug>" <user>`'
+    )
+    lines.append(
+        '- Create new todo: `python -B .agent_core/harness/main.py todo new "title" "description"`'
+    )
     lines.append("- List all todos: `python -B .agent_core/harness/main.py todo list`")
     lines.append("")
     return lines
@@ -514,14 +498,14 @@ def _workflow_hints_section(active_spec: Spec | None, branch: str) -> list[str]:
         if branch == branches.dev:
             lines.append(f"You are in mission control mode on `{branches.dev}` branch.")
             lines.append(
-                "This checkout is the control plane for ad hoc edits, spec management, todo management, merges, and project state inspection."
+                "From here, the agent can make small ad hoc edits, create a new spec, manage existing specs, or inspect project state."
             )
             lines.append(
-                "Open spec worktrees are separate implementation workspaces; do not treat their code changes as part of this checkout."
+                "Open spec worktrees are separate checked-out workspaces; do not treat them as being within the current scope of work."
             )
         else:
             lines.append(
-                f"No spec is currently active. This non-spec branch is outside the normal mission control workflow; spec and todo management must happen from `{branches.dev}`."
+                "No spec is currently active. Ask the user whether this non-spec checkout should be used for ad hoc work or project management."
             )
     lines.append("")
     return lines
@@ -550,21 +534,18 @@ def _next_steps_section(
         branches = get_branch_names()
         if branch == branches.dev:
             lines.append(
-                f"1. Ask whether to make ad hoc edits on `{branches.dev}`, manage specs, manage todos, or inspect project state."
+                "1. Ask whether to make ad hoc edits on `dev` or create/manage a spec."
             )
-            lines.append(
-                '2. Create or manage a spec if needed: `python -B .agent_core/harness/main.py spec new "feature name"`'
-            )
-            if open_todos:
-                lines.append(
-                    '3. Or claim a todo if directed: `python -B .agent_core/harness/main.py todo claim "<title or slug>" <user>`'
-                )
         else:
             lines.append(
-                f"1. Tell the user this is a non-spec branch `{branch}` outside the normal mission control workflow."
+                f"1. Ask what work should happen from the current non-spec branch `{branch}`."
             )
+        lines.append(
+            '2. Create a new spec if needed: `python -B .agent_core/harness/main.py spec new "feature name"`'
+        )
+        if open_todos:
             lines.append(
-                f"2. Ask whether they want to switch back to `{branches.dev}` for spec/todo management or deliberately continue here for exceptional ad hoc work."
+                '3. Or claim a todo if directed: `python -B .agent_core/harness/main.py todo claim "<title or slug>" <user>`'
             )
     lines.append("")
     lines.append("Remember to create a work log at the end of your session:")
@@ -589,7 +570,6 @@ def _agent_instruction_section(
     sync_warning: str | None,
     active_spec: Spec | None,
     open_todos: list[Todo],
-    branch: str,
 ) -> list[str]:
     lines = subsection("⚠️ AGENT INSTRUCTION")
     lines.append("Your next response must:")
@@ -604,18 +584,12 @@ def _agent_instruction_section(
         )
         item_number += 1
     else:
-        branches = get_branch_names()
         lines.append(f"{item_number}. State that no spec is currently active.")
         item_number += 1
         if open_todos:
-            if branch == branches.dev:
-                lines.append(
-                    f"{item_number}. Mention that open todos are available and must be claimed before work starts."
-                )
-            else:
-                lines.append(
-                    f"{item_number}. Mention that open todos are available, but claiming them must happen from `{branches.dev}`."
-                )
+            lines.append(
+                f"{item_number}. Mention that open todos are available and must be claimed before work starts."
+            )
             item_number += 1
 
     lines.append(
@@ -668,11 +642,11 @@ def _onboard_output_section(
     lines.extend(_work_logs_section(active_spec))
 
     if active_spec is None:
-        lines.extend(_open_todos_section(open_todos, branch))
+        lines.extend(_open_todos_section(open_todos))
 
     lines.extend(_workflow_hints_section(active_spec, branch))
     lines.extend(_next_steps_section(active_spec, open_todos, branch))
-    lines.extend(_agent_instruction_section(sync_warning, active_spec, open_todos, branch))
+    lines.extend(_agent_instruction_section(sync_warning, active_spec, open_todos))
     return lines
 
 

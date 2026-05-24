@@ -24,11 +24,6 @@ class MutationSummary:
     def changed(self) -> bool:
         return bool(self.created or self.modified or self.deleted)
 
-    @property
-    def only_tmp_changed(self) -> bool:
-        changed_paths = [*self.created, *self.modified, *self.deleted]
-        return bool(changed_paths) and all(path.startswith(".agent_core/tmp/") for path in changed_paths)
-
 
 def _display_path(root: Path, path: Path) -> str:
     return f"{root.name}/{path.relative_to(root).as_posix()}"
@@ -85,9 +80,6 @@ def summarize_mutations(
 
 
 def render_mutation_summary(summary: MutationSummary) -> list[str]:
-    if summary.only_tmp_changed:
-        return []
-
     lines = [
         "---",
         ".agent_core changes",

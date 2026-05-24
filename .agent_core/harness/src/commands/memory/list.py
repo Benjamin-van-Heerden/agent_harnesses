@@ -1,6 +1,6 @@
 import typer
 
-from src.utils.listing import short_datetime, table_lines
+from src.commands.utils.listing import short_datetime, table_lines
 from src.state import memories
 from src.state.models import Memory
 

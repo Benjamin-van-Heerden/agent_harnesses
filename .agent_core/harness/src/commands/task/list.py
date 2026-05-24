@@ -3,7 +3,7 @@ from typing import cast
 from typing_extensions import Annotated
 
 from src.commands.task.utils.active import resolve_spec_slug
-from src.utils.listing import short_datetime, table_lines
+from src.commands.utils.listing import short_datetime, table_lines
 from src.models.frontmatter import TaskStatus
 from src.state import tasks
 

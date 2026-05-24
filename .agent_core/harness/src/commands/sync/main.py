@@ -201,7 +201,7 @@ def sync_git_state() -> None:
     current = git.current_branch()
     if current is None:
         raise GitError("Could not determine current branch.")
-    if git.has_uncommitted_changes():
+    if git.has_tracked_changes():
         raise GitError("UNCOMMITTED_CHANGES")
 
     git.fetch()
@@ -213,9 +213,6 @@ def sync_git_state() -> None:
         if current.startswith(f"{branches.dev}-"):
             git.rebase_onto(f"origin/{branches.dev}")
             git.push_force_with_lease(current)
-            typer.echo(
-                f"Spec branch rebased onto origin/{branches.dev} and pushed with --force-with-lease."
-            )
             return
         raise GitError(
             f"Worktree sync only supports spec branches based on '{branches.dev}'. Current branch: {current}"
@@ -238,7 +235,7 @@ def _print_git_sync_failure(error: GitError) -> None:
         typer.echo("UNCOMMITTED CHANGES - COMMIT AND PUSH FIRST", err=True)
         typer.echo("=" * 60, err=True)
         typer.echo("", err=True)
-        typer.echo("Cannot sync/rebase with uncommitted changes.", err=True)
+        typer.echo("Cannot sync/rebase with uncommitted tracked changes.", err=True)
         typer.echo("", err=True)
         typer.echo("To proceed, commit and push your changes, then run sync again:", err=True)
         typer.echo("  git add -A && git commit -m '<describe what was done>' && git push", err=True)
