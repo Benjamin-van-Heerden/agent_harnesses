@@ -1,14 +1,14 @@
 ---
 title: Legal harness practice workflow overhaul
-status: merge_ready
+status: completed
 assigned_to: Benjamin-van-Heerden
 issue_id: 14
 issue_url: https://github.com/Benjamin-van-Heerden/agent_harnesses/issues/14
 branch: dev-benjamin_van_heerden-legal_harness_practice_workflow_overhaul
 pr_url: https://github.com/Benjamin-van-Heerden/agent_harnesses/pull/15
 created_at: '2026-05-25T15:14:18.608196'
-updated_at: '2026-05-25T16:47:19.954140'
-completed_at: null
+updated_at: '2026-05-25T16:59:36.809140'
+completed_at: '2026-05-25T16:59:36.809140'
 last_synced_at: null
 local_content_hash: null
 remote_content_hash: null
