@@ -32,6 +32,9 @@ class MatterStatusFrontmatter(BaseModel):
     opposing_parties: list[str] = []
     court: str | None = None
     case_number: str | None = None
+    physical_files: list[str] = []
+    workflow: str | None = None
+    last_touched_at: str | None = None
     next_obligation: str | None = None
     billing: str
     tags: list[str] = []

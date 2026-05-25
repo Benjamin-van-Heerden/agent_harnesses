@@ -62,12 +62,14 @@ def add_chronology_event(
     body: str = "",
     paths: ProjectPaths = PROJECT_PATHS,
 ) -> Path:
-    from src.state.matters import resolve_matter
+    from src.state.matters import resolve_matter, touch_matter
 
     if not summary:
         raise ValueError("summary must not be empty")
     matter_dir = resolve_matter(matter_ref, paths)
-    return write_chronology_event(matter_dir, ChronologyEntry(date=date, kind=kind, summary=summary, body=body))
+    event = write_chronology_event(matter_dir, ChronologyEntry(date=date, kind=kind, summary=summary, body=body))
+    touch_matter(matter_dir)
+    return event
 
 
 def list_chronology(matter_ref: str, paths: ProjectPaths = PROJECT_PATHS) -> list[ChronologyEntry]:

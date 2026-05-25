@@ -3,7 +3,7 @@ from typing import Annotated
 import typer
 
 from src.config.paths import PROJECT_PATHS
-from src.state.clients import create_client, list_clients
+from src.state.clients import create_client_from_name, list_clients
 from src.utils.errors import exit_on_error
 
 
@@ -35,15 +35,17 @@ def list_command() -> None:
 
 @app.command("new")
 def new_command(
-    slug: Annotated[str, typer.Argument()],
     display_name: Annotated[str, typer.Argument()],
-    client_type: Annotated[str, typer.Argument()],
+    client_type: Annotated[str, typer.Argument()] = "person",
+    suffix: Annotated[str, typer.Option("--suffix", help="Distinguishing suffix for generated slug collisions.")] = "",
+    slug: Annotated[str, typer.Option("--slug", help="Explicit client slug. Use only when the lawyer has provided it.")] = "",
 ) -> None:
     try:
-        profile = create_client(slug, display_name, client_type)
+        profile = create_client_from_name(display_name, client_type, suffix, slug)
     except (FileExistsError, ValueError) as error:
         exit_on_error(error)
 
-    typer.echo(f"Created client: {slug} ({display_name})")
+    client_slug = profile.parent.name
+    typer.echo(f"Created client: {client_slug} ({display_name})")
     typer.echo(f"Profile: {profile.relative_to(PROJECT_PATHS.project_root)}")
     typer.echo("You must review the client profile and fill in contact, billing, and conflict details before substantive work.")

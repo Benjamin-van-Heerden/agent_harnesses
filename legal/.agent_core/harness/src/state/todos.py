@@ -4,7 +4,7 @@ from typing import cast
 
 from src.config.paths import PROJECT_PATHS, ProjectPaths
 from src.models.frontmatter import TodoFrontmatter, TodoPriority
-from src.state.matters import resolve_matter
+from src.state.matters import resolve_matter, touch_matter
 from src.state.models import TodoRecord
 from src.state.templates import render_template
 from src.state.time import today
@@ -74,6 +74,8 @@ def create_todo(
             body=body,
         ),
     )
+    if matter_dir is not None:
+        touch_matter(matter_dir)
     return path
 
 
@@ -95,6 +97,8 @@ def claim_todo(slug: str, matter_ref: str = "", paths: ProjectPaths = PROJECT_PA
     frontmatter_set(source, "status", "claimed")
     destination.parent.mkdir(parents=True, exist_ok=True)
     shutil.move(str(source), str(destination))
+    if matter_ref:
+        touch_matter(matter_dir)
     return destination
 
 

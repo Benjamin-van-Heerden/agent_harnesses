@@ -8,7 +8,6 @@ from pathlib import Path
 from typing import Any
 
 from src.config.paths import PROJECT_PATHS
-from src.utils.git import post_command_snapshot
 
 
 SETUP_URL = "https://raw.githubusercontent.com/Benjamin-van-Heerden/agent_harnesses/main/legal/setup.py"
@@ -136,7 +135,6 @@ def update(force: bool = False) -> AutoUpdateResult:
         print("Harness auto-update: force update requested; updating.")
 
     _run_remote_setup_update()
-    post_command_snapshot(PROJECT_PATHS.project_root)
     return AutoUpdateResult(updated=True, reexec_required=True)
 
 

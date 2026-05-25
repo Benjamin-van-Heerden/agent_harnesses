@@ -9,6 +9,11 @@ from typing import Any
 LEGAL_ROOT = Path(__file__).resolve().parents[1]
 
 
+def assert_ascii_safe(text: str) -> None:
+    non_ascii = sorted({character for character in text if ord(character) > 127})
+    assert non_ascii == []
+
+
 def run_command(
     args: list[str],
     cwd: Path,
@@ -42,6 +47,53 @@ def read_toml(path: Path) -> dict[str, Any]:
     return data if isinstance(data, dict) else {}
 
 
+def test_setup_requires_git_and_typst_with_install_guidance(tmp_path: Path) -> None:
+    target = tmp_path / "practice"
+    target.mkdir()
+    empty_path = tmp_path / "empty_path"
+    empty_path.mkdir()
+
+    result = run_command(
+        [sys.executable, "-B", str(LEGAL_ROOT / "setup.py")],
+        cwd=target,
+        check=False,
+        extra_env={"PATH": str(empty_path)},
+    )
+
+    assert result.returncode == 1
+    assert not (target / ".agent_core").exists()
+    assert "Error: missing required external dependencies." in result.stderr
+    assert "Setup checks these commands with --version before installing the legal harness." in result.stderr
+    assert "Missing required command: git" in result.stderr
+    assert "Missing required command: typst" in result.stderr
+    assert "winget install --id Git.Git" in result.stderr
+    assert "winget install --id Typst.Typst" in result.stderr
+    assert_ascii_safe(result.stderr)
+
+
+def test_runtime_dependency_guidance_requires_git_and_typst(tmp_path: Path) -> None:
+    script = """
+import deps
+
+deps.command_version_available = lambda command: False
+deps.require_dependencies()
+""".strip()
+
+    result = run_command(
+        [sys.executable, "-B", "-c", script],
+        cwd=tmp_path,
+        check=False,
+        extra_env={"PYTHONPATH": str(LEGAL_ROOT / ".agent_core" / "harness")},
+    )
+
+    assert result.returncode == 1
+    assert "Missing required dependencies." in result.stderr
+    assert "git: required for local practice-state checkpoints" in result.stderr
+    assert "typst: required for legal document compilation" in result.stderr
+    assert "winget install --id Typst.Typst" in result.stderr
+    assert_ascii_safe(result.stderr)
+
+
 def test_setup_installs_native_harness_and_preserves_user_content(tmp_path: Path) -> None:
     target = tmp_path / "practice"
     target.mkdir()
@@ -67,16 +119,20 @@ def test_setup_installs_native_harness_and_preserves_user_content(tmp_path: Path
         LEGAL_ROOT / ".agent_docs" / "typst_detailed_reference.typ"
     ).read_text()
     assert (target / "src" / "types" / "Client.typ").read_text() == (LEGAL_ROOT / "src" / "types" / "Client.typ").read_text()
-    assert (target / "clients").is_dir()
+    assert (target / "ZZ_CLIENTS").is_dir()
+    assert not (target / "clients").exists()
+    assert (target / "WIP" / "drafts").is_dir()
+    assert (target / "WIP" / "experiments").is_dir()
+    assert "Matter-specific drafts belong in the matter folder" in (target / "WIP" / "README.md").read_text()
     assert (target / "functions").is_dir()
     assert (target / "templates").is_dir()
     agents_text = (target / "AGENTS.md").read_text()
     assert "Existing lawyer-specific instruction." in agents_text
-    assert "python -B .agent_core/harness/main.py onboard" in agents_text
     assert "agent_rules/commands" not in agents_text
     assert "agent_rules/scripts" not in agents_text
     assert (target / "CLAUDE.md").exists()
     assert "legal Agent Core setup" in (target / ".gitignore").read_text()
+    assert "*.p.pdf" in (target / ".gitignore").read_text()
     assert (LEGAL_ROOT / "README.md").is_file()
     assert not (LEGAL_ROOT / "agent_rules").exists()
     assert not (LEGAL_ROOT / "bash_setup.sh").exists()
@@ -97,7 +153,7 @@ def test_setup_update_refreshes_managed_runtime_without_clobbering_lawyer_state(
     legal_context = target / ".agent_core" / "docs" / "legal_context.typ"
     custom_source = target / "src" / "functions" / "custom.typ"
     custom_template = target / ".agent_core" / "practice" / "templates" / "custom.md"
-    client_note = target / "clients" / "smith" / "profile.md"
+    client_note = target / "ZZ_CLIENTS" / "smith" / "profile.md"
     stale_harness_file = target / ".agent_core" / "harness" / "stale.txt"
 
     profile.write_text("lawyer profile edited by lawyer\n")
@@ -144,7 +200,7 @@ def test_setup_update_migrates_legacy_agent_rules_state(tmp_path: Path) -> None:
     target = tmp_path / "practice"
     target.mkdir()
     legacy = target / "agent_rules"
-    matter = target / "clients" / "smith" / "matters" / "open" / "20260521-litigation-dispute"
+    matter = target / "ZZ_CLIENTS" / "smith" / "matters" / "open" / "20260521-litigation-dispute"
     matter_info = matter / "info"
 
     (legacy / "docs" / "core").mkdir(parents=True)
@@ -162,10 +218,10 @@ def test_setup_update_migrates_legacy_agent_rules_state(tmp_path: Path) -> None:
     (matter_info / "status.md").write_text("matter status\n")
     (legacy / "todos" / "global.md").write_text("---\nmatter: null\n---\nglobal todo\n")
     (legacy / "todos" / "matter.md").write_text(
-        "---\nmatter: clients/smith/matters/open/20260521-litigation-dispute\n---\nmatter todo\n"
+        "---\nmatter: ZZ_CLIENTS/smith/matters/open/20260521-litigation-dispute\n---\nmatter todo\n"
     )
     (legacy / "todos" / "claimed" / "done.md").write_text(
-        "---\nmatter: clients/smith/matters/open/20260521-litigation-dispute\n---\ndone todo\n"
+        "---\nmatter: ZZ_CLIENTS/smith/matters/open/20260521-litigation-dispute\n---\ndone todo\n"
     )
 
     run_setup(target, update=True)
@@ -193,6 +249,7 @@ def test_installed_onboard_command_runs(tmp_path: Path) -> None:
     assert "# .agent_core/docs/legal_harness_function.md" in result.stdout
     assert "# .agent_core/docs/legal_context.typ" in result.stdout
     assert "You must read the relevant profile" in result.stdout
+    assert_ascii_safe(result.stdout)
 
 
 def test_setup_docs_commands_manage_optional_docs(tmp_path: Path) -> None:
@@ -236,10 +293,14 @@ def test_installed_runtime_foundation_commands_run(tmp_path: Path) -> None:
     paths_result = run_command([sys.executable, "-B", ".agent_core/harness/main.py", "paths"], cwd=target)
     assert f"Project root: {target}" in paths_result.stdout
     assert f"Practice root: {target / '.agent_core' / 'practice'}" in paths_result.stdout
+    assert f"Clients root: {target / 'ZZ_CLIENTS'}" in paths_result.stdout
+    assert f"WIP root: {target / 'WIP'}" in paths_result.stdout
+    assert_ascii_safe(paths_result.stdout)
 
     config_result = run_command([sys.executable, "-B", ".agent_core/harness/main.py", "config", "show"], cwd=target)
     assert "Harness: legal" in config_result.stdout
     assert "Local git snapshots: True" in config_result.stdout
+    assert_ascii_safe(config_result.stdout)
 
 
 def test_markdown_frontmatter_utilities_round_trip(tmp_path: Path) -> None:
@@ -284,7 +345,7 @@ from src.state.todos import claim_todo, create_todo, list_global_todos, list_mat
 from src.utils.markdown import frontmatter_get
 
 client_profile = create_client("smith", "Smith Corp", "company")
-assert client_profile == Path("clients/smith/profile.md").resolve()
+assert client_profile == Path("ZZ_CLIENTS/smith/profile.md").resolve()
 assert list_clients()[0].display_name == "Smith Corp"
 
 matter_dir = create_matter("smith", "litigation", "jones_dispute", "high", "hourly")
@@ -373,11 +434,11 @@ create_memory("drafting_style", "Drafting style")
     assert "Practice summary" in onboard.stdout
     assert "Clients" in onboard.stdout
     assert "Open matters" in onboard.stdout
-    assert "✅ Todos" in onboard.stdout
+    assert "\nTodos\n-----" in onboard.stdout
     assert "Review practice note" in onboard.stdout
     assert "Global" in onboard.stdout
     assert "Draft affidavit" in onboard.stdout
-    assert "clients/smith/matters/open/" in onboard.stdout
+    assert "ZZ_CLIENTS/smith/matters/open/" in onboard.stdout
     assert "High-priority matters" in onboard.stdout
 
     clients = run_command([*harness, "client", "list"], cwd=target)
@@ -389,7 +450,7 @@ create_memory("drafting_style", "Drafting style")
     assert "draft_affidavit" not in matters.stdout
 
     found = run_command([*harness, "matter", "find", "jones"], cwd=target)
-    assert "clients/smith/matters/open/" in found.stdout
+    assert "ZZ_CLIENTS/smith/matters/open/" in found.stdout
 
     focus = run_command([*harness, "matter", "focus", "jones"], cwd=target)
     assert "Focused matter:" in focus.stdout
@@ -415,6 +476,261 @@ create_memory("drafting_style", "Drafting style")
     assert "all frontmatter valid" in lint.stdout
 
 
+def test_matter_lookup_uses_physical_files_and_metadata_and_reports_ambiguity(tmp_path: Path) -> None:
+    target = tmp_path / "practice"
+    target.mkdir()
+    run_setup(target)
+
+    script = """
+from src.state.clients import create_client
+from src.state.matters import create_matter, parse_matter_status
+from src.utils.markdown import MarkdownDocument, read_markdown, write_markdown
+
+create_client("smith", "Smith Corp", "entity")
+first = create_matter("smith", "litigation", "lease_dispute", "high", "hourly")
+first_status = first / "info" / "status.md"
+first_doc = read_markdown(first_status)
+first_frontmatter = dict(first_doc.frontmatter)
+first_frontmatter["case_number"] = "2026/123"
+first_frontmatter["physical_files"] = ["A123/24", "LIT-0042"]
+first_frontmatter["workflow"] = "litigation_flow"
+first_frontmatter["tags"] = ["urgent", "lease"]
+write_markdown(first_status, MarkdownDocument(frontmatter=first_frontmatter, body=first_doc.body))
+
+create_client("jones", "Jones Holdings", "entity")
+second = create_matter("jones", "litigation", "lease_dispute", "normal", "hourly")
+second_status = second / "info" / "status.md"
+second_doc = read_markdown(second_status)
+second_frontmatter = dict(second_doc.frontmatter)
+second_frontmatter["physical_files"] = ["A123/24"]
+write_markdown(second_status, MarkdownDocument(frontmatter=second_frontmatter, body=second_doc.body))
+
+parsed = parse_matter_status(first_status)
+assert parsed.case_number == "2026/123"
+assert parsed.physical_files == ["A123/24", "LIT-0042"]
+assert parsed.workflow == "litigation_flow"
+assert parsed.last_touched_at is None
+assert parsed.tags == ["urgent", "lease"]
+""".strip()
+    run_command(
+        [sys.executable, "-B", "-c", script],
+        cwd=target,
+        extra_env={"PYTHONPATH": str(target / ".agent_core" / "harness")},
+    )
+
+    harness = [sys.executable, "-B", ".agent_core/harness/main.py"]
+    by_file = run_command([*harness, "matter", "find", "LIT-0042"], cwd=target)
+    assert "ZZ_CLIENTS/smith/matters/open/" in by_file.stdout
+    assert "ZZ_CLIENTS/jones/matters/open/" not in by_file.stdout
+
+    by_workflow = run_command([*harness, "matter", "find", "litigation_flow"], cwd=target)
+    assert "ZZ_CLIENTS/smith/matters/open/" in by_workflow.stdout
+
+    by_client_display = run_command([*harness, "matter", "find", "Jones Holdings"], cwd=target)
+    assert "ZZ_CLIENTS/jones/matters/open/" in by_client_display.stdout
+
+    focus = run_command([*harness, "matter", "focus", "LIT-0042"], cwd=target)
+    assert "Focused matter: ZZ_CLIENTS/smith/matters/open/" in focus.stdout
+
+    ambiguous = run_command([*harness, "matter", "focus", "A123/24"], cwd=target, check=False)
+    assert ambiguous.returncode == 1
+    assert "multiple matters match 'A123/24'" in ambiguous.stderr
+    assert "Ask the lawyer which matter to use" in ambiguous.stderr
+    assert "ZZ_CLIENTS/smith/matters/open/" in ambiguous.stderr
+    assert "ZZ_CLIENTS/jones/matters/open/" in ambiguous.stderr
+
+
+def test_matter_touch_tracking_and_client_index(tmp_path: Path) -> None:
+    target = tmp_path / "practice"
+    target.mkdir()
+    run_setup(target)
+
+    script = """
+from src.state.clients import create_client
+from src.state.matters import create_matter, parse_matter_status
+
+create_client("smith", "Smith Corp", "entity")
+matter = create_matter("smith", "litigation", "touch_test", "normal", "hourly")
+assert parse_matter_status(matter / "info" / "status.md").last_touched_at is None
+""".strip()
+    run_command(
+        [sys.executable, "-B", "-c", script],
+        cwd=target,
+        extra_env={"PYTHONPATH": str(target / ".agent_core" / "harness")},
+    )
+
+    harness = [sys.executable, "-B", ".agent_core/harness/main.py"]
+    matter_dir = next((target / "ZZ_CLIENTS" / "smith" / "matters" / "open").iterdir())
+    status_file = matter_dir / "info" / "status.md"
+
+    def touched_at() -> str:
+        script_inner = f"""
+from pathlib import Path
+from src.state.matters import parse_matter_status
+
+print(parse_matter_status(Path({str(status_file)!r})).last_touched_at or "")
+""".strip()
+        result = run_command(
+            [sys.executable, "-B", "-c", script_inner],
+            cwd=target,
+            extra_env={"PYTHONPATH": str(target / ".agent_core" / "harness")},
+        )
+        return result.stdout.strip()
+
+    run_command([*harness, "matter", "find", "touch_test"], cwd=target)
+    assert touched_at() == ""
+
+    focus = run_command([*harness, "matter", "focus", "touch_test"], cwd=target)
+    assert "Focused matter:" in focus.stdout
+    first_touch = touched_at()
+    assert first_touch
+
+    run_command([*harness, "matter", "list"], cwd=target)
+    assert touched_at() == first_touch
+
+    run_command([*harness, "todo", "new", "draft_note", "Draft note", "normal", "touch_test"], cwd=target)
+    assert touched_at() >= first_touch
+
+    onboard = run_command([*harness, "onboard"], cwd=target)
+    assert "Client matter index" in onboard.stdout
+    assert "Smith Corp" in onboard.stdout
+    assert "touch_test" in onboard.stdout
+    index_text = (target / ".agent_core" / "client_matter_index.toml").read_text()
+    assert "Generated by the legal harness" in index_text
+    assert 'slug = "smith"' in index_text
+    assert "touch_test" in index_text
+
+
+def test_workflow_commands_and_matter_focus_integration(tmp_path: Path) -> None:
+    target = tmp_path / "practice"
+    target.mkdir()
+    run_setup(target)
+
+    harness = [sys.executable, "-B", ".agent_core/harness/main.py"]
+    created = run_command([*harness, "workflow", "new", "Litigation Flow"], cwd=target)
+    assert "Created workflow: litigation_flow" in created.stdout
+    workflow_file = target / ".agent_core" / "practice" / "workflows" / "litigation_flow.toml"
+    assert workflow_file.is_file()
+    assert "[[steps]]" in workflow_file.read_text()
+
+    listed = run_command([*harness, "workflow", "list"], cwd=target)
+    assert "litigation_flow\tLitigation Flow\t2" in listed.stdout
+
+    shown = run_command([*harness, "workflow", "show", "litigation_flow"], cwd=target)
+    assert "Workflow: Litigation Flow" in shown.stdout
+    assert "intake\ttask" in shown.stdout
+
+    script = """
+from src.state.clients import create_client
+from src.state.matters import create_matter
+
+create_client("smith", "Smith Corp", "entity")
+create_matter("smith", "litigation", "workflow_test", "normal", "hourly")
+""".strip()
+    run_command(
+        [sys.executable, "-B", "-c", script],
+        cwd=target,
+        extra_env={"PYTHONPATH": str(target / ".agent_core" / "harness")},
+    )
+
+    linked = run_command([*harness, "workflow", "link", "workflow_test", "litigation_flow"], cwd=target)
+    assert "Linked workflow: litigation_flow" in linked.stdout
+    matter_dir = next((target / "ZZ_CLIENTS" / "smith" / "matters" / "open").iterdir())
+    progress_file = matter_dir / "info" / "workflow.toml"
+    assert progress_file.is_file()
+    progress_file.write_text('completed_steps = ["intake"]\nblocked_steps = []\ncurrent_steps = []\n')
+
+    focus = run_command([*harness, "matter", "focus", "workflow_test"], cwd=target)
+    assert "Workflow: Litigation Flow" in focus.stdout
+    assert "Workflow progress:" in focus.stdout
+    assert "Completed: intake" in focus.stdout
+    assert "Current: draft" in focus.stdout
+    assert "Next action: Prepare first draft" in focus.stdout
+    assert "Workflow todo: Prepare the first working draft" in focus.stdout
+
+
+def test_compile_command_outputs_p_pdf_and_focus_classifies_pdfs(tmp_path: Path) -> None:
+    target = tmp_path / "practice"
+    target.mkdir()
+    run_setup(target)
+
+    script = """
+from src.state.clients import create_client
+from src.state.matters import create_matter
+
+create_client("smith", "Smith Corp", "entity")
+matter = create_matter("smith", "litigation", "compile_test", "normal", "hourly")
+(matter / "draft.typ").write_text("#set page(width: 100mm, height: 100mm)\\nHello")
+(matter / "source.pdf").write_text("external pdf")
+""".strip()
+    run_command(
+        [sys.executable, "-B", "-c", script],
+        cwd=target,
+        extra_env={"PYTHONPATH": str(target / ".agent_core" / "harness")},
+    )
+    matter_dir = next((target / "ZZ_CLIENTS" / "smith" / "matters" / "open").iterdir())
+
+    harness = [sys.executable, "-B", ".agent_core/harness/main.py"]
+    source = matter_dir / "draft.typ"
+    compiled = run_command([*harness, "compile", str(source.relative_to(target))], cwd=target)
+    assert "Compiled Typst source:" in compiled.stdout
+    assert "PDF output: ZZ_CLIENTS/smith/matters/open/" in compiled.stdout
+    assert "draft.p.pdf" in compiled.stdout
+    assert (matter_dir / "draft.p.pdf").is_file()
+
+    focus = run_command([*harness, "matter", "focus", "compile_test"], cwd=target)
+    assert "Typst drafts: 1" in focus.stdout
+    assert "Generated PDF outputs: 1" in focus.stdout
+    assert "Other PDFs: 1" in focus.stdout
+    assert "Typst source: ZZ_CLIENTS/smith/matters/open/" in focus.stdout
+    assert "Generated PDF: ZZ_CLIENTS/smith/matters/open/" in focus.stdout
+    assert "Other PDF: ZZ_CLIENTS/smith/matters/open/" in focus.stdout
+
+
+def test_onboard_snapshots_state_but_regular_commands_do_not_snapshot_on_exit(tmp_path: Path) -> None:
+    target = tmp_path / "practice"
+    target.mkdir()
+    run_setup(target)
+    run_command(["git", "config", "user.email", "agent@example.test"], cwd=target)
+    run_command(["git", "config", "user.name", "Agent"], cwd=target)
+
+    harness = [sys.executable, "-B", ".agent_core/harness/main.py"]
+    onboard = run_command([*harness, "onboard"], cwd=target)
+    assert "Created local git snapshot:" in onboard.stdout
+    assert (target / ".agent_core" / "client_matter_index.toml").is_file()
+    first_commit = run_command(["git", "rev-parse", "HEAD"], cwd=target).stdout.strip()
+
+    run_command([*harness, "client", "new", "Smith Corp", "entity", "--slug", "smith"], cwd=target)
+    second_commit = run_command(["git", "rev-parse", "HEAD"], cwd=target).stdout.strip()
+    assert second_commit == first_commit
+    assert "ZZ_CLIENTS/" in run_command(["git", "status", "--porcelain"], cwd=target).stdout
+
+
+def test_client_new_generates_person_slugs_and_requires_collision_suffix(tmp_path: Path) -> None:
+    target = tmp_path / "practice"
+    target.mkdir()
+    run_setup(target)
+
+    harness = [sys.executable, "-B", ".agent_core/harness/main.py"]
+
+    person = run_command([*harness, "client", "new", "Van Heerden, Benjamin"], cwd=target)
+    assert "Created client: van_heerden_benjamin (Van Heerden, Benjamin)" in person.stdout
+    assert (target / "ZZ_CLIENTS" / "van_heerden_benjamin" / "profile.md").is_file()
+
+    collision = run_command([*harness, "client", "new", "Van Heerden, Benjamin"], cwd=target, check=False)
+    assert collision.returncode == 1
+    assert "Ask the lawyer for a distinguishing suffix" in collision.stderr
+    assert "location, ID hint, company, or role" in collision.stderr
+
+    suffixed = run_command([*harness, "client", "new", "Van Heerden, Benjamin", "--suffix", "pretoria"], cwd=target)
+    assert "Created client: van_heerden_benjamin_pretoria (Van Heerden, Benjamin)" in suffixed.stdout
+    assert (target / "ZZ_CLIENTS" / "van_heerden_benjamin_pretoria" / "profile.md").is_file()
+
+    entity = run_command([*harness, "client", "new", "Acme Trading (Pty) Ltd", "entity"], cwd=target)
+    assert "Created client: acme_trading_pty_ltd (Acme Trading (Pty) Ltd)" in entity.stdout
+    assert (target / "ZZ_CLIENTS" / "acme_trading_pty_ltd" / "profile.md").is_file()
+
+
 def test_onboard_creates_session_log_and_removes_untouched_empty_logs(tmp_path: Path) -> None:
     target = tmp_path / "practice"
     target.mkdir()
@@ -423,7 +739,7 @@ def test_onboard_creates_session_log_and_removes_untouched_empty_logs(tmp_path: 
     harness = [sys.executable, "-B", ".agent_core/harness/main.py"]
     first = run_command([*harness, "onboard"], cwd=target)
     assert "Session work log" in first.stdout
-    assert "✅ Todos" not in first.stdout
+    assert "\nTodos\n-----" not in first.stdout
     assert "surfaced todos" not in first.stdout
     logs_root = target / ".agent_core" / "practice" / "logs"
     first_logs = sorted(logs_root.glob("*.md"))
@@ -449,14 +765,14 @@ def test_lifecycle_commands_create_and_resolve_chronology(tmp_path: Path) -> Non
 
     harness = [sys.executable, "-B", ".agent_core/harness/main.py"]
 
-    client = run_command([*harness, "client", "new", "smith", "Smith Corp", "company"], cwd=target)
+    client = run_command([*harness, "client", "new", "Smith Corp", "entity", "--slug", "smith"], cwd=target)
     assert "Created client: smith (Smith Corp)" in client.stdout
-    assert "clients/smith/profile.md" in client.stdout
-    assert (target / "clients" / "smith" / "profile.md").is_file()
+    assert "ZZ_CLIENTS/smith/profile.md" in client.stdout
+    assert (target / "ZZ_CLIENTS" / "smith" / "profile.md").is_file()
 
-    invalid_client = run_command([*harness, "client", "new", "Smith", "Smith Corp", "company"], cwd=target, check=False)
+    invalid_client = run_command([*harness, "client", "new", "Smith"], cwd=target, check=False)
     assert invalid_client.returncode == 1
-    assert "invalid slug 'Smith'" in invalid_client.stderr
+    assert "natural person client names must be surname-first" in invalid_client.stderr
 
     missing_client = run_command([*harness, "matter", "new", "missing", "litigation", "shareholder_dispute"], cwd=target, check=False)
     assert missing_client.returncode == 1
@@ -469,7 +785,7 @@ def test_lifecycle_commands_create_and_resolve_chronology(tmp_path: Path) -> Non
     matter = run_command([*harness, "matter", "new", "smith", "litigation", "shareholder_dispute", "high", "fixed"], cwd=target)
     assert "Created matter:" in matter.stdout
     assert "shareholder_dispute" in matter.stdout
-    open_matters = sorted((target / "clients" / "smith" / "matters" / "open").iterdir())
+    open_matters = sorted((target / "ZZ_CLIENTS" / "smith" / "matters" / "open").iterdir())
     assert len(open_matters) == 1
     matter_dir = open_matters[0]
     assert (matter_dir / "info" / "status.md").is_file()
@@ -477,14 +793,14 @@ def test_lifecycle_commands_create_and_resolve_chronology(tmp_path: Path) -> Non
 
     resolved = run_command([*harness, "matter", "resolve", "shareholder_dispute"], cwd=target)
     assert "Resolved matter:" in resolved.stdout
-    resolved_dir = target / "clients" / "smith" / "matters" / "resolved" / matter_dir.name
+    resolved_dir = target / "ZZ_CLIENTS" / "smith" / "matters" / "resolved" / matter_dir.name
     assert resolved_dir.is_dir()
     assert not matter_dir.exists()
     assert "status: resolved" in (resolved_dir / "info" / "status.md").read_text()
     assert list((resolved_dir / "info" / "chronology" / "matter_resolved").glob("*.toml"))
 
     clients = run_command([*harness, "client", "list"], cwd=target)
-    assert "smith\tSmith Corp\tcompany\t0\t1" in clients.stdout
+    assert "smith\tSmith Corp\tentity\t0\t1" in clients.stdout
 
 
 def test_bookkeeping_commands_create_chronology_obligations_and_todos(tmp_path: Path) -> None:
@@ -493,9 +809,9 @@ def test_bookkeeping_commands_create_chronology_obligations_and_todos(tmp_path: 
     run_setup(target)
 
     harness = [sys.executable, "-B", ".agent_core/harness/main.py"]
-    run_command([*harness, "client", "new", "smith", "Smith Corp", "company"], cwd=target)
+    run_command([*harness, "client", "new", "Smith Corp", "entity", "--slug", "smith"], cwd=target)
     run_command([*harness, "matter", "new", "smith", "litigation", "shareholder_dispute", "high", "hourly"], cwd=target)
-    matter_dir = next((target / "clients" / "smith" / "matters" / "open").iterdir())
+    matter_dir = next((target / "ZZ_CLIENTS" / "smith" / "matters" / "open").iterdir())
 
     deadline = run_command([*harness, "obligation", "add", "deadline", "shareholder_dispute", "answering_affidavit", "2999-05-21", "filing — Answering affidavit"], cwd=target)
     assert "Added obligation: deadline due 2999-05-21" in deadline.stdout
@@ -556,7 +872,7 @@ def test_bookkeeping_commands_create_chronology_obligations_and_todos(tmp_path: 
     assert "replace every TODO" in work_log.stdout
     log_files = list((target / ".agent_core" / "practice" / "logs").glob("*.md"))
     assert len(log_files) == 1
-    assert "matter: clients/smith/matters/open/" in log_files[0].read_text()
+    assert "matter: ZZ_CLIENTS/smith/matters/open/" in log_files[0].read_text()
 
     obligation = run_command([*harness, "obligation", "list", "shareholder_dispute"], cwd=target)
     assert "deadline\topen\tfiling — Answering affidavit" in obligation.stdout

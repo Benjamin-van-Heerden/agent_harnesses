@@ -9,6 +9,7 @@ import typer  # noqa: E402
 
 from src.commands.chronology.main import app as chronology_app  # noqa: E402
 from src.commands.client.main import app as client_app  # noqa: E402
+from src.commands.compile.main import app as compile_app  # noqa: E402
 from src.commands.lint.main import app as lint_app  # noqa: E402
 from src.commands.log.main import app as log_app  # noqa: E402
 from src.commands.matter.main import app as matter_app  # noqa: E402
@@ -16,9 +17,9 @@ from src.commands.memory.main import app as memory_app  # noqa: E402
 from src.commands.obligation.main import app as obligation_app  # noqa: E402
 from src.commands.onboard.main import app as onboard_app  # noqa: E402
 from src.commands.todo.main import app as todo_app  # noqa: E402
+from src.commands.workflow.main import app as workflow_app  # noqa: E402
 from src.config.main import load_config  # noqa: E402
 from src.config.paths import PROJECT_PATHS, matter_chronology_dir, matter_obligations_dir, matter_todos_dir  # noqa: E402
-from src.utils.git import post_command_snapshot  # noqa: E402
 
 
 app = typer.Typer(help="Project-local legal agent harness")
@@ -32,7 +33,9 @@ app.add_typer(obligation_app, name="obligation")
 app.add_typer(todo_app, name="todo")
 app.add_typer(memory_app, name="memory")
 app.add_typer(log_app, name="log")
+app.add_typer(workflow_app, name="workflow")
 app.add_typer(lint_app, name="lint")
+app.add_typer(compile_app, name="compile")
 
 
 @app.command()
@@ -43,6 +46,7 @@ def paths() -> None:
     typer.echo(f"Harness root: {PROJECT_PATHS.harness_root}")
     typer.echo(f"Practice root: {PROJECT_PATHS.practice_root}")
     typer.echo(f"Clients root: {PROJECT_PATHS.clients_root}")
+    typer.echo(f"WIP root: {PROJECT_PATHS.wip_root}")
     typer.echo(f"Docs root: {PROJECT_PATHS.docs_root}")
     typer.echo(f"Typst source root: {PROJECT_PATHS.src_root}")
 
@@ -67,7 +71,4 @@ def show_config() -> None:
 
 
 if __name__ == "__main__":
-    try:
-        app()
-    finally:
-        post_command_snapshot(PROJECT_PATHS.project_root)
+    app()

@@ -23,7 +23,7 @@ def _add(kind: str, matter_ref: str, date: str, summary: str, body: str = "") ->
     except (FileNotFoundError, ValueError) as error:
         exit_on_error(error)
 
-    typer.echo(f"Added chronology event: {kind} — {summary}")
+    typer.echo(f"Added chronology event: {kind} - {summary}")
     typer.echo(f"Chronology: {event.relative_to(PROJECT_PATHS.project_root)}")
     typer.echo("You must update matter status or obligations if this event changes posture or future duties.")
 
@@ -36,7 +36,7 @@ def add_conversation(
     summary: Annotated[str, typer.Argument()],
     body: Annotated[str, typer.Argument()] = "",
 ) -> None:
-    _add("conversation", matter_ref, date, f"{participants} — {summary}", body)
+    _add("conversation", matter_ref, date, f"{participants} - {summary}", body)
 
 
 @add_app.command("meeting")
@@ -47,7 +47,7 @@ def add_meeting(
     summary: Annotated[str, typer.Argument()],
     body: Annotated[str, typer.Argument()] = "",
 ) -> None:
-    _add("meeting", matter_ref, date, f"{participants} — {summary}", body)
+    _add("meeting", matter_ref, date, f"{participants} - {summary}", body)
 
 
 @add_app.command("email")
@@ -61,7 +61,7 @@ def add_email(
 ) -> None:
     if direction not in ("in", "out"):
         exit_on_error(ValueError("direction must be 'in' or 'out'"))
-    _add("email", matter_ref, date, f"{direction}: {counterparty} — {subject}", body or "_TODO: body_")
+    _add("email", matter_ref, date, f"{direction}: {counterparty} - {subject}", body or "_TODO: body_")
 
 
 @add_app.command("letter")
@@ -75,7 +75,7 @@ def add_letter(
 ) -> None:
     if direction not in ("in", "out"):
         exit_on_error(ValueError("direction must be 'in' or 'out'"))
-    _add("letter", matter_ref, date, f"{direction}: {counterparty} — {subject}", body)
+    _add("letter", matter_ref, date, f"{direction}: {counterparty} - {subject}", body)
 
 
 @add_app.command("filing")
