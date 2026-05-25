@@ -212,4 +212,8 @@ def _complete_spec_after_pr_merge_remotely(repo: Repository, record: Spec) -> No
         )
 
     if record.branch:
-        delete_remote_branch(repo, record.branch)
+        if delete_remote_branch(repo, record.branch):
+            try:
+                git.prune()
+            except GitError:
+                pass
