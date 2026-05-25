@@ -36,6 +36,8 @@ Native command hierarchy:
 - `todo new`, `todo list`, `todo claim`
 - `memory new`
 - `log new`
+- `workflow new`, `workflow list`, `workflow show`, `workflow link`
+- `compile <source.typ>`
 - `lint`
 
 ## State Shape
@@ -56,7 +58,7 @@ Global state:
 Matter state:
 
 ```text
-clients/<client>/matters/open/YYYYMMDD-<type>-<slug>/
+ZZ_CLIENTS/<client>/matters/open/YYYYMMDD-<type>-<slug>/
   info/
     status.md
     chronology/
@@ -77,16 +79,50 @@ clients/<client>/matters/open/YYYYMMDD-<type>-<slug>/
   raw/
   reference/
   *.typ
-  *.pdf
+  *.typ
+  *.p.pdf
+  other PDFs
 ```
 
 Folder hierarchy mirrors command hierarchy: `chronology add email` writes under `info/chronology/email/`; `obligation add deadline` writes under `info/obligations/deadline/`. Global todos live under `.agent_core/todos`; matter todos live under `info/todos` for the matter.
+
+Matter status frontmatter includes practical lookup metadata: `physical_files`, `workflow`, `last_touched_at`, `case_number`, and `tags`. Physical file numbers are arbitrary strings and must not be normalized as slugs.
+
+Matter-touching actions update `last_touched_at`. This includes matter focus, matter resolution, chronology additions, obligation additions, matter todo creation/claiming, matter-specific work logs, and workflow-related matter commands. Broad list/find commands must not touch matters.
+
+Onboard refreshes `.agent_core/client_matter_index.toml`, a generated harness index that lists each client and up to two recently touched matters. The lawyer should not edit generated files under `.agent_core/` directly.
+
+Workflow templates live under `.agent_core/practice/workflows/` as plain TOML. Each workflow uses `[[steps]]` with `id`, `title`, `kind`, `requires`, `blocks`, and optional todo/obligation guidance. Matter progress lives under the matter as `info/workflow.toml`.
+
+Root WIP workspace:
+
+```text
+WIP/
+  drafts/
+  experiments/
+```
+
+Use WIP only for non-matter drafting, template/style experiments, and workflow iteration. Agents must create organized subfolders under `WIP/drafts/` or `WIP/experiments/` instead of dropping loose files directly into `WIP/`. Matter-specific drafts and source material belong in the matter folder.
+
+Typst compilation must go through the harness compile command. It writes generated PDFs as `<source-stem>.p.pdf`, which distinguishes generated outputs from PDFs added as evidence, references, or externally produced source material.
+
+## Clients
+
+Natural person clients use surname-first display names, for example `Van Heerden, Benjamin`. The harness generates deterministic slugs from that form, for example `van_heerden_benjamin`.
+
+Entity and other non-person clients must be created explicitly as non-person clients. Their generated slugs come from the entity display name.
+
+When a generated or requested client slug already exists, do not guess a differentiator. Ask the lawyer for a distinguishing suffix such as location, ID hint, company, or role. A suffix such as `pretoria` produces a slug like `van_heerden_benjamin_pretoria`.
 
 ## Action Triggers
 
 Run `onboard` at the start of a session. Use it to understand the practice-level picture: open matters, upcoming obligations, todos, memories, recent logs, and the current session log. Do not treat onboard as matter analysis; it should stay concise.
 
 Run `matter focus` before advising, drafting, changing matter state, or answering a matter-specific question. Run it again if the lawyer switches matters or if important matter state has changed during the session.
+
+Matter lookup accepts practical identifiers. It searches the matter directory name, client slug, client display name, matter type, matter status, case number, physical file numbers, tags, and workflow. If a lookup matches multiple matters, stop and ask the lawyer which matter to use.
+
+When a matter has a linked workflow, `matter focus` surfaces completed, current, blocked, missing prerequisites, workflow-generated todos/obligations where present, and the next recommended action. Do not automatically create risky legal obligations unless the command explicitly says it is creating them.
 
 Create chronology when something happened:
 
@@ -174,7 +210,7 @@ Do not treat drafting as chronology unless the draft is sent, filed, served, dis
 
 ## Confidentiality And Care
 
-Every file under `clients/` is confidential.
+Every file under `ZZ_CLIENTS/` is confidential.
 
 Memories can contain confidential practice observations, but should not contain one-off matter facts.
 

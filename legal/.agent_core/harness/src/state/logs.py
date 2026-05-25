@@ -2,7 +2,7 @@ from pathlib import Path
 
 from src.config.paths import PROJECT_PATHS, ProjectPaths
 from src.models.frontmatter import WorkLogFrontmatter
-from src.state.matters import resolve_matter
+from src.state.matters import resolve_matter, touch_matter
 from src.state.models import WorkLogRecord
 from src.state.templates import render_template
 from src.state.time import now_stamp, now_time, today
@@ -30,6 +30,7 @@ def create_work_log(matter_ref: str = "", paths: ProjectPaths = PROJECT_PATHS) -
     if matter_ref:
         matter_dir = resolve_matter(matter_ref, paths)
         matter_path = str(matter_dir.relative_to(paths.project_root))
+        touch_matter(matter_dir)
 
     stamp = now_stamp()
     path = paths.logs_root / f"{stamp}_log.md"

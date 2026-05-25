@@ -1,16 +1,16 @@
-// Legal context — jurisdiction-specific reference for the agent.
+// Legal context - jurisdiction-specific reference for the agent.
 //
-// ⚠ PLACEHOLDER — NOT YET FILLED IN.
+// WARNING: PLACEHOLDER - NOT YET FILLED IN.
 //
 // Until this file is populated, the agent must emit a strong, prominent
 // warning at the start of every onboard, asking the lawyer to fill it in.
-// Detection is the literal string "PLACEHOLDER — NOT YET FILLED IN" anywhere
+// Detection is the literal string "PLACEHOLDER - NOT YET FILLED IN" anywhere
 // in the file. Without this content, the agent will fall back to generic
 // guesses and may produce citations, deadlines, or procedural references that
 // are wrong for this jurisdiction.
 //
 // Replace the placeholder content under each heading below with the real
-// jurisdiction-specific rules. Keep the structure — the agent reads section
+// jurisdiction-specific rules. Keep the structure - the agent reads section
 // by section.
 
 = Legal context
@@ -58,7 +58,7 @@ _TODO_
 
 == Common rule-based deadlines
 
-// Standard procedural windows by court level — e.g. notice of intention to
+// Standard procedural windows by court level - e.g. notice of intention to
 // defend, plea, replication, discovery, heads of argument. Include the rule
 // reference where possible so the agent can cite the source.
 
@@ -83,7 +83,7 @@ _TODO_
 
 == Anything else jurisdiction-specific
 
-// Anything that doesn't fit the above but matters — interpretation rules,
+// Anything that doesn't fit the above but matters - interpretation rules,
 // transitional provisions in force, key recent reforms.
 
 _TODO_

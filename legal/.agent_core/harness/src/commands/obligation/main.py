@@ -23,7 +23,7 @@ def _add(kind: str, matter_ref: str, obligation_id: str, due_date: str, descript
     except (FileExistsError, FileNotFoundError, ValueError) as error:
         exit_on_error(error)
 
-    typer.echo(f"Added obligation: {kind} due {due_date} — {description}")
+    typer.echo(f"Added obligation: {kind} due {due_date} - {description}")
     typer.echo(f"Obligation: {obligation.relative_to(PROJECT_PATHS.project_root)}")
     typer.echo("You must consider whether this obligation needs a preparation todo or a status update.")
 

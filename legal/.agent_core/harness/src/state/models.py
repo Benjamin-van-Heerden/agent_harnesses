@@ -20,7 +20,12 @@ class MatterStatus:
     opened: str
     client: str
     billing: str
+    case_number: str | None
+    physical_files: list[str]
+    workflow: str | None
+    last_touched_at: str | None
     next_obligation: str
+    tags: list[str]
     path: Path
     matter_dir: Path
 

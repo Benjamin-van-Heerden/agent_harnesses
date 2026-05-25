@@ -1,4 +1,4 @@
-# Work log — $TODAY
+# Work log - $TODAY
 
 ## What was done
 _TODO_

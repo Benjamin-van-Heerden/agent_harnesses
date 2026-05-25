@@ -4,6 +4,7 @@ from pathlib import Path
 import typer
 
 from src.config.paths import PROJECT_PATHS
+from src.state.client_index import refresh_client_matter_index
 from src.state.clients import list_clients
 from src.state.logs import cleanup_empty_work_logs, create_work_log, recent_work_logs
 from src.state.matters import list_open_matters
@@ -11,10 +12,11 @@ from src.state.memories import list_memories
 from src.state.obligations import upcoming_obligations
 from src.state.todos import list_all_todos
 from src.utils import auto_update
+from src.utils.git import post_command_snapshot
 
 
 app = typer.Typer(help="Build legal practice context for the agent")
-PLACEHOLDER = "PLACEHOLDER — NOT YET FILLED IN"
+PLACEHOLDER = "PLACEHOLDER - NOT YET FILLED IN"
 FILE_WIDTH = 50
 
 
@@ -53,7 +55,7 @@ def _relative(path: Path) -> str:
 def _section(title: str) -> None:
     typer.echo("")
     typer.echo(title)
-    typer.echo("─" * len(title))
+    typer.echo("-" * len(title))
 
 
 def _file(title: str) -> None:
@@ -69,7 +71,7 @@ def _table(headers: Sequence[str], rows: Sequence[Sequence[str]]) -> None:
         for index, header in enumerate(headers)
     ]
     typer.echo("| " + " | ".join(header.ljust(widths[index]) for index, header in enumerate(headers)) + " |")
-    typer.echo("| " + " | ".join("─" * width for width in widths) + " |")
+    typer.echo("| " + " | ".join("-" * width for width in widths) + " |")
     for row in rows:
         typer.echo("| " + " | ".join(value.ljust(widths[index]) for index, value in enumerate(row)) + " |")
 
@@ -117,6 +119,7 @@ def run() -> None:
     ]
     clients = list_clients()
     open_matters = list_open_matters()
+    client_index = refresh_client_matter_index()
     obligations = upcoming_obligations(14)
     memories = list_memories()
     removed_logs = cleanup_empty_work_logs()
@@ -126,11 +129,12 @@ def run() -> None:
     typst_files = _typst_files()
     high_priority = [matter for matter in open_matters if matter.priority in ("high", "urgent")]
     onboard_docs = _onboard_docs()
+    post_command_snapshot(PROJECT_PATHS.project_root)
 
-    typer.echo("⚖️  Legal onboard context")
-    typer.echo("════════════════════════")
+    typer.echo("Legal onboard context")
+    typer.echo("=====================")
 
-    _section("📍 Workspace")
+    _section("Workspace")
     _table(
         ("Item", "Value"),
         [
@@ -141,18 +145,18 @@ def run() -> None:
     )
 
     if placeholder_files:
-        _section("⚠️  Setup warnings")
+        _section("Setup warnings")
         for path in placeholder_files:
             typer.echo(f"- Placeholder remains: {path.relative_to(PROJECT_PATHS.project_root)}")
 
     if onboard_docs:
-        _section("📚 Required docs")
+        _section("Required docs")
         for path in onboard_docs:
             _file(_relative(path))
             typer.echo(_read_text(path))
             typer.echo("")
 
-    _section("📊 Practice summary")
+    _section("Practice summary")
     _table(
         ("Metric", "Count"),
         [
@@ -167,11 +171,25 @@ def run() -> None:
     )
 
     if removed_logs:
-        _section("🧹 Work-log cleanup")
+        _section("Work-log cleanup")
         typer.echo(f"Removed empty work logs: {len(removed_logs)}")
 
+    if client_index:
+        _section("Client matter index")
+        rows = []
+        for entry in client_index:
+            if entry.matters:
+                matters = "; ".join(
+                    f"{summary.matter.matter_dir.name} ({summary.matter.last_touched_at or 'not touched'})"
+                    for summary in entry.matters
+                )
+            else:
+                matters = "(no matters)"
+            rows.append((entry.client.display_name, matters))
+        _table(("Client", "Recent matters"), rows)
+
     if obligations:
-        _section("⏰ Upcoming obligations")
+        _section("Upcoming obligations")
         rows = []
         for due_date, matter_dir, obligation in obligations:
             rows.append(
@@ -185,7 +203,7 @@ def run() -> None:
         _table(("Due", "Kind", "Description", "Matter"), rows)
 
     if high_priority:
-        _section("🔥 High-priority matters")
+        _section("High-priority matters")
         rows = []
         for matter in high_priority:
             rows.append(
@@ -199,7 +217,7 @@ def run() -> None:
         _table(("Priority", "Client", "Type", "Matter"), rows)
 
     if todos:
-        _section("✅ Todos")
+        _section("Todos")
         grouped: dict[str, list[tuple[str, str, str]]] = {}
         for todo in todos:
             grouped.setdefault(_todo_scope(todo.matter), []).append(
@@ -210,7 +228,7 @@ def run() -> None:
             typer.echo(f"{scope}")
             _table(("Status", "Priority", "Todo"), grouped[scope])
 
-    _section("🧭 Agent instructions")
+    _section("Agent instructions")
     typer.echo("Your next response must brief the lawyer in plain language.")
     if todos:
         typer.echo("Present surfaced todos grouped by global and matter scope.")

@@ -1,4 +1,5 @@
 import shutil
+from collections.abc import Mapping
 from datetime import datetime
 from pathlib import Path
 from typing import cast
@@ -11,19 +12,51 @@ from src.state.models import ChronologyEntry, MatterRef, MatterStatus
 from src.state.templates import render_template
 from src.state.time import today
 from src.state.validation import validate_priority, validate_slug
-from src.utils.markdown import MarkdownDocument, frontmatter_get, frontmatter_set, write_markdown
+from src.utils.markdown import MarkdownDocument, frontmatter_get, frontmatter_set, read_markdown, write_markdown
+
+
+def _optional_text(value: object) -> str | None:
+    if value is None or value == "":
+        return None
+    return str(value)
+
+
+def _string_list(value: object) -> list[str]:
+    if not isinstance(value, list):
+        return []
+    return [str(item) for item in value if item is not None and str(item)]
+
+
+def _metadata(path: Path) -> Mapping[str, object]:
+    return read_markdown(path).frontmatter
+
+
+def touch_matter(matter_dir: Path) -> None:
+    status_file = matter_dir / "info" / "status.md"
+    if not status_file.is_file():
+        raise FileNotFoundError(f"no info/status.md in {matter_dir}")
+    document = read_markdown(status_file)
+    metadata = dict(document.frontmatter)
+    metadata["last_touched_at"] = datetime.now().isoformat(timespec="seconds")
+    write_markdown(status_file, MarkdownDocument(frontmatter=metadata, body=document.body))
 
 
 def parse_matter_status(path: Path) -> MatterStatus:
     matter_dir = path.parent.parent
+    metadata = _metadata(path)
     return MatterStatus(
-        matter_type=frontmatter_get(path, "matter_type"),
-        status=frontmatter_get(path, "status"),
-        priority=frontmatter_get(path, "priority"),
-        opened=frontmatter_get(path, "opened"),
-        client=frontmatter_get(path, "client"),
-        billing=frontmatter_get(path, "billing"),
+        matter_type=str(metadata.get("matter_type", "")),
+        status=str(metadata.get("status", "")),
+        priority=str(metadata.get("priority", "")),
+        opened=str(metadata.get("opened", "")),
+        client=str(metadata.get("client", "")),
+        billing=str(metadata.get("billing", "")),
+        case_number=_optional_text(metadata.get("case_number")),
+        physical_files=_string_list(metadata.get("physical_files")),
+        workflow=_optional_text(metadata.get("workflow")),
+        last_touched_at=_optional_text(metadata.get("last_touched_at")),
         next_obligation=frontmatter_get(path, "next_obligation"),
+        tags=_string_list(metadata.get("tags")),
         path=path,
         matter_dir=matter_dir,
     )
@@ -50,19 +83,50 @@ def list_open_matters(paths: ProjectPaths = PROJECT_PATHS) -> list[MatterStatus]
     ]
 
 
-def find_matters(pattern: str, paths: ProjectPaths = PROJECT_PATHS) -> list[Path]:
+def all_matter_statuses(paths: ProjectPaths = PROJECT_PATHS) -> list[MatterStatus]:
     if not paths.clients_root.is_dir():
         return []
-    matches: list[Path] = []
-    for client in sorted(path for path in paths.clients_root.iterdir() if path.is_dir()):
-        for bucket in ("open", "resolved"):
-            bucket_dir = client / "matters" / bucket
-            if not bucket_dir.is_dir():
-                continue
-            for matter_dir in sorted(path for path in bucket_dir.iterdir() if path.is_dir()):
-                if pattern in matter_dir.name:
-                    matches.append(matter_dir)
-    return matches
+    return [
+        parse_matter_status(path)
+        for path in sorted(paths.clients_root.glob("*/matters/*/*/info/status.md"))
+    ]
+
+
+def _client_display_name(client_slug: str, paths: ProjectPaths) -> str:
+    profile = paths.clients_root / client_slug / "profile.md"
+    return frontmatter_get(profile, "display_name")
+
+
+def _search_values(matter: MatterStatus, paths: ProjectPaths) -> list[str]:
+    return [
+        matter.matter_dir.name,
+        matter.client,
+        _client_display_name(matter.client, paths),
+        matter.matter_type,
+        matter.status,
+        matter.case_number or "",
+        *(matter.physical_files),
+        *(matter.tags),
+        matter.workflow or "",
+    ]
+
+
+def find_matters(pattern: str, paths: ProjectPaths = PROJECT_PATHS) -> list[Path]:
+    query = pattern.casefold().strip()
+    if not query:
+        return []
+    return [
+        matter.matter_dir
+        for matter in all_matter_statuses(paths)
+        if any(query in value.casefold() for value in _search_values(matter, paths))
+    ]
+
+
+def ambiguous_matter_message(input_ref: str, matches: list[Path], paths: ProjectPaths) -> str:
+    options = "\n".join(f"- {path.relative_to(paths.project_root)}" for path in matches)
+    return (
+        f"multiple matters match '{input_ref}'. Ask the lawyer which matter to use, then rerun the command with a more specific identifier.\n{options}"
+    )
 
 
 def resolve_matter(input_ref: str, paths: ProjectPaths = PROJECT_PATHS) -> Path:
@@ -79,8 +143,7 @@ def resolve_matter(input_ref: str, paths: ProjectPaths = PROJECT_PATHS) -> Path:
     if not matches:
         raise FileNotFoundError(f"no matter found matching '{input_ref}'")
     if len(matches) > 1:
-        options = ", ".join(str(path.relative_to(paths.project_root)) for path in matches)
-        raise ValueError(f"multiple matters match '{input_ref}': {options}")
+        raise ValueError(ambiguous_matter_message(input_ref, matches, paths))
     return matches[0]
 
 
@@ -143,7 +206,7 @@ def create_matter(
         ChronologyEntry(
             date=today(),
             kind="matter_opened",
-            summary=f"{matter_type} — {matter_slug} (priority {priority}, {billing})",
+            summary=f"{matter_type} - {matter_slug} (priority {priority}, {billing})",
         ),
     )
     return matter_dir
@@ -170,5 +233,6 @@ def close_matter(input_ref: str, paths: ProjectPaths = PROJECT_PATHS) -> Path:
 
     frontmatter_set(status_file, "status", "resolved")
     write_chronology_event(matter_dir, ChronologyEntry(date=today(), kind="matter_resolved", summary="Matter closed."))
+    touch_matter(matter_dir)
     shutil.move(str(matter_dir), str(destination))
     return destination

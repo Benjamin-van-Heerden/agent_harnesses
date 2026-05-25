@@ -11,6 +11,8 @@ class ProjectPaths:
     agent_docs_root: Path
     docs_root: Path
     legal_context: Path
+    client_matter_index: Path
+    workflows_root: Path
     typst_basic_reference: Path
     typst_house_rules_reference: Path
     typst_detailed_reference: Path
@@ -18,6 +20,9 @@ class ProjectPaths:
     lawyer_profile: Path
     firm_profile: Path
     clients_root: Path
+    wip_root: Path
+    wip_drafts_root: Path
+    wip_experiments_root: Path
     memories_root: Path
     logs_root: Path
     global_todos_root: Path
@@ -54,13 +59,18 @@ def build_project_paths(project_root: Path | None = None) -> ProjectPaths:
         agent_docs_root=root / ".agent_docs",
         docs_root=state_root / "docs",
         legal_context=state_root / "docs" / "legal_context.typ",
+        client_matter_index=state_root / "client_matter_index.toml",
+        workflows_root=practice_root / "workflows",
         typst_basic_reference=state_root / "docs" / "legal_harness_typst_basic_reference.typ",
         typst_house_rules_reference=state_root / "docs" / "legal_harness_typst_soft_typesystem_and_house_rules.typ",
         typst_detailed_reference=root / ".agent_docs" / "typst_detailed_reference.typ",
         practice_root=practice_root,
         lawyer_profile=practice_root / "lawyer_profile.md",
         firm_profile=practice_root / "firm_profile.md",
-        clients_root=root / "clients",
+        clients_root=root / "ZZ_CLIENTS",
+        wip_root=root / "WIP",
+        wip_drafts_root=root / "WIP" / "drafts",
+        wip_experiments_root=root / "WIP" / "experiments",
         memories_root=practice_root / "memories",
         logs_root=practice_root / "logs",
         global_todos_root=state_root / "todos",
@@ -114,6 +124,10 @@ def matter_obligations_dir(matter_path: Path) -> Path:
 
 def matter_todos_dir(matter_path: Path) -> Path:
     return matter_info_dir(matter_path) / "todos"
+
+
+def matter_workflow_progress_file(matter_path: Path) -> Path:
+    return matter_info_dir(matter_path) / "workflow.toml"
 
 
 def matter_raw_dir(matter_path: Path) -> Path:

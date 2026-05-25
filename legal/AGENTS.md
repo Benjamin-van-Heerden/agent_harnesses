@@ -11,5 +11,13 @@ Onboard creates the session work log, summarizes live practice context, and tell
 
 The lawyer speaks naturally. You translate their instructions into harness actions and file edits, then confirm in plain language. Do not expose command names, slugs, paths, git details, or filesystem structure unless the lawyer asks.
 
+Typst compilation must go through the legal harness:
+
+```bash
+python -B .agent_core/harness/main.py compile <source.typ>
+```
+
+Do not run `typst compile` directly for legal workspace documents. Harness compilation writes generated PDFs as `<source-stem>.p.pdf`; treat those files as generated outputs, distinct from externally added PDFs or source material.
+
 If the lawyer says "Stop", "No", or similar, stop immediately, briefly say what you were doing, and wait.
 </core_instructions>

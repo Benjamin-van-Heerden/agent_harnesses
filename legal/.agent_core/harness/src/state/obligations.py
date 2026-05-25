@@ -2,7 +2,7 @@ import tomllib
 from pathlib import Path
 
 from src.config.paths import PROJECT_PATHS, ProjectPaths, matter_obligations_dir
-from src.state.matters import resolve_matter
+from src.state.matters import resolve_matter, touch_matter
 from src.state.models import ObligationRecord
 from src.state.validation import validate_date, validate_slug
 from src.utils.markdown import frontmatter_set
@@ -82,6 +82,7 @@ def create_obligation(
             if parse_obligation(path).status == "open"
         ]
         frontmatter_set(matter_dir / "info" / "status.md", "next_obligation", min(open_dates) if open_dates else "null")
+    touch_matter(matter_dir)
     return target
 
 
