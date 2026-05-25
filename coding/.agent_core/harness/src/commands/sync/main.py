@@ -15,6 +15,7 @@ from src.utils.github import (
     TODO_LABEL,
     authenticated_username,
     create_issue,
+    delete_remote_branch,
     ensure_labels,
     issue_labels,
     list_issues,
@@ -311,6 +312,11 @@ def _complete_merged_specs(repo: Repository) -> int:
                 git.delete_local_branch(record.branch, force=True)
             except GitError:
                 pass
+            if delete_remote_branch(repo, record.branch):
+                try:
+                    git.prune()
+                except GitError:
+                    pass
         completed += 1
 
     if completed:
@@ -319,6 +325,39 @@ def _complete_merged_specs(repo: Repository) -> int:
             git.push(branches.dev)
 
     return completed
+
+
+def _cleanup_completed_spec_branches(repo: Repository) -> int:
+    if worktrees.is_worktree():
+        return 0
+
+    branches = get_branch_names()
+    current = git.current_branch()
+    if current != branches.dev:
+        return 0
+
+    cleaned = 0
+    protected = set(branches.protected)
+    for record in specs.list_all(status="completed"):
+        if not record.branch or record.branch in protected:
+            continue
+        removed_any = worktrees.remove(record.slug, force=True)
+        if git.local_branch_exists(record.branch):
+            try:
+                git.delete_local_branch(record.branch, force=True)
+                removed_any = True
+            except GitError:
+                pass
+        if delete_remote_branch(repo, record.branch):
+            removed_any = True
+            try:
+                git.prune()
+            except GitError:
+                pass
+        if removed_any:
+            cleaned += 1
+
+    return cleaned
 
 
 @app.command("all")
@@ -345,6 +384,9 @@ def sync_all(
         completed = _complete_merged_specs(repo)
         if completed:
             typer.echo(f"Completed merged specs: {completed}")
+        cleaned = _cleanup_completed_spec_branches(repo)
+        if cleaned:
+            typer.echo(f"Cleaned completed spec branches: {cleaned}")
     except GitHubError as error:
         typer.echo(f"Warning: could not check merged specs: {error}", err=True)
 

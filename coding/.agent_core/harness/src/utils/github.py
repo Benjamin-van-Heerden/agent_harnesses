@@ -208,13 +208,15 @@ def merge_pull_request(repo: Repository, number: int, commit_message: str) -> Pu
         raise GitHubError(f"Could not merge pull request #{number}: {error}") from error
 
 
-def delete_remote_branch(repo: Repository, branch: str) -> None:
+def delete_remote_branch(repo: Repository, branch: str) -> bool:
     try:
         ref = repo.get_git_ref(f"heads/{branch}")
         ref.delete()
+        return True
     except GithubException as error:
-        if error.status != 404:
-            raise GitHubError(f"Could not delete remote branch '{branch}': {error}") from error
+        if error.status == 404:
+            return False
+        raise GitHubError(f"Could not delete remote branch '{branch}': {error}") from error
 
 
 def parse_pull_number(url: str) -> int | None:
