@@ -20,6 +20,7 @@ from src.commands.sync.main import sync_all
 from src.config.branches import get_branch_names
 from src.config.main import load_project_config, summarize_validation_error
 from src.config.paths import PROJECT_PATHS
+from src.state.user_mappings import ensure_user_mappings_file
 from src.utils import auto_update, git, worktrees
 from src.utils.errors import GitError, GitHubError
 from src.utils.gitignore import ensure_agent_core_tmp_ignored, ensure_symlink_paths_ignored
@@ -117,6 +118,12 @@ def run(
             else:
                 typer.echo(f"Missing or empty {PROJECT_PATHS.config_file_display}", err=True)
             raise typer.Exit(code=1)
+
+        try:
+            if ensure_user_mappings_file():
+                typer.echo(f"Onboard mutated {PROJECT_PATHS.user_mappings_file_display}: ensured current mapping format.")
+        except Exception as error:
+            typer.echo(f"Warning: could not ensure {PROJECT_PATHS.user_mappings_file_display}: {error}", err=True)
 
         try:
             missing_ignores = ensure_symlink_paths_ignored(

@@ -932,11 +932,49 @@ def install_harness_readme(template_root: Path, state_dir: Path) -> None:
     print("Updated managed file: .agent_core/README.md" if existed else "Created managed file: .agent_core/README.md")
 
 
+def toml_string(value: str) -> str:
+    return json.dumps(value)
+
+
+def render_user_mappings(data: dict[str, object]) -> str:
+    lines = ["# GitHub username to git user mappings"]
+    for username, value in sorted(data.items()):
+        if isinstance(value, str):
+            name = value
+            email = None
+        elif isinstance(value, dict):
+            table = cast(dict[str, object], value)
+            raw_name = table.get("name")
+            if not isinstance(raw_name, str):
+                fail(f"Invalid .agent_core/user_mappings.toml entry for {username}: missing string name")
+            name = raw_name
+            raw_email = table.get("email")
+            email = raw_email if isinstance(raw_email, str) and raw_email else None
+        else:
+            fail(f"Invalid .agent_core/user_mappings.toml entry for {username}: expected string or table")
+
+        lines.append("")
+        lines.append(f"[{username}]")
+        lines.append(f"name = {toml_string(name)}")
+        if email:
+            lines.append(f"email = {toml_string(email)}")
+    return "\n".join(lines).rstrip() + "\n"
+
+
 def ensure_user_mappings(state_dir: Path) -> None:
     path = state_dir / "user_mappings.toml"
     if not path.exists():
         path.write_text("# GitHub username to git user mappings\n")
         print("Created managed file: .agent_core/user_mappings.toml")
+        return
+
+    with open(path, "rb") as f:
+        raw = tomllib.load(f)
+    if not any(isinstance(value, str) for value in raw.values()):
+        return
+
+    path.write_text(render_user_mappings(raw))
+    print("Updated managed file: .agent_core/user_mappings.toml")
 
 
 def install_agents_file(template_root: Path, target_root: Path) -> None:
@@ -1017,9 +1055,10 @@ def docs_add(optional_docs_dir: Path, state_dir: Path, slugs: list[str]) -> None
         print(f"Added optional doc: {slug}")
 
 
-def install_default_docs(optional_docs_dir: Path, state_dir: Path) -> None:
+def install_default_docs(optional_docs_dir: Path, state_dir: Path, slugs: list[str] | None = None) -> None:
     (state_dir / "docs").mkdir(parents=True, exist_ok=True)
-    for slug in DEFAULT_DOCS:
+    selected_slugs = list(DEFAULT_DOCS) if slugs is None else slugs
+    for slug in selected_slugs:
         source = optional_doc_path(optional_docs_dir, slug)
         if source is None:
             continue
@@ -1027,7 +1066,7 @@ def install_default_docs(optional_docs_dir: Path, state_dir: Path) -> None:
         if target.exists():
             continue
         shutil.copyfile(source, target)
-        print(f"Included default doc: {slug}")
+        print(f"Included optional doc: {slug}")
 
 
 def docs_update(optional_docs_dir: Path, state_dir: Path, slugs: list[str]) -> None:
@@ -1047,6 +1086,38 @@ def docs_update(optional_docs_dir: Path, state_dir: Path, slugs: list[str]) -> N
 
     if not updated:
         print("No installed optional docs to update.")
+
+
+def parse_doc_selection(value: str) -> list[str]:
+    return [part for part in re.split(r"[\s,]+", value.strip()) if part]
+
+
+def prompt_optional_docs(optional_docs_dir: Path) -> list[str]:
+    available = docs_list(optional_docs_dir)
+    if not available:
+        return []
+
+    default_docs = list(DEFAULT_DOCS)
+    print("")
+    print("Optional project docs are available:")
+    for slug in available:
+        marker = " (default)" if slug in DEFAULT_DOCS else ""
+        print(f"  - {slug}{marker}")
+    print("")
+    print("Enter doc slugs separated by spaces or commas.")
+    print("Press Enter to install the default docs, or enter 'none' to skip optional docs.")
+
+    response = input("Optional docs> ").strip()
+    if not response:
+        return default_docs
+    if response.lower() in {"none", "no", "skip"}:
+        return []
+
+    selected = parse_doc_selection(response)
+    unknown = [slug for slug in selected if optional_doc_path(optional_docs_dir, slug) is None]
+    if unknown:
+        fail("Unknown optional doc slug(s): " + ", ".join(unknown))
+    return selected
 
 
 def remove_lines_exact(path: Path, entries: set[str]) -> None:
@@ -1319,9 +1390,12 @@ def install(template_root: Path, target_root: Path, update: bool) -> None:
     state_dir = target_root / ".agent_core"
     config_file = state_dir / "config.toml"
     optional_docs_dir = template_root / "optional_docs"
+    selected_docs: list[str] | None = None
 
     if not update:
         preflight_initial_install_git_flow(target_root, config_file)
+    if not update and sys.stdin.isatty():
+        selected_docs = prompt_optional_docs(optional_docs_dir)
     ensure_state_dirs(state_dir)
     config_created = ensure_config(config_file, target_root)
     if config_created and not update and sys.stdin.isatty():
@@ -1340,7 +1414,7 @@ def install(template_root: Path, target_root: Path, update: bool) -> None:
     ensure_claude_file(target_root)
     if update:
         docs_update(optional_docs_dir, state_dir, [])
-    install_default_docs(optional_docs_dir, state_dir)
+    install_default_docs(optional_docs_dir, state_dir, selected_docs)
     upsert_last_updated_at(config_file)
     if not update:
         finalize_initial_install_git_flow(target_root, config_file)

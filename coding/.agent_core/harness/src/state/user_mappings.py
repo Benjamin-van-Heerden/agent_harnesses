@@ -1,3 +1,4 @@
+import json
 import subprocess
 import tomllib
 
@@ -17,12 +18,54 @@ class UserMapping(BaseModel):
 USER_MAPPINGS_ADAPTER = TypeAdapter(dict[str, UserMapping])
 
 
+def _toml_string(value: str) -> str:
+    return json.dumps(value)
+
+
+def _coerce_mappings(data: dict[str, object]) -> dict[str, UserMapping]:
+    mappings: dict[str, UserMapping] = {}
+    for username, value in data.items():
+        if isinstance(value, str):
+            mappings[username] = UserMapping(name=value)
+            continue
+        mappings[username] = UserMapping.model_validate(value)
+    return mappings
+
+
+def _render_mappings(mappings: dict[str, UserMapping]) -> str:
+    lines = ["# GitHub username to git user mappings"]
+    for username, mapping in sorted(mappings.items()):
+        lines.append("")
+        lines.append(f"[{username}]")
+        lines.append(f"name = {_toml_string(mapping.name)}")
+        if mapping.email:
+            lines.append(f"email = {_toml_string(mapping.email)}")
+    return "\n".join(lines).rstrip() + "\n"
+
+
+def ensure_user_mappings_file() -> bool:
+    if not PROJECT_PATHS.user_mappings_file.exists():
+        PROJECT_PATHS.user_mappings_file.write_text("# GitHub username to git user mappings\n")
+        return True
+
+    with open(PROJECT_PATHS.user_mappings_file, "rb") as f:
+        raw = tomllib.load(f)
+    if not any(isinstance(value, str) for value in raw.values()):
+        return False
+
+    PROJECT_PATHS.user_mappings_file.write_text(_render_mappings(_coerce_mappings(raw)))
+    return True
+
+
 def load_all() -> dict[str, UserMapping]:
     if not PROJECT_PATHS.user_mappings_file.exists():
         return {}
 
     with open(PROJECT_PATHS.user_mappings_file, "rb") as f:
-        return USER_MAPPINGS_ADAPTER.validate_python(tomllib.load(f))
+        raw = tomllib.load(f)
+    if any(isinstance(value, str) for value in raw.values()):
+        return _coerce_mappings(raw)
+    return USER_MAPPINGS_ADAPTER.validate_python(raw)
 
 
 def require_mapped_user(username: str) -> UserMapping:
