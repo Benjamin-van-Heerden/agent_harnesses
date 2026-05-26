@@ -19,7 +19,6 @@ CORE_TAGS = (("<AGENT_CORE>", "</AGENT_CORE>"), ("<core_instructions>", "</core_
 LEGAL_GITIGNORE_START = "# >>> legal agent core gitignore >>>"
 LEGAL_GITIGNORE_END = "# <<< legal agent core gitignore <<<"
 DEFAULT_DOCS = (
-    "legal_harness_function",
     "legal_harness_typst_basic_reference",
     "legal_harness_typst_soft_typesystem_and_house_rules",
 )
@@ -57,7 +56,7 @@ def usage() -> str:
 Install or refresh the native legal Agent Core harness in the current directory.
 Setup refreshes managed runtime/reference files and preserves lawyer-owned practice state.
 
-Docs commands copy optional docs into .agent_core/docs/.
+Docs commands copy optional docs into .praxis/docs/.
 When docs update is run without slugs, it updates installed docs that still
 match a document in the harness optional_docs directory.
 """
@@ -182,7 +181,7 @@ def ensure_config(config_file: Path, target_root: Path) -> None:
         return
     config_file.parent.mkdir(parents=True, exist_ok=True)
     config_file.write_text(default_config(target_root.name))
-    print("Created managed file: .agent_core/config.toml")
+    print("Created managed file: .praxis/config.toml")
 
 
 def upsert_last_updated_at(config_file: Path) -> None:
@@ -199,12 +198,12 @@ def upsert_last_updated_at(config_file: Path) -> None:
         if in_harness and stripped.startswith("["):
             lines.insert(index, f'last_updated_at = "{timestamp}"')
             config_file.write_text("\n".join(lines).rstrip() + "\n")
-            print("Updated managed file: .agent_core/config.toml")
+            print("Updated managed file: .praxis/config.toml")
             return
         if in_harness and stripped.startswith("last_updated_at"):
             lines[index] = f'last_updated_at = "{timestamp}"'
             config_file.write_text("\n".join(lines).rstrip() + "\n")
-            print("Updated managed file: .agent_core/config.toml")
+            print("Updated managed file: .praxis/config.toml")
             return
 
     if in_harness:
@@ -214,21 +213,20 @@ def upsert_last_updated_at(config_file: Path) -> None:
             lines.append("")
         lines.extend(["[harness]", f'last_updated_at = "{timestamp}"'])
     config_file.write_text("\n".join(lines).rstrip() + "\n")
-    print("Updated managed file: .agent_core/config.toml")
+    print("Updated managed file: .praxis/config.toml")
 
 
 def ensure_state_dirs(state_dir: Path, target_root: Path) -> None:
     dirs = (
         state_dir,
+        state_dir / "core_docs",
         state_dir / "docs",
-        state_dir / "practice",
-        state_dir / "practice" / "memories",
-        state_dir / "practice" / "logs",
-        state_dir / "practice" / "workflows",
+        state_dir / "local_context",
+        state_dir / "local_context" / "memories",
+        state_dir / "local_context" / "logs",
+        state_dir / "local_context" / "workflows",
         state_dir / "todos" / "open",
         state_dir / "todos" / "claimed",
-        state_dir / "practice" / "templates",
-        target_root / ".agent_docs",
         target_root / "ZZ_CLIENTS",
         target_root / "WIP",
         target_root / "WIP" / "drafts",
@@ -239,8 +237,6 @@ def ensure_state_dirs(state_dir: Path, target_root: Path) -> None:
         target_root / "src" / "templates" / "components",
         target_root / "src" / "templates" / "components" / "assets",
         target_root / "src" / "types",
-        target_root / "functions",
-        target_root / "templates",
     )
     for path in dirs:
         if path.exists():
@@ -394,28 +390,28 @@ def sync_managed_directory(source: Path, target: Path, display_path: str) -> Non
 
 
 def install_harness(template_root: Path, state_dir: Path) -> None:
-    sync_managed_directory(template_root / ".agent_core" / "harness", state_dir / "harness", ".agent_core/harness")
+    sync_managed_directory(template_root / ".agent_core" / "harness", state_dir / "harness", ".praxis/harness")
 
 
 def install_harness_readme(template_root: Path, state_dir: Path) -> None:
-    copy_or_update(template_root / ".agent_core" / "README.md", state_dir / "README.md", ".agent_core/README.md")
+    copy_or_update(template_root / ".agent_core" / "README.md", state_dir / "README.md", ".praxis/README.md")
 
 
 def install_practice_defaults(template_root: Path, state_dir: Path) -> None:
     copy_if_missing(
-        template_root / ".agent_core" / "practice" / "lawyer_profile.md",
-        state_dir / "practice" / "lawyer_profile.md",
-        ".agent_core/practice/lawyer_profile.md",
+        template_root / ".agent_core" / "local_context" / "lawyer_profile.md",
+        state_dir / "local_context" / "lawyer_profile.md",
+        ".praxis/local_context/lawyer_profile.md",
     )
     copy_if_missing(
-        template_root / ".agent_core" / "docs" / "legal_context.typ",
-        state_dir / "docs" / "legal_context.typ",
-        ".agent_core/docs/legal_context.typ",
+        template_root / ".agent_core" / "core_docs" / "legal_context.typ",
+        state_dir / "core_docs" / "legal_context.typ",
+        ".praxis/core_docs/legal_context.typ",
     )
-    copy_tree_missing(
-        template_root / ".agent_core" / "practice" / "templates",
-        state_dir / "practice" / "templates",
-        ".agent_core/practice/templates",
+    copy_or_update(
+        template_root / ".agent_core" / "docs" / "typst_detailed_reference.typ",
+        state_dir / "docs" / "typst_detailed_reference.typ",
+        ".praxis/docs/typst_detailed_reference.typ",
     )
 
 
@@ -503,7 +499,7 @@ def remove_renamed_managed_docs(state_dir: Path) -> None:
         path = state_dir / "docs" / name
         if path.exists():
             path.unlink()
-            print(f"Removed renamed managed doc: .agent_core/docs/{name}")
+            print(f"Removed renamed managed doc: .praxis/docs/{name}")
 
 
 def handle_docs_command(optional_docs_dir: Path, state_dir: Path, args: list[str]) -> None:
@@ -522,14 +518,6 @@ def handle_docs_command(optional_docs_dir: Path, state_dir: Path, args: list[str
     raise SystemExit(1)
 
 
-def install_agent_docs(template_root: Path, state_dir: Path) -> None:
-    copy_or_update(
-        template_root / ".agent_docs" / "typst_detailed_reference.typ",
-        state_dir.parent / ".agent_docs" / "typst_detailed_reference.typ",
-        ".agent_docs/typst_detailed_reference.typ",
-    )
-
-
 def install_typst_source(template_root: Path, target_root: Path) -> None:
     source_root = template_root / "src"
     target_src = target_root / "src"
@@ -538,73 +526,6 @@ def install_typst_source(template_root: Path, target_root: Path) -> None:
     for source_file in sorted(path for path in source_root.rglob("*") if path.is_file()):
         relative_path = source_file.relative_to(source_root)
         copy_or_update(source_file, target_src / relative_path, f"src/{relative_path.as_posix()}")
-
-
-def read_frontmatter(path: Path) -> dict[str, str]:
-    try:
-        lines = path.read_text().splitlines()
-    except OSError:
-        return {}
-    if not lines or lines[0].strip() != "---":
-        return {}
-
-    data: dict[str, str] = {}
-    for line in lines[1:]:
-        if line.strip() == "---":
-            break
-        key, separator, value = line.partition(":")
-        if separator:
-            data[key.strip()] = value.strip().strip("'\"")
-    return data
-
-
-def legacy_todo_target(target_root: Path, source_file: Path, claimed: bool) -> Path:
-    frontmatter = read_frontmatter(source_file)
-    matter = frontmatter.get("matter", "").strip()
-    if matter and matter != "null":
-        matter_dir = target_root / matter
-        if matter_dir.is_dir():
-            bucket = "claimed" if claimed else ""
-            return matter_dir / "info" / "todos" / bucket / source_file.name if bucket else matter_dir / "info" / "todos" / source_file.name
-    bucket = "claimed" if claimed else "open"
-    return target_root / ".agent_core" / "todos" / bucket / source_file.name
-
-
-def copy_legacy_todos(target_root: Path, legacy_todos: Path) -> None:
-    if not legacy_todos.is_dir():
-        return
-    for source_file in sorted(path for path in legacy_todos.glob("*.md") if path.is_file()):
-        target_file = legacy_todo_target(target_root, source_file, claimed=False)
-        copy_if_missing(source_file, target_file, target_file.relative_to(target_root).as_posix())
-    claimed_dir = legacy_todos / "claimed"
-    if not claimed_dir.is_dir():
-        return
-    for source_file in sorted(path for path in claimed_dir.glob("*.md") if path.is_file()):
-        target_file = legacy_todo_target(target_root, source_file, claimed=True)
-        copy_if_missing(source_file, target_file, target_file.relative_to(target_root).as_posix())
-
-
-def migrate_legacy_agent_rules(target_root: Path) -> None:
-    legacy_root = target_root / "agent_rules"
-    if not legacy_root.is_dir():
-        return
-
-    state_dir = target_root / ".agent_core"
-    copy_if_missing(
-        legacy_root / "lawyer_profile.md",
-        state_dir / "practice" / "lawyer_profile.md",
-        ".agent_core/practice/lawyer_profile.md",
-    )
-    copy_if_missing(
-        legacy_root / "docs" / "core" / "legal_context.typ",
-        state_dir / "docs" / "legal_context.typ",
-        ".agent_core/docs/legal_context.typ",
-    )
-    copy_tree_missing(legacy_root / "memories", state_dir / "practice" / "memories", ".agent_core/practice/memories")
-    copy_tree_missing(legacy_root / "log", state_dir / "practice" / "logs", ".agent_core/practice/logs")
-    copy_tree_missing(legacy_root / "skeletons", state_dir / "practice" / "templates", ".agent_core/practice/templates")
-    copy_legacy_todos(target_root, legacy_root / "todos")
-    print("Detected legacy agent_rules state. Copied durable legacy state into native .agent_core locations.")
 
 
 def managed_block_bounds(content: str) -> tuple[int, int] | None:
@@ -649,10 +570,10 @@ def ensure_claude_file(target_root: Path) -> None:
 
 
 def install(template_root: Path, target_root: Path, update: bool) -> None:
-    state_dir = target_root / ".agent_core"
+    state_dir = target_root / ".praxis"
     optional_docs_dir = template_root / "optional_docs"
     require_external_dependencies()
-    if update and not state_dir.exists() and not (target_root / "agent_rules").exists():
+    if update and not state_dir.exists():
         fail("Error: no legal harness state found. Run setup.py without --update first.")
 
     ensure_state_dirs(state_dir, target_root)
@@ -660,7 +581,6 @@ def install(template_root: Path, target_root: Path, update: bool) -> None:
     ensure_config(state_dir / "config.toml", target_root)
     ensure_git_repo(target_root)
     ensure_gitignore(target_root)
-    migrate_legacy_agent_rules(target_root)
     install_harness(template_root, state_dir)
     install_harness_readme(template_root, state_dir)
     install_practice_defaults(template_root, state_dir)
@@ -668,13 +588,12 @@ def install(template_root: Path, target_root: Path, update: bool) -> None:
         docs_update(optional_docs_dir, state_dir, [])
     install_default_docs(optional_docs_dir, state_dir)
     remove_renamed_managed_docs(state_dir)
-    install_agent_docs(template_root, state_dir)
     install_typst_source(template_root, target_root)
     install_agents_file(template_root, target_root)
     ensure_claude_file(target_root)
     upsert_last_updated_at(state_dir / "config.toml")
     print("Updated native legal harness." if update else "Installed native legal harness.")
-    print("You must run: python -B .agent_core/harness/main.py onboard")
+    print("You must run: python -B .praxis/harness/main.py onboard")
 
 
 def parse_args(argv: list[str]) -> argparse.Namespace:
@@ -697,7 +616,7 @@ def main(argv: list[str] | None = None) -> int:
     template_root, temp_dir = resolve_template_root()
     try:
         if args.command == "docs":
-            handle_docs_command(template_root / "optional_docs", target_root / ".agent_core", args.subargs)
+            handle_docs_command(template_root / "optional_docs", target_root / ".praxis", args.subargs)
             return 0
         if args.command is not None:
             eprint(usage())
