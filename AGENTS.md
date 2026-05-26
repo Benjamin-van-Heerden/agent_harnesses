@@ -188,7 +188,7 @@ Todos are short notes on tasks that need to be completed or triaged. If the work
 **Work Logs (session records):**
 Work logs capture what happened in a session, what changed, blockers, and next steps. They are end-of-session artifacts that help the next agent continue with accurate context.
 
-- `python -B .agent_core/harness/main.py log new` - Create a work log for the session. This is an extremely important command that should be run towards the end of every session.
+- `python -B .agent_core/harness/main.py log new` - Create a work log for the session. This is an extremely important command that should be run towards the end of every session. DO NOT create work logs without user permission. If you find you are at a logical point where a work log could/should be created, YOU MUST first inform your intent to the user and ask permission.
 
 **Memories (atomic notes on patterns and conventions)**
 Memories are short, atomic notes about patterns, conventions, or preferences in the codebase. They are shown during onboard so every session has access to accumulated project knowledge.

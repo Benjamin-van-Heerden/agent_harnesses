@@ -13,6 +13,8 @@ from src.commands.onboard.mutations import (
 from src.commands.onboard.output import write_output
 from src.commands.onboard.preflight import (
     OnboardBlockedError,
+    OnboardRestartRequired,
+    no_sync_escape_hatch_lines,
     run_git_preflight,
     sync_warning_from_exit,
 )
@@ -142,6 +144,9 @@ def run(
         if not no_sync:
             try:
                 run_git_preflight(continue_requested)
+            except OnboardRestartRequired as restart:
+                typer.echo(str(restart))
+                raise typer.Exit(code=0) from restart
             except OnboardBlockedError as error:
                 typer.echo(str(error), err=True)
                 raise typer.Exit(code=1) from error
@@ -187,6 +192,9 @@ def run(
                         "Then run: python -B .agent_core/harness/main.py onboard --continue",
                         err=True,
                     )
+                    typer.echo("", err=True)
+                    for line in no_sync_escape_hatch_lines():
+                        typer.echo(line, err=True)
                     raise typer.Exit(code=1) from error
                 typer.echo(f"Onboard sync warning: {sync_warning}", err=True)
             except Exception as error:

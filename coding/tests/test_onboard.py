@@ -143,8 +143,62 @@ def test_template_onboard_warns_and_continues_when_sync_fails(tmp_path: Path) ->
     assert result.returncode == 1
     assert "Onboard stopped before building project context." in result.stderr
     assert "Git sync/rebase was not attempted because the working tree is dirty." in result.stderr
+    assert "If the user explicitly chooses to ignore git/GitHub sync and continue with local context, run:" in result.stderr
+    assert "python -B .agent_core/harness/main.py onboard --no-sync" in result.stderr
     assert "No onboard context file was created because local context may be stale." in result.stderr
     assert "Project" not in result.stdout
+
+
+def test_template_onboard_fast_forwards_remote_harness_update_and_requires_restart(tmp_path: Path) -> None:
+    remote = tmp_path / "remote.git"
+    run_command(["git", "init", "--bare", remote.as_posix()], cwd=tmp_path)
+
+    first_user = tmp_path / "first-user"
+    first_user.mkdir()
+    run_command(["git", "init", "-b", "main"], cwd=first_user)
+    run_command(["git", "config", "user.name", "Harness Test User"], cwd=first_user)
+    run_command(["git", "config", "user.email", "harness@example.com"], cwd=first_user)
+    run_command(["git", "commit", "--allow-empty", "-m", "initial commit"], cwd=first_user)
+    run_command(["git", "remote", "add", "origin", remote.as_posix()], cwd=first_user)
+    run_command(["git", "push", "-u", "origin", "main"], cwd=first_user)
+    install_harness(first_user)
+
+    second_user = tmp_path / "second-user"
+    run_command(["git", "clone", remote.as_posix(), second_user.as_posix()], cwd=tmp_path)
+    run_command(["git", "config", "user.name", "Harness Test User"], cwd=second_user)
+    run_command(["git", "config", "user.email", "harness@example.com"], cwd=second_user)
+    run_command(["git", "checkout", "dev"], cwd=second_user)
+
+    config_path = first_user / ".agent_core" / "config.toml"
+    config_lines = config_path.read_text().splitlines()
+    config_path.write_text(
+        "\n".join(
+            'last_updated_at = "2099-01-01T00:00:00+00:00"'
+            if line.startswith("last_updated_at = ")
+            else line
+            for line in config_lines
+        )
+        + "\n"
+    )
+    marker = first_user / ".agent_core" / "harness" / "remote_update_marker.txt"
+    marker.write_text("updated harness runtime\n")
+    run_command(["git", "add", ".agent_core"], cwd=first_user)
+    run_command(["git", "commit", "-m", "harness updated 20990101"], cwd=first_user)
+    run_command(["git", "push", "origin", "dev"], cwd=first_user)
+
+    result = run_command(
+        harness_command() + ["onboard", "--stdout"],
+        cwd=second_user,
+        env=command_env({"AGENT_CORE_SKIP_AUTO_UPDATE": "1"}),
+    )
+
+    assert result.returncode == 0
+    assert "An update to the .agent_core harness has taken place." in result.stdout
+    assert "You must run `python -B .agent_core/harness/main.py onboard` again." in result.stdout
+    assert "CODEBASE AND CONVENTIONS" not in result.stdout
+    assert (second_user / ".agent_core" / "harness" / "remote_update_marker.txt").read_text() == "updated harness runtime\n"
+    assert run_command(["git", "status", "--porcelain"], cwd=second_user).stdout == ""
+    assert run_command(["git", "rev-parse", "HEAD"], cwd=second_user).stdout == run_command(["git", "rev-parse", "origin/dev"], cwd=second_user).stdout
 
 
 def test_template_onboard_reports_agent_core_tmp_mutations(tmp_path: Path) -> None:
