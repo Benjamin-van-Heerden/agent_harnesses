@@ -82,7 +82,6 @@ def _todo_scope(matter: str) -> str:
 
 def _onboard_docs() -> list[Path]:
     candidates = [
-        PROJECT_PATHS.docs_root / "legal_harness_function.md",
         PROJECT_PATHS.legal_context,
     ]
     return [path for path in candidates if path.is_file() and _read_text(path)]
