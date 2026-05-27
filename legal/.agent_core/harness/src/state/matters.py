@@ -4,7 +4,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import cast
 
-from src.config.paths import PROJECT_PATHS, ProjectPaths
+from src.config.paths import PROJECT_PATHS, ProjectPaths, client_profile
 from src.models.frontmatter import MatterStatusFrontmatter, Priority
 from src.state.clients import resolve_client
 from src.state.chronology import write_chronology_event
@@ -64,7 +64,7 @@ def parse_matter_status(path: Path) -> MatterStatus:
 
 def matter_ref_from_dir(matter_dir: Path) -> MatterRef:
     status_file = matter_dir / "info" / "status.md"
-    client_slug = matter_dir.parent.parent.parent.name
+    client_slug = frontmatter_get(status_file, "client")
     return MatterRef(
         client_slug=client_slug,
         matter_slug=matter_dir.name,
@@ -93,8 +93,7 @@ def all_matter_statuses(paths: ProjectPaths = PROJECT_PATHS) -> list[MatterStatu
 
 
 def _client_display_name(client_slug: str, paths: ProjectPaths) -> str:
-    profile = paths.clients_root / client_slug / "profile.md"
-    return frontmatter_get(profile, "display_name")
+    return frontmatter_get(client_profile(client_slug, paths), "display_name")
 
 
 def _search_values(matter: MatterStatus, paths: ProjectPaths) -> list[str]:

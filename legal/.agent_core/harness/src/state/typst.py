@@ -25,7 +25,14 @@ def compile_typst(source: str, paths: ProjectPaths = PROJECT_PATHS) -> Path:
     source_path = resolve_typst_source(source, paths)
     output_path = generated_pdf_path(source_path)
     result = subprocess.run(
-        ["typst", "compile", str(source_path), str(output_path)],
+        [
+            "typst",
+            "compile",
+            "--root",
+            str(paths.project_root),
+            str(source_path),
+            str(output_path),
+        ],
         capture_output=True,
         text=True,
         check=False,

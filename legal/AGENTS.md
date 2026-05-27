@@ -93,7 +93,7 @@ Global state:
 Matter state:
 
 ```text
-ZZ_CLIENTS/<client>/matters/open/YYYYMMDD-<type>-<slug>/
+ZZ_CLIENTS/<CLIENT_SLUG_IN_UPPERCASE>/matters/open/YYYYMMDD-<type>-<slug>/
   info/
     status.md
     chronology/
@@ -143,6 +143,8 @@ Use WIP only for non-matter drafting, template/style experiments, and workflow i
 Natural person clients use surname-first display names, for example `Van Heerden, Benjamin`. The harness generates deterministic slugs from that form, for example `van_heerden_benjamin`.
 
 Entity and other non-person clients must be created explicitly as non-person clients. Their generated slugs come from the entity display name.
+
+Client slugs stay lowercase in commands and frontmatter, but the physical client directory under `ZZ_CLIENTS/` is uppercase. For example, client slug `van_heerden_benjamin` is stored at `ZZ_CLIENTS/VAN_HEERDEN_BENJAMIN/`.
 
 When a generated or requested client slug already exists, do not guess a differentiator. Ask the lawyer for a distinguishing suffix such as location, ID hint, company, or role. A suffix such as `pretoria` produces a slug like `van_heerden_benjamin_pretoria`.
 

@@ -5,6 +5,7 @@ import typer
 from src.config.paths import PROJECT_PATHS
 from src.state.clients import create_client_from_name, list_clients
 from src.utils.errors import exit_on_error
+from src.utils.markdown import frontmatter_get
 
 
 app = typer.Typer(help="Manage legal clients")
@@ -45,7 +46,7 @@ def new_command(
     except (FileExistsError, ValueError) as error:
         exit_on_error(error)
 
-    client_slug = profile.parent.name
+    client_slug = frontmatter_get(profile, "client_slug")
     typer.echo(f"Created client: {client_slug} ({display_name})")
     typer.echo(f"Profile: {profile.relative_to(PROJECT_PATHS.project_root)}")
     typer.echo("You must review the client profile and fill in contact, billing, and conflict details before substantive work.")

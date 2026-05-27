@@ -42,7 +42,7 @@ create_matter("smith", "litigation", "workflow_test", "normal", "hourly")
         [*harness, "workflow", "link", "workflow_test", "litigation_flow"], cwd=target
     )
     assert "Linked workflow: litigation_flow" in linked.stdout
-    matter_dir = next((target / "ZZ_CLIENTS" / "smith" / "matters" / "open").iterdir())
+    matter_dir = next((target / "ZZ_CLIENTS" / "SMITH" / "matters" / "open").iterdir())
     progress_file = matter_dir / "info" / "workflow.toml"
     assert progress_file.is_file()
     progress_file.write_text(

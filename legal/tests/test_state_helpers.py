@@ -46,7 +46,7 @@ from src.state.todos import claim_todo, create_todo, list_global_todos, list_mat
 from src.utils.markdown import frontmatter_get
 
 client_profile = create_client("smith", "Smith Corp", "company")
-assert client_profile == Path("ZZ_CLIENTS/smith/profile.md").resolve()
+assert client_profile == Path("ZZ_CLIENTS/SMITH/profile.md").resolve()
 assert list_clients()[0].display_name == "Smith Corp"
 
 matter_dir = create_matter("smith", "litigation", "jones_dispute", "high", "hourly")

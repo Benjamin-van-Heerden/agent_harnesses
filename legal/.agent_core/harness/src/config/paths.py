@@ -92,8 +92,12 @@ def build_project_paths(project_root: Path | None = None) -> ProjectPaths:
 PROJECT_PATHS = build_project_paths()
 
 
+def client_directory_name(client_slug: str) -> str:
+    return client_slug.upper()
+
+
 def client_dir(client_slug: str, paths: ProjectPaths = PROJECT_PATHS) -> Path:
-    return paths.clients_root / client_slug
+    return paths.clients_root / client_directory_name(client_slug)
 
 
 def client_profile(client_slug: str, paths: ProjectPaths = PROJECT_PATHS) -> Path:

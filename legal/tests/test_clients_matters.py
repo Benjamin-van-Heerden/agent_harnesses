@@ -43,7 +43,7 @@ create_memory("drafting_style", "Drafting style")
     assert "Review practice note" in onboard.stdout
     assert "Global" in onboard.stdout
     assert "Draft affidavit" in onboard.stdout
-    assert "ZZ_CLIENTS/smith/matters/open/" in onboard.stdout
+    assert "ZZ_CLIENTS/SMITH/matters/open/" in onboard.stdout
     assert "High-priority matters" in onboard.stdout
 
     clients = run_command([*harness, "client", "list"], cwd=target)
@@ -55,7 +55,7 @@ create_memory("drafting_style", "Drafting style")
     assert "draft_affidavit" not in matters.stdout
 
     found = run_command([*harness, "matter", "find", "jones"], cwd=target)
-    assert "ZZ_CLIENTS/smith/matters/open/" in found.stdout
+    assert "ZZ_CLIENTS/SMITH/matters/open/" in found.stdout
 
     focus = run_command([*harness, "matter", "focus", "jones"], cwd=target)
     assert "Focused matter:" in focus.stdout
@@ -127,21 +127,21 @@ assert parsed.tags == ["urgent", "lease"]
 
     harness = harness_command()
     by_file = run_command([*harness, "matter", "find", "LIT-0042"], cwd=target)
-    assert "ZZ_CLIENTS/smith/matters/open/" in by_file.stdout
-    assert "ZZ_CLIENTS/jones/matters/open/" not in by_file.stdout
+    assert "ZZ_CLIENTS/SMITH/matters/open/" in by_file.stdout
+    assert "ZZ_CLIENTS/JONES/matters/open/" not in by_file.stdout
 
     by_workflow = run_command(
         [*harness, "matter", "find", "litigation_flow"], cwd=target
     )
-    assert "ZZ_CLIENTS/smith/matters/open/" in by_workflow.stdout
+    assert "ZZ_CLIENTS/SMITH/matters/open/" in by_workflow.stdout
 
     by_client_display = run_command(
         [*harness, "matter", "find", "Jones Holdings"], cwd=target
     )
-    assert "ZZ_CLIENTS/jones/matters/open/" in by_client_display.stdout
+    assert "ZZ_CLIENTS/JONES/matters/open/" in by_client_display.stdout
 
     focus = run_command([*harness, "matter", "focus", "LIT-0042"], cwd=target)
-    assert "Focused matter: ZZ_CLIENTS/smith/matters/open/" in focus.stdout
+    assert "Focused matter: ZZ_CLIENTS/SMITH/matters/open/" in focus.stdout
 
     ambiguous = run_command(
         [*harness, "matter", "focus", "A123/24"], cwd=target, check=False
@@ -149,8 +149,8 @@ assert parsed.tags == ["urgent", "lease"]
     assert ambiguous.returncode == 1
     assert "multiple matters match 'A123/24'" in ambiguous.stderr
     assert "Ask the lawyer which matter to use" in ambiguous.stderr
-    assert "ZZ_CLIENTS/smith/matters/open/" in ambiguous.stderr
-    assert "ZZ_CLIENTS/jones/matters/open/" in ambiguous.stderr
+    assert "ZZ_CLIENTS/SMITH/matters/open/" in ambiguous.stderr
+    assert "ZZ_CLIENTS/JONES/matters/open/" in ambiguous.stderr
 
 
 def test_matter_touch_tracking_and_client_index(tmp_path: Path) -> None:
@@ -173,7 +173,7 @@ assert parse_matter_status(matter / "info" / "status.md").last_touched_at is Non
     )
 
     harness = harness_command()
-    matter_dir = next((target / "ZZ_CLIENTS" / "smith" / "matters" / "open").iterdir())
+    matter_dir = next((target / "ZZ_CLIENTS" / "SMITH" / "matters" / "open").iterdir())
     status_file = matter_dir / "info" / "status.md"
 
     def touched_at() -> str:
@@ -232,7 +232,7 @@ def test_client_new_generates_person_slugs_and_requires_collision_suffix(
     assert (
         "Created client: van_heerden_benjamin (Van Heerden, Benjamin)" in person.stdout
     )
-    assert (target / "ZZ_CLIENTS" / "van_heerden_benjamin" / "profile.md").is_file()
+    assert (target / "ZZ_CLIENTS" / "VAN_HEERDEN_BENJAMIN" / "profile.md").is_file()
 
     collision = run_command(
         [*harness, "client", "new", "Van Heerden, Benjamin"], cwd=target, check=False
@@ -250,7 +250,7 @@ def test_client_new_generates_person_slugs_and_requires_collision_suffix(
         in suffixed.stdout
     )
     assert (
-        target / "ZZ_CLIENTS" / "van_heerden_benjamin_pretoria" / "profile.md"
+        target / "ZZ_CLIENTS" / "VAN_HEERDEN_BENJAMIN_PRETORIA" / "profile.md"
     ).is_file()
 
     entity = run_command(
@@ -259,7 +259,7 @@ def test_client_new_generates_person_slugs_and_requires_collision_suffix(
     assert (
         "Created client: acme_trading_pty_ltd (Acme Trading (Pty) Ltd)" in entity.stdout
     )
-    assert (target / "ZZ_CLIENTS" / "acme_trading_pty_ltd" / "profile.md").is_file()
+    assert (target / "ZZ_CLIENTS" / "ACME_TRADING_PTY_LTD" / "profile.md").is_file()
 
 
 def test_lifecycle_commands_create_and_resolve_chronology(tmp_path: Path) -> None:
@@ -274,8 +274,8 @@ def test_lifecycle_commands_create_and_resolve_chronology(tmp_path: Path) -> Non
         cwd=target,
     )
     assert "Created client: smith (Smith Corp)" in client.stdout
-    assert "ZZ_CLIENTS/smith/profile.md" in client.stdout
-    assert (target / "ZZ_CLIENTS" / "smith" / "profile.md").is_file()
+    assert "ZZ_CLIENTS/SMITH/profile.md" in client.stdout
+    assert (target / "ZZ_CLIENTS" / "SMITH" / "profile.md").is_file()
 
     invalid_client = run_command(
         [*harness, "client", "new", "Smith"], cwd=target, check=False
@@ -323,7 +323,7 @@ def test_lifecycle_commands_create_and_resolve_chronology(tmp_path: Path) -> Non
     assert "Created matter:" in matter.stdout
     assert "shareholder_dispute" in matter.stdout
     open_matters = sorted(
-        (target / "ZZ_CLIENTS" / "smith" / "matters" / "open").iterdir()
+        (target / "ZZ_CLIENTS" / "SMITH" / "matters" / "open").iterdir()
     )
     assert len(open_matters) == 1
     matter_dir = open_matters[0]
@@ -335,7 +335,7 @@ def test_lifecycle_commands_create_and_resolve_chronology(tmp_path: Path) -> Non
     )
     assert "Resolved matter:" in resolved.stdout
     resolved_dir = (
-        target / "ZZ_CLIENTS" / "smith" / "matters" / "resolved" / matter_dir.name
+        target / "ZZ_CLIENTS" / "SMITH" / "matters" / "resolved" / matter_dir.name
     )
     assert resolved_dir.is_dir()
     assert not matter_dir.exists()

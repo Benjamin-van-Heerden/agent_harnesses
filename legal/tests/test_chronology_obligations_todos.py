@@ -28,7 +28,7 @@ def test_bookkeeping_commands_create_chronology_obligations_and_todos(
         ],
         cwd=target,
     )
-    matter_dir = next((target / "ZZ_CLIENTS" / "smith" / "matters" / "open").iterdir())
+    matter_dir = next((target / "ZZ_CLIENTS" / "SMITH" / "matters" / "open").iterdir())
 
     deadline = run_command(
         [
@@ -183,7 +183,7 @@ def test_bookkeeping_commands_create_chronology_obligations_and_todos(
     assert "replace every TODO" in work_log.stdout
     log_files = list((target / ".praxis" / "local_context" / "logs").glob("*.md"))
     assert len(log_files) == 1
-    assert "matter: ZZ_CLIENTS/smith/matters/open/" in log_files[0].read_text()
+    assert "matter: ZZ_CLIENTS/SMITH/matters/open/" in log_files[0].read_text()
 
     obligation = run_command(
         [*harness, "obligation", "list", "shareholder_dispute"], cwd=target

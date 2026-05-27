@@ -135,7 +135,7 @@ def test_setup_update_refreshes_managed_runtime_without_clobbering_lawyer_state(
     legal_context = target / ".praxis" / "core_docs" / "legal_context.typ"
     custom_source = target / "src" / "functions" / "custom.typ"
     custom_workflow = target / ".praxis" / "local_context" / "workflows" / "custom.toml"
-    client_note = target / "ZZ_CLIENTS" / "smith" / "profile.md"
+    client_note = target / "ZZ_CLIENTS" / "SMITH" / "profile.md"
     stale_harness_file = target / ".praxis" / "harness" / "stale.txt"
 
     profile.write_text("lawyer profile edited by lawyer\n")
@@ -227,8 +227,8 @@ def test_setup_docs_commands_manage_optional_docs(tmp_path: Path) -> None:
     docs_list = run_command(
         [sys.executable, "-B", str(LEGAL_ROOT / "setup.py"), "docs", "list"], cwd=target
     )
-    assert "legal_harness_function" in docs_list.stdout
     assert "legal_harness_typst_basic_reference" in docs_list.stdout
+    assert "legal_harness_function" not in docs_list.stdout
 
     target_doc = target / ".praxis" / "docs" / "legal_harness_typst_basic_reference.typ"
     target_doc.unlink()
@@ -262,9 +262,7 @@ def test_setup_docs_commands_manage_optional_docs(tmp_path: Path) -> None:
         ).read_text()
     )
 
-    function_doc = target / ".praxis" / "docs" / "legal_harness_function.md"
-    assert not function_doc.exists()
-    docs_add_function = run_command(
+    missing_function_doc = run_command(
         [
             sys.executable,
             "-B",
@@ -274,6 +272,7 @@ def test_setup_docs_commands_manage_optional_docs(tmp_path: Path) -> None:
             "legal_harness_function",
         ],
         cwd=target,
+        check=False,
     )
-    assert "Added optional doc: legal_harness_function" in docs_add_function.stdout
-    assert "python -B .praxis/harness/main.py <command>" in function_doc.read_text()
+    assert missing_function_doc.returncode == 1
+    assert "unknown optional doc: legal_harness_function" in missing_function_doc.stderr
