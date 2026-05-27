@@ -1,13 +1,13 @@
 ---
 title: Legal harness layout and test suite overhaul
-status: todo
+status: merge_ready
 assigned_to: Benjamin-van-Heerden
 issue_id: 21
 issue_url: https://github.com/Benjamin-van-Heerden/agent_harnesses/issues/21
 branch: dev-benjamin_van_heerden-legal_harness_layout_and_test_suite_overhaul
-pr_url: null
+pr_url: https://github.com/Benjamin-van-Heerden/agent_harnesses/pull/22
 created_at: '2026-05-26T14:32:58.030242'
-updated_at: '2026-05-26T14:37:36.198652'
+updated_at: '2026-05-27T12:03:05.174944'
 completed_at: null
 last_synced_at: null
 local_content_hash: null
