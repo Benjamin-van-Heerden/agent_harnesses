@@ -44,10 +44,11 @@ def paths() -> None:
     typer.echo(f"Project root: {PROJECT_PATHS.project_root}")
     typer.echo(f"State root: {PROJECT_PATHS.state_root}")
     typer.echo(f"Harness root: {PROJECT_PATHS.harness_root}")
-    typer.echo(f"Practice root: {PROJECT_PATHS.practice_root}")
+    typer.echo(f"Core docs root: {PROJECT_PATHS.core_docs_root}")
+    typer.echo(f"Docs root: {PROJECT_PATHS.docs_root}")
+    typer.echo(f"Local context root: {PROJECT_PATHS.local_context_root}")
     typer.echo(f"Clients root: {PROJECT_PATHS.clients_root}")
     typer.echo(f"WIP root: {PROJECT_PATHS.wip_root}")
-    typer.echo(f"Docs root: {PROJECT_PATHS.docs_root}")
     typer.echo(f"Typst source root: {PROJECT_PATHS.src_root}")
 
 

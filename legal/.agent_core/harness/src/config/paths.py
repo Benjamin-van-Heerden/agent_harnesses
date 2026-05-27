@@ -8,7 +8,7 @@ class ProjectPaths:
     state_root: Path
     harness_root: Path
     config_file: Path
-    agent_docs_root: Path
+    core_docs_root: Path
     docs_root: Path
     legal_context: Path
     client_matter_index: Path
@@ -16,7 +16,7 @@ class ProjectPaths:
     typst_basic_reference: Path
     typst_house_rules_reference: Path
     typst_detailed_reference: Path
-    practice_root: Path
+    local_context_root: Path
     lawyer_profile: Path
     firm_profile: Path
     clients_root: Path
@@ -41,42 +41,44 @@ class ProjectPaths:
 def find_project_root(start: Path | None = None) -> Path:
     current = (start or Path.cwd()).resolve()
     for candidate in (current, *current.parents):
-        if (candidate / ".agent_core").is_dir():
+        if (candidate / ".praxis").is_dir():
             return candidate
     return current
 
 
 def build_project_paths(project_root: Path | None = None) -> ProjectPaths:
     root = (project_root or find_project_root()).resolve()
-    state_root = root / ".agent_core"
+    state_root = root / ".praxis"
     harness_root = state_root / "harness"
-    practice_root = state_root / "practice"
+    core_docs_root = state_root / "core_docs"
+    docs_root = state_root / "docs"
+    local_context_root = state_root / "local_context"
     return ProjectPaths(
         project_root=root,
         state_root=state_root,
         harness_root=harness_root,
         config_file=state_root / "config.toml",
-        agent_docs_root=root / ".agent_docs",
-        docs_root=state_root / "docs",
-        legal_context=state_root / "docs" / "legal_context.typ",
+        core_docs_root=core_docs_root,
+        docs_root=docs_root,
+        legal_context=core_docs_root / "legal_context.typ",
         client_matter_index=state_root / "client_matter_index.toml",
-        workflows_root=practice_root / "workflows",
-        typst_basic_reference=state_root / "docs" / "legal_harness_typst_basic_reference.typ",
-        typst_house_rules_reference=state_root / "docs" / "legal_harness_typst_soft_typesystem_and_house_rules.typ",
-        typst_detailed_reference=root / ".agent_docs" / "typst_detailed_reference.typ",
-        practice_root=practice_root,
-        lawyer_profile=practice_root / "lawyer_profile.md",
-        firm_profile=practice_root / "firm_profile.md",
+        workflows_root=local_context_root / "workflows",
+        typst_basic_reference=docs_root / "legal_harness_typst_basic_reference.typ",
+        typst_house_rules_reference=docs_root / "legal_harness_typst_soft_typesystem_and_house_rules.typ",
+        typst_detailed_reference=docs_root / "typst_detailed_reference.typ",
+        local_context_root=local_context_root,
+        lawyer_profile=local_context_root / "lawyer_profile.md",
+        firm_profile=local_context_root / "firm_profile.md",
         clients_root=root / "ZZ_CLIENTS",
         wip_root=root / "WIP",
         wip_drafts_root=root / "WIP" / "drafts",
         wip_experiments_root=root / "WIP" / "experiments",
-        memories_root=practice_root / "memories",
-        logs_root=practice_root / "logs",
+        memories_root=local_context_root / "memories",
+        logs_root=local_context_root / "logs",
         global_todos_root=state_root / "todos",
         global_open_todos_root=state_root / "todos" / "open",
         global_claimed_todos_root=state_root / "todos" / "claimed",
-        templates_root=practice_root / "templates",
+        templates_root=harness_root / "templates",
         src_root=root / "src",
         src_types_root=root / "src" / "types",
         src_constants_root=root / "src" / "constants",

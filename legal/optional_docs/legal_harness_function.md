@@ -23,7 +23,7 @@ Deadlines are obligations. Records are chronology. Do not introduce separate dea
 Use the local harness entrypoint:
 
 ```bash
-python -B .agent_core/harness/main.py <command>
+python -B .praxis/harness/main.py <command>
 ```
 
 Native command hierarchy:
@@ -45,14 +45,16 @@ Native command hierarchy:
 Global state:
 
 ```text
-.agent_core/
+.praxis/
+  core_docs/
   docs/
-  memories/
+  local_context/
+    memories/
+    logs/
+    workflows/
   todos/
     open/
     claimed/
-  practice/
-    logs/
 ```
 
 Matter state:
@@ -84,15 +86,15 @@ ZZ_CLIENTS/<client>/matters/open/YYYYMMDD-<type>-<slug>/
   other PDFs
 ```
 
-Folder hierarchy mirrors command hierarchy: `chronology add email` writes under `info/chronology/email/`; `obligation add deadline` writes under `info/obligations/deadline/`. Global todos live under `.agent_core/todos`; matter todos live under `info/todos` for the matter.
+Folder hierarchy mirrors command hierarchy: `chronology add email` writes under `info/chronology/email/`; `obligation add deadline` writes under `info/obligations/deadline/`. Global todos live under `.praxis/todos`; matter todos live under `info/todos` for the matter.
 
 Matter status frontmatter includes practical lookup metadata: `physical_files`, `workflow`, `last_touched_at`, `case_number`, and `tags`. Physical file numbers are arbitrary strings and must not be normalized as slugs.
 
 Matter-touching actions update `last_touched_at`. This includes matter focus, matter resolution, chronology additions, obligation additions, matter todo creation/claiming, matter-specific work logs, and workflow-related matter commands. Broad list/find commands must not touch matters.
 
-Onboard refreshes `.agent_core/client_matter_index.toml`, a generated harness index that lists each client and up to two recently touched matters. The lawyer should not edit generated files under `.agent_core/` directly.
+Onboard refreshes `.praxis/client_matter_index.toml`, a generated harness index that lists each client and up to two recently touched matters. The lawyer should not edit generated files under `.praxis/` directly.
 
-Workflow templates live under `.agent_core/practice/workflows/` as plain TOML. Each workflow uses `[[steps]]` with `id`, `title`, `kind`, `requires`, `blocks`, and optional todo/obligation guidance. Matter progress lives under the matter as `info/workflow.toml`.
+Workflow templates live under `.praxis/local_context/workflows/` as plain TOML. Each workflow uses `[[steps]]` with `id`, `title`, `kind`, `requires`, `blocks`, and optional todo/obligation guidance. Matter progress lives under the matter as `info/workflow.toml`.
 
 Root WIP workspace:
 
@@ -204,7 +206,7 @@ When creating a memory, title it around the reusable rule and write the content 
 
 Draft matter-specific documents at the matter root as `NN_<slug>.typ`. Use `src/` for reusable Typst types, constants, functions, templates, style, currency, dates, citations, letterhead, and signature blocks.
 
-Use the Typst reference docs only when needed. The detailed Typst reference lives in `.agent_docs/` so it does not bloat routine onboard context.
+Use the Typst reference docs only when needed. Detailed and optional Typst reference docs live under `.praxis/docs/` so they do not bloat routine onboard context.
 
 Do not treat drafting as chronology unless the draft is sent, filed, served, discussed, or otherwise becomes an event.
 
