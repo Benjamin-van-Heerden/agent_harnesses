@@ -70,8 +70,8 @@ def test_installed_runtime_foundation_commands_run(tmp_path: Path) -> None:
     assert "Local git snapshots: True" in config_result.stdout
     assert_ascii_safe(config_result.stdout)
 
-    repair = run_command([*harness, "repair", "audit"], cwd=target)
-    assert "Legal repair audit" in repair.stdout
+    repair = run_command([*harness, "repair"], cwd=target)
+    assert "Legal repair" in repair.stdout
     assert "Relevant global work logs" in repair.stdout
     assert "Repair instructions" in repair.stdout
     assert_ascii_safe(repair.stdout)

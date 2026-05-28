@@ -225,6 +225,99 @@ def test_setup_update_refreshes_managed_runtime_without_clobbering_lawyer_state(
     ).read_text()
 
 
+def test_setup_update_runs_needed_source_patches_without_installing_patch_scripts(
+    tmp_path: Path,
+) -> None:
+    target = tmp_path / "practice"
+    target.mkdir()
+    run_setup(target)
+    run_command(["git", "config", "user.name", "Legal Harness Test"], cwd=target)
+    run_command(
+        ["git", "config", "user.email", "legal-harness-test@example.test"], cwd=target
+    )
+
+    matter_dir = (
+        target
+        / "ZZ_CLIENTS"
+        / "SMITH"
+        / "matters"
+        / "open"
+        / "20260528-litigation-legacy"
+    )
+    legacy_email_dir = matter_dir / "info" / "chronology" / "email"
+    legacy_note_dir = matter_dir / "info" / "chronology" / "note"
+    legacy_email_dir.mkdir(parents=True)
+    legacy_note_dir.mkdir(parents=True)
+    (legacy_email_dir / "20260528_120000_email.toml").write_text(
+        "\n".join(
+            [
+                'date = "2026-05-28"',
+                'kind = "email"',
+                'summary = "Client sent valuation"',
+                'body = "Email body"',
+                'created_at = "2026-05-28T12:00:00"',
+                'direction = "in"',
+                'contact = "Client"',
+                "",
+            ]
+        )
+    )
+    (legacy_note_dir / "20260528_121500_note.toml").write_text(
+        "\n".join(
+            [
+                'date = "2026-05-28"',
+                'kind = "note"',
+                'summary = "Reviewed file"',
+                'body = "Review body"',
+                "",
+            ]
+        )
+    )
+
+    result = run_setup(target, update=True)
+
+    assert (
+        "Running legal workspace patch: 20260528_collapse_chronology_into_single_file"
+        in result.stdout
+    )
+    chronology_file = matter_dir / "info" / "chronology.toml"
+    chronology_text = chronology_file.read_text()
+    assert chronology_text.count("[[events]]") == 2
+    assert 'kind = "email"' in chronology_text
+    assert 'summary = "Client sent valuation"' in chronology_text
+    assert 'legacy_direction = "in"' in chronology_text
+    assert (
+        'source_path = "info/chronology/email/20260528_120000_email.toml"'
+        in chronology_text
+    )
+    assert 'kind = "note"' in chronology_text
+    assert not (matter_dir / "info" / "chronology").exists()
+    assert (matter_dir / "info" / "legacy_chronology").is_dir()
+
+    patch_records = read_toml(target / ".praxis" / "patches.toml")
+    assert (
+        patch_records["patches"][0]["id"]
+        == "20260528_collapse_chronology_into_single_file"
+    )
+    assert patch_records["patches"][0]["status"] == "applied"
+    assert patch_records["patches"][0]["changed"] is True
+    assert not (target / ".praxis" / "harness" / "patches").exists()
+
+    log = run_command(["git", "log", "--oneline"], cwd=target)
+    assert (
+        "pre-patch snapshot before 20260528_collapse_chronology_into_single_file"
+        in log.stdout
+    )
+    assert "patch 20260528_collapse_chronology_into_single_file" in log.stdout
+
+    rerun = run_setup(target, update=True)
+    assert (
+        "Running legal workspace patch: 20260528_collapse_chronology_into_single_file"
+        not in rerun.stdout
+    )
+    assert len(read_toml(target / ".praxis" / "patches.toml")["patches"]) == 1
+
+
 def test_setup_docs_commands_manage_optional_docs(tmp_path: Path) -> None:
     target = tmp_path / "practice"
     target.mkdir()

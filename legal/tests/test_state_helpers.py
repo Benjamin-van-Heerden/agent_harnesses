@@ -51,7 +51,7 @@ assert list_clients()[0].display_name == "Smith Corp"
 
 matter_dir = create_matter("smith", "litigation", "jones_dispute", "high", "hourly")
 assert (matter_dir / "info/status.md").is_file()
-assert (matter_dir / "info/chronology").is_dir()
+assert (matter_dir / "info/chronology.toml").is_file()
 assert (matter_dir / "info/obligations").is_dir()
 assert (matter_dir / "info/todos").is_dir()
 assert list_open_matters()[0].priority == "high"
@@ -69,7 +69,10 @@ add_chronology_event("jones_dispute", "2026-05-21", "note", "Internal note", "Lo
 chronology = list_chronology("jones_dispute")
 assert any(entry.kind == "email" and "Jones" in entry.summary for entry in chronology)
 assert any(entry.kind == "note" and entry.summary == "Internal note" for entry in chronology)
-assert len(list((matter_dir / "info" / "chronology").glob("*/*.toml"))) >= 3
+chronology_text = (matter_dir / "info" / "chronology.toml").read_text()
+assert chronology_text.count("[[events]]") == 2
+assert 'kind = "email"' in chronology_text
+assert 'kind = "note"' in chronology_text
 
 global_todo = create_todo("review_rules", "Review court rules", "normal")
 matter_todo = create_todo("draft_affidavit", "Draft affidavit", "high", "jones_dispute")

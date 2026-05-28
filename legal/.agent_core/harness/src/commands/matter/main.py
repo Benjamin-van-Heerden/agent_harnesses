@@ -224,7 +224,7 @@ def focus(matter_ref: str) -> None:
         exit_on_error(error)
     touch_matter(matter_dir)
     status_file = matter_dir / "info" / "status.md"
-    chronology_dir = matter_dir / "info" / "chronology"
+    chronology_file = matter_dir / "info" / "chronology.toml"
     obligations_dir = matter_dir / "info" / "obligations"
     typst_files = sorted(path for path in matter_dir.glob("*.typ") if path.is_file())
     generated_pdf_files = sorted(
@@ -263,7 +263,7 @@ def focus(matter_ref: str) -> None:
     typer.echo(f"Focused matter: {matter_dir.relative_to(PROJECT_PATHS.project_root)}")
     typer.echo(f"Status file: {'present' if status_file.is_file() else 'missing'}")
     typer.echo(
-        f"Chronology directory: {'present' if chronology_dir.is_dir() else 'missing'}"
+        f"Chronology file: {'present' if chronology_file.is_file() else 'missing'}"
     )
     typer.echo(f"Chronology events: {len(chronology)}")
     typer.echo(
@@ -293,7 +293,7 @@ def focus(matter_ref: str) -> None:
         f"- Status: {status_file.relative_to(PROJECT_PATHS.project_root) if status_file.is_file() else 'missing'}"
     )
     typer.echo(
-        f"- Chronology: {min(len(chronology), 5)} recent event(s) shown below from {len(chronology)} total event(s)"
+        f"- Chronology: {min(len(chronology), 5)} recent event(s) shown below from {len(chronology)} total event(s) in {chronology_file.relative_to(PROJECT_PATHS.project_root) if chronology_file.is_file() else 'missing'}"
     )
     typer.echo(
         f"- Open obligations: {len([obligation for obligation in obligations if obligation.status == 'open'])} shown below"

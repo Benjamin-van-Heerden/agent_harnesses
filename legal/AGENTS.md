@@ -63,6 +63,9 @@ Use `workflow new` to create a reusable matter workflow, `workflow list` to insp
 **Drafting and verification:**
 Use `compile <source.typ>` for every legal Typst compilation. Use `lint` to check harness-managed legal workspace structure and state before relying on or handing off changed files.
 
+**Repair:**
+Use `repair` when the lawyer asks to repair, clean up, reorganize, or audit the workspace after a period of drafting or importing work. The command inspects git changes since the last repair checkpoint, surfaces relevant global work logs, lists changed practice paths, and prints authoritative instructions for modularizing Typst files into `src/components/`, `src/templates/`, `src/types/`, `src/constants/`, and root `assets/`. It does not perform the refactor itself. Use `repair checkpoint` only after the repair pass has been reviewed and the current git state should become the next repair baseline.
+
 Typst compilation must go through the legal harness:
 
 ```bash
@@ -96,14 +99,7 @@ Matter state:
 ZZ_CLIENTS/<CLIENT_SLUG_IN_UPPERCASE>/matters/open/YYYYMMDD-<type>-<slug>/
   info/
     status.md
-    chronology/
-      conversation/
-      meeting/
-      email/
-      letter/
-      filing/
-      service/
-      note/
+    chronology.toml
     obligations/
       deadline/
       court_appearance/
@@ -124,7 +120,7 @@ Unbound matter state:
 UNBOUND/open/<NESTING>/<matter-slug>/
   info/
     status.md
-    chronology/
+    chronology.toml
     obligations/
     todos/
       claimed/
@@ -137,7 +133,7 @@ UNBOUND/open/<NESTING>/<matter-slug>/
 UNBOUND/closed/<NESTING>/<matter-slug>/
 ```
 
-Folder hierarchy mirrors command hierarchy: `chronology add email` writes under `info/chronology/email/`; `obligation add deadline` writes under `info/obligations/deadline/`. Global todos live under `.praxis/todos`; matter todos live under `info/todos` for the matter.
+Obligations still use kind folders, for example `obligation add deadline` writes under `info/obligations/deadline/`. Chronology is a single matter-level file at `info/chronology.toml`; chronology commands append `[[events]]` entries to that file. Global todos live under `.praxis/todos`; matter todos live under `info/todos` for the matter.
 
 Matter status frontmatter includes practical lookup metadata: `physical_files`, `workflow`, `last_touched_at`, `case_number`, and `tags`. Physical file numbers are arbitrary strings and must not be normalized as slugs.
 

@@ -137,8 +137,8 @@ def matter_status_file(matter_path: Path) -> Path:
     return matter_info_dir(matter_path) / "status.md"
 
 
-def matter_chronology_dir(matter_path: Path) -> Path:
-    return matter_info_dir(matter_path) / "chronology"
+def matter_chronology_file(matter_path: Path) -> Path:
+    return matter_info_dir(matter_path) / "chronology.toml"
 
 
 def matter_obligations_dir(matter_path: Path) -> Path:

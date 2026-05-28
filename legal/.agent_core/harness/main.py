@@ -20,7 +20,7 @@ from src.commands.repair.main import app as repair_app  # noqa: E402
 from src.commands.todo.main import app as todo_app  # noqa: E402
 from src.commands.workflow.main import app as workflow_app  # noqa: E402
 from src.config.main import load_config  # noqa: E402
-from src.config.paths import PROJECT_PATHS, matter_chronology_dir, matter_obligations_dir, matter_todos_dir  # noqa: E402
+from src.config.paths import PROJECT_PATHS, matter_chronology_file, matter_obligations_dir, matter_todos_dir  # noqa: E402
 
 
 app = typer.Typer(help="Project-local legal agent harness")
@@ -60,7 +60,7 @@ def paths() -> None:
 def matter_paths(matter_path: Path) -> None:
     """Print derived state paths for a matter directory."""
     typer.echo(f"Matter root: {matter_path}")
-    typer.echo(f"Chronology: {matter_chronology_dir(matter_path)}")
+    typer.echo(f"Chronology: {matter_chronology_file(matter_path)}")
     typer.echo(f"Obligations: {matter_obligations_dir(matter_path)}")
     typer.echo(f"Todos: {matter_todos_dir(matter_path)}")
 

@@ -330,7 +330,8 @@ def test_lifecycle_commands_create_and_resolve_chronology(tmp_path: Path) -> Non
     assert len(open_matters) == 1
     matter_dir = open_matters[0]
     assert (matter_dir / "info" / "status.md").is_file()
-    assert list((matter_dir / "info" / "chronology" / "matter_opened").glob("*.toml"))
+    assert (matter_dir / "info" / "chronology.toml").is_file()
+    assert "[[events]]" not in (matter_dir / "info" / "chronology.toml").read_text()
 
     resolved = run_command(
         [*harness, "matter", "resolve", "shareholder_dispute"], cwd=target
@@ -342,9 +343,7 @@ def test_lifecycle_commands_create_and_resolve_chronology(tmp_path: Path) -> Non
     assert resolved_dir.is_dir()
     assert not matter_dir.exists()
     assert "status: resolved" in (resolved_dir / "info" / "status.md").read_text()
-    assert list(
-        (resolved_dir / "info" / "chronology" / "matter_resolved").glob("*.toml")
-    )
+    assert "[[events]]" not in (resolved_dir / "info" / "chronology.toml").read_text()
 
     clients = run_command([*harness, "client", "list"], cwd=target)
     assert "smith\tSmith Corp\tentity\t0\t1" in clients.stdout

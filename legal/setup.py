@@ -2,10 +2,12 @@
 import argparse
 import io
 import os
+import runpy
 import shutil
 import subprocess
 import sys
 import tempfile
+import tomllib
 import urllib.request
 import zipfile
 from datetime import UTC, datetime
@@ -26,6 +28,7 @@ DEFAULT_DOCS = (
     "legal_harness_typst_soft_typesystem_and_house_rules",
 )
 OPTIONAL_DOC_SUFFIXES = (".md", ".typ")
+PATCHES_STATE = "patches.toml"
 
 
 class SetupError(Exception):
@@ -229,6 +232,186 @@ def upsert_last_updated_at(config_file: Path) -> None:
         lines.extend(["[harness]", f'last_updated_at = "{timestamp}"'])
     config_file.write_text("\n".join(lines).rstrip() + "\n")
     print("Updated managed file: .praxis/config.toml")
+
+
+def toml_string(value: str) -> str:
+    return (
+        '"' + value.replace("\\", "\\\\").replace('"', '\\"').replace("\n", "\\n") + '"'
+    )
+
+
+def read_toml_file(path: Path) -> dict[str, object]:
+    try:
+        with open(path, "rb") as file:
+            data = tomllib.load(file)
+    except (OSError, tomllib.TOMLDecodeError):
+        return {}
+    return data if isinstance(data, dict) else {}
+
+
+def toml_value(value: object) -> str:
+    if isinstance(value, bool):
+        return "true" if value else "false"
+    if isinstance(value, int | float):
+        return str(value)
+    return toml_string(str(value))
+
+
+def git_has_changes(target_root: Path) -> bool:
+    result = run_git(target_root, ["status", "--short"])
+    return bool(result.stdout.strip())
+
+
+def git_identity_configured(target_root: Path) -> bool:
+    name = run_git(target_root, ["config", "--get", "user.name"])
+    email = run_git(target_root, ["config", "--get", "user.email"])
+    return (
+        name.returncode == 0
+        and bool(name.stdout.strip())
+        and email.returncode == 0
+        and bool(email.stdout.strip())
+    )
+
+
+def commit_snapshot(target_root: Path, message: str) -> bool:
+    if not git_has_changes(target_root):
+        return False
+    if not git_identity_configured(target_root):
+        print(
+            f"Skipped git snapshot: git user.name and user.email are not configured. Pending snapshot: {message}"
+        )
+        return False
+    add = run_git(target_root, ["add", "-A"])
+    if add.returncode != 0:
+        detail = add.stderr.strip() or add.stdout.strip() or "git add failed"
+        print(f"Skipped git snapshot: {detail}")
+        return False
+    commit = run_git(target_root, ["commit", "-m", message])
+    if commit.returncode != 0:
+        detail = commit.stderr.strip() or commit.stdout.strip() or "git commit failed"
+        print(f"Skipped git snapshot: {detail}")
+        return False
+    print(f"Created git snapshot: {message}")
+    return True
+
+
+def patch_records_path(state_dir: Path) -> Path:
+    return state_dir / PATCHES_STATE
+
+
+def applied_patch_ids(state_dir: Path) -> set[str]:
+    data = read_toml_file(patch_records_path(state_dir))
+    raw_records = data.get("patches", [])
+    if not isinstance(raw_records, list):
+        return set()
+    ids: set[str] = set()
+    for record in raw_records:
+        if not isinstance(record, dict):
+            continue
+        normalized = {str(key): value for key, value in record.items()}
+        if normalized.get("status") != "applied":
+            continue
+        patch_id = normalized.get("id")
+        if isinstance(patch_id, str) and patch_id:
+            ids.add(patch_id)
+    return ids
+
+
+def write_patch_records(state_dir: Path, records: list[dict[str, object]]) -> None:
+    path = patch_records_path(state_dir)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    lines = ["# Legal harness patches applied to this workspace.", ""]
+    for record in records:
+        lines.append("[[patches]]")
+        for key, value in record.items():
+            lines.append(f"{key} = {toml_value(value)}")
+        lines.append("")
+    path.write_text("\n".join(lines).rstrip() + "\n")
+
+
+def append_patch_record(state_dir: Path, record: dict[str, object]) -> None:
+    data = read_toml_file(patch_records_path(state_dir))
+    raw_records = data.get("patches", [])
+    records: list[dict[str, object]] = []
+    if isinstance(raw_records, list):
+        for item in raw_records:
+            if isinstance(item, dict):
+                records.append({str(key): value for key, value in item.items()})
+    records.append(record)
+    write_patch_records(state_dir, records)
+
+
+def load_patch_manifest(template_root: Path) -> list[dict[str, str]]:
+    data = read_toml_file(template_root / "patches" / PATCHES_STATE)
+    raw_patches = data.get("patches", [])
+    if not isinstance(raw_patches, list):
+        return []
+    patches: list[dict[str, str]] = []
+    for raw_patch in raw_patches:
+        if not isinstance(raw_patch, dict):
+            continue
+        normalized = {str(key): value for key, value in raw_patch.items()}
+        patch_id = normalized.get("id")
+        script = normalized.get("script")
+        description = normalized.get("description")
+        if (
+            not isinstance(patch_id, str)
+            or not isinstance(script, str)
+            or not isinstance(description, str)
+        ):
+            continue
+        patches.append({"id": patch_id, "script": script, "description": description})
+    return patches
+
+
+def run_update_patches(template_root: Path, target_root: Path, state_dir: Path) -> None:
+    patches = load_patch_manifest(template_root)
+    if not patches:
+        return
+
+    already_applied = applied_patch_ids(state_dir)
+    for patch in patches:
+        patch_id = patch["id"]
+        if patch_id in already_applied:
+            continue
+        script_path = template_root / "patches" / patch["script"]
+        if not script_path.is_file():
+            fail(f"Error: patch script is missing: {script_path}")
+        module = runpy.run_path(str(script_path))
+        needs_patch = module.get("needs_patch")
+        run_patch = module.get("run")
+        if not callable(needs_patch) or not callable(run_patch):
+            fail(
+                f"Error: patch script must define callable needs_patch and run: {script_path}"
+            )
+        try:
+            if not needs_patch(target_root):
+                continue
+            print(f"Running legal workspace patch: {patch_id}")
+            commit_snapshot(target_root, f"pre-patch snapshot before {patch_id}")
+            result = run_patch(target_root)
+        except Exception as error:
+            fail(f"Error: patch {patch_id} failed: {error}")
+        if isinstance(result, dict):
+            changed = bool(result.get("changed", False))
+        else:
+            changed = True
+        ran_at = (
+            datetime.now(UTC).replace(microsecond=0).isoformat().replace("+00:00", "Z")
+        )
+        append_patch_record(
+            state_dir,
+            {
+                "id": patch_id,
+                "script": patch["script"],
+                "description": patch["description"],
+                "ran_at": ran_at,
+                "status": "applied",
+                "changed": changed,
+            },
+        )
+        commit_snapshot(target_root, f"patch {patch_id}: {patch['description']}")
+        already_applied.add(patch_id)
 
 
 def ensure_state_dirs(state_dir: Path, target_root: Path) -> None:
@@ -633,10 +816,12 @@ def install(template_root: Path, target_root: Path, update: bool) -> None:
             "Error: no legal harness state found. Run setup.py without --update first."
         )
 
+    ensure_git_repo(target_root)
+    if update:
+        run_update_patches(template_root, target_root, state_dir)
     ensure_state_dirs(state_dir, target_root)
     ensure_wip_guidance(target_root)
     ensure_config(state_dir / "config.toml", target_root)
-    ensure_git_repo(target_root)
     ensure_gitignore(target_root)
     install_harness(template_root, state_dir)
     install_harness_readme(template_root, state_dir)

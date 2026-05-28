@@ -2,11 +2,11 @@
 created_at: '2026-05-28T12:08:24.011851'
 username: benjamin_van_heerden
 ---
-Work Log - Legal unbound matters, global logs, repair audit, and onboard file output
+Work Log - Legal unbound matters, global logs, repair, onboard files, chronology, and patches
 
 ## Overarching Goals
 
-Implement the claimed legal harness todos other than onboard performance by aligning `legal/` with the already-in-use `PRAXIS_OUT` workspace shape, adding first-class unbound matter handling, simplifying session work logs, improving legal onboard output, and adding a lightweight repair audit workflow.
+Implement the claimed legal harness todos other than onboard performance by aligning `legal/` with the already-in-use `PRAXIS_OUT` workspace shape, adding first-class unbound matter handling, simplifying session work logs, improving legal onboard output, adding lightweight repair guidance, correcting chronology storage, and adding source-controlled update patches for old workspace state.
 
 ## What Was Accomplished
 
@@ -38,11 +38,11 @@ Setup no longer creates `src/functions/`, `src/templates/components/`, or nested
 
 ### Added unbound matter support
 
-Added first-class unbound matter support under the existing `matter` command group. `matter new --unbound "<path>"` creates an open unbound matter under `UNBOUND/open/`, treating `/` and `\` as harness-level nesting separators and using the final segment as the matter name. Created unbound matters use the normal matter internals: `info/status.md`, chronology, obligations, todos, raw, and reference folders.
+Added first-class unbound matter support under the existing `matter` command group. `matter new --unbound "<path>"` creates an open unbound matter under `UNBOUND/open/`, treating `/` and `\` as harness-level nesting separators and using the final segment as the matter name. Created unbound matters use the normal matter internals: `info/status.md`, `info/chronology.toml`, obligations, todos, raw, and reference folders.
 
 Added `matter list --unbound`, `matter list --unbound --closed`, and unbound matter lookup/focus support. Runtime lookup also surfaces legacy unbound folders under `UNBOUND/` that are not yet in the new `open/closed` structure as untracked bundles so already-used workspace content does not disappear from onboard.
 
-Added `matter bind <unbound_ref> <client_slug> <matter_type> <matter_slug>` to move an open unbound matter into `ZZ_CLIENTS/<CLIENT>/matters/open/...`, update matter frontmatter, preserve the previous unbound path in `bound_from`, add a chronology note, and touch the resulting client matter.
+Added `matter bind <unbound_ref> <client_slug> <matter_type> <matter_slug>` to move an open unbound matter into `ZZ_CLIENTS/<CLIENT>/matters/open/...`, update matter frontmatter, preserve the previous unbound path in `bound_from`, preserve source material/drafts/todos/obligations/chronology, and touch the resulting client matter.
 
 ### Simplified work logs and improved onboard
 
@@ -50,14 +50,33 @@ Retired matter-specific work logs. `log new <matter>` now fails with direct guid
 
 Updated legal onboard so it prunes untouched empty logs before surfacing recent global work logs, creates a new global session work log at session start, clearly identifies that current session log, and instructs the agent to read it and update it as work happens. Onboard also surfaces open unbound matters and untracked legacy unbound bundles.
 
-### Added repair audit workflow
+### Added repair workflow
 
-Added a `repair` command group with:
+Added repair support with:
 
-- `repair audit` to inspect relevant git changes since the last repair checkpoint, surface recent global work logs, and print modularization/organization instructions.
+- `repair` to inspect relevant git changes since the last repair checkpoint, surface recent global work logs, and print modularization/organization instructions.
 - `repair checkpoint` to record the current git HEAD in `.praxis/local_context/repair.toml` for future delta-based audits.
 
 The repair command intentionally audits and instructs rather than blindly rewriting legal content.
+
+### Corrected chronology storage
+
+The user objected to the earlier `info/chronology/<kind>/<timestamp>.toml` layout. Chronology is now a single matter-level TOML file at `info/chronology.toml`; chronology commands append `[[events]]` entries to that file. New matters and unbound matters create the single chronology file immediately. Matter open/resolve/bind lifecycle operations no longer create synthetic chronology events; factual matter history should only be added when the lawyer or source material establishes a real chronology event.
+
+`list_chronology` remains backwards compatible by reading both the new single file and any legacy `info/chronology/<kind>/*.toml` files until a workspace is migrated.
+
+### Added source-side update patches
+
+Added a source-controlled patch mechanism under `legal/patches/` and wired `legal/setup.py --update` to run needed, unapplied patches before refreshing the managed runtime. Patch scripts are not installed into the local `.praxis/harness`; only the workspace-local `.praxis/patches.toml` record is written after a patch runs.
+
+The first patch, `20260528_collapse_chronology_into_single_file`, detects legacy chronology directories under `ZZ_CLIENTS/` and `UNBOUND/`, appends their TOML files to `info/chronology.toml` with `source_path` metadata, preserves extra scalar/list fields as `legacy_*`, and moves the old directory to `info/legacy_chronology` after a successful write.
+
+The setup patch runner makes best-effort git snapshots around patches when git identity is configured:
+
+- `pre-patch snapshot before <patch_id>`
+- `patch <patch_id>: <description>`
+
+If git identity is not configured, setup prints that the snapshot was skipped and still runs the patch.
 
 ### Updated guidance, docs, lint, and tests
 
@@ -88,6 +107,10 @@ uv run pytest legal/tests/test_workflows.py
 uv run pytest legal/tests/test_setup.py legal/tests/test_onboard.py legal/tests/test_clients_matters.py legal/tests/test_runtime_paths.py
 uvx ruff check legal/.agent_core/harness legal/tests
 uv run ty check legal/.agent_core/harness legal/tests
+uv run pytest legal/tests/test_setup.py::test_setup_update_runs_needed_source_patches_without_installing_patch_scripts
+uv run pytest legal/tests/test_setup.py legal/tests/test_clients_matters.py legal/tests/test_chronology_obligations_todos.py legal/tests/test_state_helpers.py legal/tests/test_runtime_paths.py
+uvx ruff check legal/setup.py legal/.agent_core/harness legal/tests legal/patches
+uv run ty check legal/setup.py legal/.agent_core/harness legal/tests legal/patches
 git diff --check
 ```
 
@@ -95,16 +118,18 @@ git diff --check
 
 - `legal/setup.py`: creates `UNBOUND/open`, `UNBOUND/closed`, root `assets`, `src/components`, and `.praxis/tmp`; stops creating new `src/functions` and nested component asset directories; refreshes the managed `.gitignore` block so `.praxis/tmp/` is ignored.
 - `legal/.agent_core/harness/src/config/paths.py`: adds `unbound_root`, `unbound_open_root`, `unbound_closed_root`, `assets_root`, `src_components_root`, and `tmp_root`.
-- `legal/.agent_core/harness/src/state/matters.py`: adds unbound matter creation, listing, legacy-bundle detection, open/closed handling, lookup/focus compatibility, close behavior for unbound matters, and binding into client matters.
+- `legal/.agent_core/harness/src/state/chronology.py`: writes chronology to `info/chronology.toml` as appended `[[events]]` while still reading legacy per-kind chronology files.
+- `legal/.agent_core/harness/src/state/matters.py`: adds unbound matter creation, listing, legacy-bundle detection, open/closed handling, lookup/focus compatibility, close behavior for unbound matters, binding into client matters, and single-file chronology initialization.
 - `legal/.agent_core/harness/src/commands/matter/main.py`: adds `matter new --unbound`, `matter list --unbound`, `matter list --unbound --closed`, and `matter bind`.
 - `legal/.agent_core/harness/src/commands/onboard/main.py`: surfaces recent global work logs, creates and identifies the current session work log, surfaces open unbound matters, reports untracked legacy unbound bundles, writes full onboard context to `.praxis/tmp/onboard_*.md`, and prints the required read instruction to stdout.
 - `legal/.agent_core/harness/src/state/logs.py`: makes work logs global-only and adds recent-global-log listing.
-- `legal/.agent_core/harness/src/commands/repair/main.py`: new repair audit/checkpoint command group.
+- `legal/.agent_core/harness/src/commands/repair/main.py`: new bare `repair` output and `repair checkpoint` command.
 - `legal/.agent_core/harness/src/state/lint.py`: adds deprecated layout checks for `src/functions` and nested component assets.
 - `legal/.agent_core/harness/src/state/todos.py` and `legal/.agent_core/harness/src/state/obligations.py`: includes unbound matter todos and obligations in global listing/upcoming obligation flows.
 - `legal/.agent_core/harness/src/models/frontmatter.py` and `legal/.agent_core/harness/src/state/models.py`: adds workspace/unbound/binding metadata fields.
 - `legal/AGENTS.md`, `legal/README.md`, `legal/.agent_core/README.md`, and `legal/optional_docs/legal_harness_typst_soft_typesystem_and_house_rules.typ`: updated legal harness guidance for the new workspace model.
-- `legal/tests/*`: updated focused coverage for setup layout, unbound matter creation/listing/onboard/binding, global-only logs, repair command surfacing, paths output, Typst imports, state helper behavior, and onboard temp-file output.
+- `legal/patches/`: source-side update patch manifest and first chronology-collapse patch.
+- `legal/tests/*`: updated focused coverage for setup layout, unbound matter creation/listing/onboard/binding, global-only logs, repair command surfacing, paths output, Typst imports, state helper behavior, onboard temp-file output, single-file chronology, and source-side setup patches.
 
 ## Errors and Barriers
 
@@ -114,6 +139,8 @@ Ruff found two small style issues after implementation: a multiline `E402` impor
 
 During the onboard temp-file follow-up, `legal/.DS_Store` reappeared and caused the same repository layout assertion to fail. It was removed again under the user's standing approval, and the focused tests passed.
 
+During the chronology/patch follow-up, `.DS_Store` files reappeared under `legal/`, `legal/tests/`, `legal/.agent_core/`, and `legal/.pytest_cache/`. They were removed again under the same standing approval.
+
 ## What Comes Next
 
-After the onboard temp-file output follow-up is committed, pushed, and merged, existing practice workspaces such as `PRAXIS_OUT` should receive it only through the installed harness update flow, not by direct manual edits.
+After this follow-up is committed, pushed, and merged, existing practice workspaces such as `PRAXIS_OUT` should receive the single-file chronology model and migration behavior only through the installed harness update flow, not by direct manual edits.

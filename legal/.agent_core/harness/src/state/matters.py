@@ -7,8 +7,8 @@ from typing import cast
 from src.config.paths import PROJECT_PATHS, ProjectPaths, client_profile
 from src.models.frontmatter import MatterStatusFrontmatter, Priority
 from src.state.clients import resolve_client, slugify_text
-from src.state.chronology import write_chronology_event
-from src.state.models import ChronologyEntry, MatterRef, MatterStatus
+from src.state.chronology import ensure_chronology_file
+from src.state.models import MatterRef, MatterStatus
 from src.state.templates import render_template
 from src.state.time import today
 from src.state.validation import validate_priority, validate_slug
@@ -275,7 +275,7 @@ def create_matter(
     if matter_dir.exists():
         raise FileExistsError(f"matter already exists: {matter_dir}")
 
-    (matter_dir / "info" / "chronology").mkdir(parents=True, exist_ok=True)
+    ensure_chronology_file(matter_dir)
     (matter_dir / "info" / "obligations").mkdir(parents=True, exist_ok=True)
     (matter_dir / "info" / "todos").mkdir(parents=True, exist_ok=True)
     (matter_dir / "raw").mkdir(parents=True, exist_ok=True)
@@ -293,14 +293,6 @@ def create_matter(
                 billing=billing,
             ).to_dict(),
             body=status_body,
-        ),
-    )
-    write_chronology_event(
-        matter_dir,
-        ChronologyEntry(
-            date=today(),
-            kind="matter_opened",
-            summary=f"{matter_type} - {matter_slug} (priority {priority}, {billing})",
         ),
     )
     return matter_dir
@@ -339,7 +331,7 @@ def create_unbound_matter(
     if matter_dir.exists():
         raise FileExistsError(f"unbound matter already exists: {matter_dir}")
 
-    (matter_dir / "info" / "chronology").mkdir(parents=True, exist_ok=True)
+    ensure_chronology_file(matter_dir)
     (matter_dir / "info" / "obligations").mkdir(parents=True, exist_ok=True)
     (matter_dir / "info" / "todos").mkdir(parents=True, exist_ok=True)
     (matter_dir / "raw").mkdir(parents=True, exist_ok=True)
@@ -359,14 +351,6 @@ def create_unbound_matter(
                 billing=billing,
             ).to_dict(),
             body=status_body,
-        ),
-    )
-    write_chronology_event(
-        matter_dir,
-        ChronologyEntry(
-            date=today(),
-            kind="matter_opened",
-            summary=f"Unbound matter opened: {_unbound_path_display(parts, matter_slug)} (priority {priority}, {billing})",
         ),
     )
     return matter_dir
@@ -410,10 +394,6 @@ def close_matter(input_ref: str, paths: ProjectPaths = PROJECT_PATHS) -> Path:
     destination.parent.mkdir(parents=True, exist_ok=True)
 
     frontmatter_set(status_file, "status", "resolved")
-    write_chronology_event(
-        matter_dir,
-        ChronologyEntry(date=today(), kind="matter_resolved", summary="Matter closed."),
-    )
     touch_matter(matter_dir)
     shutil.move(str(matter_dir), str(destination))
     return destination
@@ -451,7 +431,7 @@ def bind_unbound_matter(
         metadata = dict(document.frontmatter)
         body = document.body
     else:
-        (destination / "info" / "chronology").mkdir(parents=True, exist_ok=True)
+        ensure_chronology_file(destination)
         (destination / "info" / "obligations").mkdir(parents=True, exist_ok=True)
         (destination / "info" / "todos").mkdir(parents=True, exist_ok=True)
         (destination / "raw").mkdir(parents=True, exist_ok=True)
@@ -470,13 +450,6 @@ def bind_unbound_matter(
         ).to_dict()
     )
     write_markdown(status_file, MarkdownDocument(frontmatter=metadata, body=body))
-    write_chronology_event(
-        destination,
-        ChronologyEntry(
-            date=today(),
-            kind="note",
-            summary=f"Bound from unbound workspace: {original_relative}",
-        ),
-    )
+    ensure_chronology_file(destination)
     touch_matter(destination)
     return destination

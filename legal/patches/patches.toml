@@ -1,0 +1,4 @@
+[[patches]]
+id = "20260528_collapse_chronology_into_single_file"
+script = "20260528_collapse_chronology_into_single_file.py"
+description = "Collapse legacy info/chronology/<kind>/*.toml files into info/chronology.toml."

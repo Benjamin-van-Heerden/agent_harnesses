@@ -119,12 +119,11 @@ def test_bookkeeping_commands_create_chronology_obligations_and_todos(
         cwd=target,
     )
     assert "Added chronology event: note" in note.stdout
-    chronology_files = list((matter_dir / "info" / "chronology").glob("*/*.toml"))
-    assert any(
-        'kind = "email"' in path.read_text() and "Jones" in path.read_text()
-        for path in chronology_files
-    )
-    assert any('kind = "note"' in path.read_text() for path in chronology_files)
+    chronology_file = matter_dir / "info" / "chronology.toml"
+    chronology_text = chronology_file.read_text()
+    assert chronology_text.count("[[events]]") == 2
+    assert 'kind = "email"' in chronology_text and "Jones" in chronology_text
+    assert 'kind = "note"' in chronology_text
 
     global_todo = run_command(
         [*harness, "todo", "new", "review_rules", "Review court rules", "normal"],

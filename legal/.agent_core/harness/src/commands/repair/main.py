@@ -113,16 +113,16 @@ def _print_instructions(paths: list[str]) -> None:
 
 
 @app.callback(invoke_without_command=True)
-def run() -> None:
-    audit()
+def run(ctx: typer.Context) -> None:
+    if ctx.invoked_subcommand is None:
+        _repair()
 
 
-@app.command("audit")
-def audit() -> None:
+def _repair() -> None:
     checkpoint = _checkpoint_head()
     paths = _interesting_paths(_git_paths_since(checkpoint))
-    typer.echo("Legal repair audit")
-    typer.echo("==================")
+    typer.echo("Legal repair")
+    typer.echo("============")
     typer.echo(f"Checkpoint: {checkpoint or '(none)'}")
     typer.echo(f"Current HEAD: {_current_head() or '(unavailable)'}")
     typer.echo("")
