@@ -210,6 +210,22 @@ def test_setup_update_refreshes_managed_runtime_without_clobbering_lawyer_state(
         "stale detailed doc\n"
     )
     (target / "src" / "types" / "Client.typ").write_text("stale managed source\n")
+    (target / ".praxis" / "config.toml").write_text(
+        """[project]
+name = "PRAXIS_OUT"
+description = \"\"\"
+Describe this legal practice workspace.
+\"\"\"
+
+[harness]
+name = "legal"
+local_git_snapshots = true
+update_interval_days = 3
+
+[legal]
+jurisdiction = ""
+"""
+    )
 
     result = run_setup(target, update=True)
 
@@ -280,6 +296,17 @@ def test_setup_update_refreshes_managed_runtime_without_clobbering_lawyer_state(
         target / "src" / "types" / "Client.typ"
     ).read_text() == "stale managed source\n"
     assert "Updated managed file: src/types/Client.typ" not in result.stdout
+    assert (
+        "Running legal workspace patch: 20260528_add_onboard_config_file_and_tree_sections"
+        in result.stdout
+    )
+    config_text = (target / ".praxis" / "config.toml").read_text()
+    assert "# Files to include in onboard output" in config_text
+    assert "# [[files]]" in config_text
+    assert "[[tree_dirs]]" in config_text
+    assert 'path = "src"' in config_text
+    config = read_toml(target / ".praxis" / "config.toml")
+    assert config["tree_dirs"][0]["path"] == "src"
 
 
 def test_setup_update_runs_needed_source_patches_without_installing_patch_scripts(
