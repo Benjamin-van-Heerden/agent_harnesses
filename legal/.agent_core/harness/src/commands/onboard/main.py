@@ -1,11 +1,10 @@
 import io
-from contextlib import redirect_stdout
 from collections.abc import Sequence
+from contextlib import redirect_stdout
 from datetime import datetime, timedelta
 from pathlib import Path
 
 import typer
-
 from src.config.paths import PROJECT_PATHS
 from src.state.client_index import refresh_client_matter_index
 from src.state.clients import list_clients
@@ -24,7 +23,6 @@ from src.state.obligations import upcoming_obligations
 from src.state.todos import list_all_todos
 from src.utils import auto_update
 from src.utils.git import post_command_snapshot
-
 
 app = typer.Typer(help="Build legal practice context for the agent")
 PLACEHOLDER = "PLACEHOLDER - NOT YET FILLED IN"
@@ -112,6 +110,12 @@ def _onboard_docs() -> list[Path]:
     return [path for path in candidates if path.is_file() and _read_text(path)]
 
 
+def _legal_context_needs_setup() -> bool:
+    return not PROJECT_PATHS.legal_context.is_file() or _has_placeholder(
+        PROJECT_PATHS.legal_context
+    )
+
+
 def _write_output(content: str) -> Path:
     PROJECT_PATHS.tmp_root.mkdir(parents=True, exist_ok=True)
     cutoff = datetime.now() - timedelta(hours=1)
@@ -190,6 +194,7 @@ def run() -> None:
         matter for matter in open_matters if matter.priority in ("high", "urgent")
     ]
     onboard_docs = _onboard_docs()
+    legal_context_needs_setup = _legal_context_needs_setup()
     post_command_snapshot(PROJECT_PATHS.project_root)
 
     buffer = io.StringIO()
@@ -220,6 +225,18 @@ def run() -> None:
                 typer.echo(
                     f"- Placeholder remains: {path.relative_to(PROJECT_PATHS.project_root)}"
                 )
+
+        if legal_context_needs_setup:
+            _section("Critical legal context warning")
+            typer.echo(
+                "The legal context file is not set up yet. The lawyer should strongly consider taking the time to fill it in before relying on the harness for substantive legal work."
+            )
+            typer.echo(
+                f"File to complete: {PROJECT_PATHS.legal_context.relative_to(PROJECT_PATHS.project_root)}"
+            )
+            typer.echo(
+                "Your next response must warn the lawyer plainly and directly about this gap."
+            )
 
         if onboard_docs:
             _section("Required docs")
@@ -339,8 +356,16 @@ def run() -> None:
 
         _section("Agent instructions")
         typer.echo("Your next response must brief the lawyer in plain language.")
+        if legal_context_needs_setup:
+            typer.echo(
+                "You must strongly warn the lawyer that the legal context file has not been set up and that they should seriously consider filling it in before substantive work continues."
+            )
         if todos:
             typer.echo("Present surfaced todos grouped by global and matter scope.")
+        typer.echo(
+            "Use tables where appropraite. Provide an actionable summary of what has happened, what is happening and ways in which work can continue."
+        )
+        typer.echo("")
         typer.echo(
             "Do not mention command names, slugs, paths, or git details unless asked."
         )
@@ -357,7 +382,7 @@ def run() -> None:
             "You must update the current session work log as and when work is done, decisions are made, blockers appear, or next steps become clear."
         )
         typer.echo(
-            "If no meaningful work happens, the next onboard will remove the untouched empty log."
+            "If no meaningful work happens, the next onboard will remove the untouched empty log. DO NOT EDIT THE WORK LOG FILE UNTIL MEANINGFUL WORK OCCURS! The action of onboarding *IS NOT* meaningful work, just leave the file as is until work, creating, updating editing etc. starts to happen."
         )
 
     content = buffer.getvalue()

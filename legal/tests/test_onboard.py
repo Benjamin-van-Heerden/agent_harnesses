@@ -24,11 +24,31 @@ def test_installed_onboard_command_runs(tmp_path: Path) -> None:
     assert "Legal onboard context" in content
     assert "Required docs" in content
     assert "# .praxis/core_docs/legal_context.typ" in content
+    assert "Critical legal context warning" in content
+    assert "legal context file has not been set up" in content
+    assert "strongly warn the lawyer" in content
     assert "legal_harness_function.md" not in content
     assert "You must read the relevant profile" in content
     assert "current session work log" in content
     assert_ascii_safe(result.stdout)
     assert_ascii_safe(content)
+
+
+def test_onboard_omits_legal_context_warning_once_context_is_filled(
+    tmp_path: Path,
+) -> None:
+    target = tmp_path / "practice"
+    target.mkdir()
+    run_setup(target)
+    (target / ".praxis" / "core_docs" / "legal_context.typ").write_text(
+        "= Legal Context\n\nThis practice handles ordinary civil litigation.\n"
+    )
+
+    result = run_command([*harness_command(), "onboard"], cwd=target)
+    content = onboard_content(result, target)
+
+    assert "Critical legal context warning" not in content
+    assert "strongly warn the lawyer" not in content
 
 
 def test_onboard_snapshots_state_but_regular_commands_do_not_snapshot_on_exit(
