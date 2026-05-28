@@ -15,7 +15,10 @@ from typing import NoReturn
 
 REPO_ARCHIVE_URL = "https://github.com/Benjamin-van-Heerden/agent_harnesses/archive/refs/heads/main.zip"
 TEMPLATE_SUBPATH = "legal"
-CORE_TAGS = (("<AGENT_CORE>", "</AGENT_CORE>"), ("<core_instructions>", "</core_instructions>"))
+CORE_TAGS = (
+    ("<AGENT_CORE>", "</AGENT_CORE>"),
+    ("<core_instructions>", "</core_instructions>"),
+)
 LEGAL_GITIGNORE_START = "# >>> legal agent core gitignore >>>"
 LEGAL_GITIGNORE_END = "# <<< legal agent core gitignore <<<"
 DEFAULT_DOCS = (
@@ -84,10 +87,14 @@ def resolve_template_root() -> tuple[Path, tempfile.TemporaryDirectory[str] | No
             return template_root, temp_dir
 
     temp_dir.cleanup()
-    fail(f"Error: template subdirectory '{TEMPLATE_SUBPATH}' not found in repository archive.")
+    fail(
+        f"Error: template subdirectory '{TEMPLATE_SUBPATH}' not found in repository archive."
+    )
 
 
-def run_git(target_root: Path, args: list[str], check: bool = False) -> subprocess.CompletedProcess[str]:
+def run_git(
+    target_root: Path, args: list[str], check: bool = False
+) -> subprocess.CompletedProcess[str]:
     result = subprocess.run(
         ["git", "-C", str(target_root), *args],
         capture_output=True,
@@ -155,7 +162,9 @@ def require_external_dependencies() -> None:
         lines.append(f"Missing required command: {command}")
         lines.extend(external_dependency_guidance(command))
     lines.append("")
-    lines.append("Install the missing command(s), ensure they are available on PATH, then rerun setup.")
+    lines.append(
+        "Install the missing command(s), ensure they are available on PATH, then rerun setup."
+    )
     fail("\n".join(lines))
 
 
@@ -185,8 +194,14 @@ def ensure_config(config_file: Path, target_root: Path) -> None:
 
 
 def upsert_last_updated_at(config_file: Path) -> None:
-    timestamp = datetime.now(UTC).replace(microsecond=0).isoformat().replace("+00:00", "Z")
-    content = config_file.read_text() if config_file.exists() else default_config(config_file.parent.parent.name)
+    timestamp = (
+        datetime.now(UTC).replace(microsecond=0).isoformat().replace("+00:00", "Z")
+    )
+    content = (
+        config_file.read_text()
+        if config_file.exists()
+        else default_config(config_file.parent.parent.name)
+    )
     lines = content.splitlines()
     in_harness = False
 
@@ -221,6 +236,7 @@ def ensure_state_dirs(state_dir: Path, target_root: Path) -> None:
         state_dir,
         state_dir / "core_docs",
         state_dir / "docs",
+        state_dir / "tmp",
         state_dir / "local_context",
         state_dir / "local_context" / "memories",
         state_dir / "local_context" / "logs",
@@ -303,6 +319,9 @@ def legal_gitignore_block() -> str:
 .DS_Store
 Thumbs.db
 desktop.ini
+
+# Temporary harness output
+.praxis/tmp/
 {LEGAL_GITIGNORE_END}
 """
 
@@ -317,6 +336,12 @@ def ensure_gitignore(target_root: Path) -> None:
 
     content = path.read_text()
     if LEGAL_GITIGNORE_START in content and LEGAL_GITIGNORE_END in content:
+        start_index = content.find(LEGAL_GITIGNORE_START)
+        end_index = content.find(LEGAL_GITIGNORE_END) + len(LEGAL_GITIGNORE_END)
+        updated = content[:start_index] + block + content[end_index:]
+        if updated != content:
+            path.write_text(updated.rstrip() + "\n")
+            print("Updated .gitignore: refreshed legal Agent Core block.")
         return
 
     if content and not content.endswith("\n"):
@@ -364,9 +389,15 @@ def sync_managed_directory(source: Path, target: Path, display_path: str) -> Non
         fail(f"Error: managed source directory is missing: {source}")
 
     target.mkdir(parents=True, exist_ok=True)
-    source_files = {path.relative_to(source) for path in source.rglob("*") if path.is_file()}
-    target_files = {path.relative_to(target) for path in target.rglob("*") if path.is_file()}
-    source_dirs = {path.relative_to(source) for path in source.rglob("*") if path.is_dir()}
+    source_files = {
+        path.relative_to(source) for path in source.rglob("*") if path.is_file()
+    }
+    target_files = {
+        path.relative_to(target) for path in target.rglob("*") if path.is_file()
+    }
+    source_dirs = {
+        path.relative_to(source) for path in source.rglob("*") if path.is_dir()
+    }
 
     for relative_path in sorted(source_dirs):
         (target / relative_path).mkdir(parents=True, exist_ok=True)
@@ -374,29 +405,45 @@ def sync_managed_directory(source: Path, target: Path, display_path: str) -> Non
     for relative_path in sorted(source_files):
         source_file = source / relative_path
         target_file = target / relative_path
-        copy_or_update(source_file, target_file, f"{display_path}/{relative_path.as_posix()}")
+        copy_or_update(
+            source_file, target_file, f"{display_path}/{relative_path.as_posix()}"
+        )
 
     for relative_path in sorted(target_files - source_files, reverse=True):
         target_file = target / relative_path
         target_file.unlink()
         print(f"Removed stale managed file: {display_path}/{relative_path.as_posix()}")
 
-    target_dirs = {path.relative_to(target) for path in target.rglob("*") if path.is_dir()}
-    for relative_path in sorted(target_dirs - source_dirs, key=lambda path: len(path.parts), reverse=True):
+    target_dirs = {
+        path.relative_to(target) for path in target.rglob("*") if path.is_dir()
+    }
+    for relative_path in sorted(
+        target_dirs - source_dirs, key=lambda path: len(path.parts), reverse=True
+    ):
         target_dir = target / relative_path
         try:
             target_dir.rmdir()
         except OSError:
             continue
-        print(f"Removed stale managed directory: {display_path}/{relative_path.as_posix()}")
+        print(
+            f"Removed stale managed directory: {display_path}/{relative_path.as_posix()}"
+        )
 
 
 def install_harness(template_root: Path, state_dir: Path) -> None:
-    sync_managed_directory(template_root / ".agent_core" / "harness", state_dir / "harness", ".praxis/harness")
+    sync_managed_directory(
+        template_root / ".agent_core" / "harness",
+        state_dir / "harness",
+        ".praxis/harness",
+    )
 
 
 def install_harness_readme(template_root: Path, state_dir: Path) -> None:
-    copy_or_update(template_root / ".agent_core" / "README.md", state_dir / "README.md", ".praxis/README.md")
+    copy_or_update(
+        template_root / ".agent_core" / "README.md",
+        state_dir / "README.md",
+        ".praxis/README.md",
+    )
 
 
 def install_practice_defaults(template_root: Path, state_dir: Path) -> None:
@@ -504,7 +551,9 @@ def remove_renamed_managed_docs(state_dir: Path) -> None:
             print(f"Removed renamed managed doc: .praxis/docs/{name}")
 
 
-def handle_docs_command(optional_docs_dir: Path, state_dir: Path, args: list[str]) -> None:
+def handle_docs_command(
+    optional_docs_dir: Path, state_dir: Path, args: list[str]
+) -> None:
     subcommand = args[0] if args else ""
     if subcommand == "list":
         for slug in docs_list(optional_docs_dir):
@@ -525,9 +574,13 @@ def install_typst_source(template_root: Path, target_root: Path) -> None:
     target_src = target_root / "src"
     if not source_root.is_dir():
         return
-    for source_file in sorted(path for path in source_root.rglob("*") if path.is_file()):
+    for source_file in sorted(
+        path for path in source_root.rglob("*") if path.is_file()
+    ):
         relative_path = source_file.relative_to(source_root)
-        copy_or_update(source_file, target_src / relative_path, f"src/{relative_path.as_posix()}")
+        copy_or_update(
+            source_file, target_src / relative_path, f"src/{relative_path.as_posix()}"
+        )
 
 
 def managed_block_bounds(content: str) -> tuple[int, int] | None:
@@ -576,7 +629,9 @@ def install(template_root: Path, target_root: Path, update: bool) -> None:
     optional_docs_dir = template_root / "optional_docs"
     require_external_dependencies()
     if update and not state_dir.exists():
-        fail("Error: no legal harness state found. Run setup.py without --update first.")
+        fail(
+            "Error: no legal harness state found. Run setup.py without --update first."
+        )
 
     ensure_state_dirs(state_dir, target_root)
     ensure_wip_guidance(target_root)
@@ -594,7 +649,9 @@ def install(template_root: Path, target_root: Path, update: bool) -> None:
     install_agents_file(template_root, target_root)
     ensure_claude_file(target_root)
     upsert_last_updated_at(state_dir / "config.toml")
-    print("Updated native legal harness." if update else "Installed native legal harness.")
+    print(
+        "Updated native legal harness." if update else "Installed native legal harness."
+    )
     print("You must run: python -B .praxis/harness/main.py onboard")
 
 
@@ -618,7 +675,9 @@ def main(argv: list[str] | None = None) -> int:
     template_root, temp_dir = resolve_template_root()
     try:
         if args.command == "docs":
-            handle_docs_command(template_root / "optional_docs", target_root / ".praxis", args.subargs)
+            handle_docs_command(
+                template_root / "optional_docs", target_root / ".praxis", args.subargs
+            )
             return 0
         if args.command is not None:
             eprint(usage())

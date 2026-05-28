@@ -1,4 +1,7 @@
+import io
+from contextlib import redirect_stdout
 from collections.abc import Sequence
+from datetime import datetime, timedelta
 from pathlib import Path
 
 import typer
@@ -107,6 +110,36 @@ def _onboard_docs() -> list[Path]:
     return [path for path in candidates if path.is_file() and _read_text(path)]
 
 
+def _write_output(content: str) -> Path:
+    PROJECT_PATHS.tmp_root.mkdir(parents=True, exist_ok=True)
+    cutoff = datetime.now() - timedelta(hours=1)
+    for path in PROJECT_PATHS.tmp_root.glob("onboard_*.md"):
+        try:
+            if datetime.fromtimestamp(path.stat().st_mtime) < cutoff:
+                path.unlink()
+        except OSError:
+            pass
+    output_path = (
+        PROJECT_PATHS.tmp_root
+        / f"onboard_{datetime.now().strftime('%Y%m%d_%H%M%S')}.md"
+    )
+    output_path.write_text(content.rstrip() + "\n")
+    return output_path
+
+
+def _print_output_written(output_path: Path, content: str) -> None:
+    typer.echo("")
+    typer.echo(
+        f"Legal onboard context written to: {output_path.relative_to(PROJECT_PATHS.project_root)}"
+    )
+    typer.echo(f"Line count: {content.count(chr(10))}")
+    typer.echo("")
+    typer.echo(
+        "NB: YOU MUST read it in full before proceeding. No exceptions, the document contains important legal practice context. "
+        "An overview or partial reading of the document is not enough; it must be read in its entirety."
+    )
+
+
 @app.callback(invoke_without_command=True)
 def run() -> None:
     """Build the initial legal context for the agent."""
@@ -121,8 +154,11 @@ def run() -> None:
             err=True,
         )
         raise typer.Exit(code=1) from error
-    if update_result.skipped_reason:
-        typer.echo(f"Harness auto-update skipped: {update_result.skipped_reason}")
+    update_message = (
+        f"Harness auto-update skipped: {update_result.skipped_reason}"
+        if update_result.skipped_reason
+        else ""
+    )
     if update_result.reexec_required:
         typer.echo("Harness updated. Restarting onboard with the refreshed harness.")
         auto_update.reexec_current_command()
@@ -154,160 +190,174 @@ def run() -> None:
     onboard_docs = _onboard_docs()
     post_command_snapshot(PROJECT_PATHS.project_root)
 
-    typer.echo("Legal onboard context")
-    typer.echo("=====================")
-
-    _section("Workspace")
-    _table(
-        ("Item", "Value"),
-        [
-            ("Project root", str(PROJECT_PATHS.project_root)),
-            ("Lawyer profile", "present" if profile_ready else "missing"),
-            (
-                "Session work log",
-                str(session_log.relative_to(PROJECT_PATHS.project_root)),
-            ),
-        ],
-    )
-
-    if placeholder_files:
-        _section("Setup warnings")
-        for path in placeholder_files:
-            typer.echo(
-                f"- Placeholder remains: {path.relative_to(PROJECT_PATHS.project_root)}"
-            )
-
-    if onboard_docs:
-        _section("Required docs")
-        for path in onboard_docs:
-            _file(_relative(path))
-            typer.echo(_read_text(path))
+    buffer = io.StringIO()
+    with redirect_stdout(buffer):
+        if update_message:
+            typer.echo(update_message)
             typer.echo("")
 
-    _section("Practice summary")
-    _table(
-        ("Metric", "Count"),
-        [
-            ("Clients", str(len(clients))),
-            ("Open matters", str(len(open_matters))),
-            ("Open unbound matters", str(len(open_unbound_matters))),
-            ("Untracked unbound bundles", str(len(untracked_unbound))),
-            ("Upcoming obligations within 14 days", str(len(obligations))),
-            ("High-priority matters", str(len(high_priority))),
-            ("Practice memories", str(len(memories))),
-            ("Recent global work logs", str(len(logs))),
-            ("Typst building blocks", str(len(typst_files))),
-        ],
-    )
+        typer.echo("Legal onboard context")
+        typer.echo("=====================")
 
-    if removed_logs:
-        _section("Work-log cleanup")
-        typer.echo(f"Removed empty work logs: {len(removed_logs)}")
-
-    if client_index:
-        _section("Client matter index")
-        rows = []
-        for entry in client_index:
-            if entry.matters:
-                matters = "; ".join(
-                    f"{summary.matter.matter_dir.name} ({summary.matter.last_touched_at or 'not touched'})"
-                    for summary in entry.matters
-                )
-            else:
-                matters = "(no matters)"
-            rows.append((entry.client.display_name, matters))
-        _table(("Client", "Recent matters"), rows)
-
-    if logs:
-        _section("Recent global work logs")
-        typer.echo(
-            "These are prior session continuity records. You must read them before substantive work."
+        _section("Workspace")
+        _table(
+            ("Item", "Value"),
+            [
+                ("Project root", str(PROJECT_PATHS.project_root)),
+                ("Lawyer profile", "present" if profile_ready else "missing"),
+                (
+                    "Session work log",
+                    str(session_log.relative_to(PROJECT_PATHS.project_root)),
+                ),
+            ],
         )
-        for log in logs:
-            _file(str(log.path.relative_to(PROJECT_PATHS.project_root)))
-            typer.echo(_read_text(log.path))
-            typer.echo("")
 
-    if open_unbound_matters or untracked_unbound:
-        _section("Unbound matters")
-        if open_unbound_matters:
+        if placeholder_files:
+            _section("Setup warnings")
+            for path in placeholder_files:
+                typer.echo(
+                    f"- Placeholder remains: {path.relative_to(PROJECT_PATHS.project_root)}"
+                )
+
+        if onboard_docs:
+            _section("Required docs")
+            for path in onboard_docs:
+                _file(_relative(path))
+                typer.echo(_read_text(path))
+                typer.echo("")
+
+        _section("Practice summary")
+        _table(
+            ("Metric", "Count"),
+            [
+                ("Clients", str(len(clients))),
+                ("Open matters", str(len(open_matters))),
+                ("Open unbound matters", str(len(open_unbound_matters))),
+                ("Untracked unbound bundles", str(len(untracked_unbound))),
+                ("Upcoming obligations within 14 days", str(len(obligations))),
+                ("High-priority matters", str(len(high_priority))),
+                ("Practice memories", str(len(memories))),
+                ("Recent global work logs", str(len(logs))),
+                ("Typst building blocks", str(len(typst_files))),
+            ],
+        )
+
+        if removed_logs:
+            _section("Work-log cleanup")
+            typer.echo(f"Removed empty work logs: {len(removed_logs)}")
+
+        if client_index:
+            _section("Client matter index")
             rows = []
-            for matter in open_unbound_matters:
+            for entry in client_index:
+                if entry.matters:
+                    matters = "; ".join(
+                        f"{summary.matter.matter_dir.name} ({summary.matter.last_touched_at or 'not touched'})"
+                        for summary in entry.matters
+                    )
+                else:
+                    matters = "(no matters)"
+                rows.append((entry.client.display_name, matters))
+            _table(("Client", "Recent matters"), rows)
+
+        if logs:
+            _section("Recent global work logs")
+            typer.echo(
+                "These are prior session continuity records. You must read them before substantive work."
+            )
+            for log in logs:
+                _file(str(log.path.relative_to(PROJECT_PATHS.project_root)))
+                typer.echo(_read_text(log.path))
+                typer.echo("")
+
+        if open_unbound_matters or untracked_unbound:
+            _section("Unbound matters")
+            if open_unbound_matters:
+                rows = []
+                for matter in open_unbound_matters:
+                    rows.append(
+                        (
+                            matter.priority,
+                            matter.matter_type,
+                            matter.matter_dir.name,
+                            matter.last_touched_at or "not touched",
+                            str(
+                                matter.matter_dir.relative_to(
+                                    PROJECT_PATHS.project_root
+                                )
+                            ),
+                        )
+                    )
+                _table(("Priority", "Type", "Matter", "Last touched", "Path"), rows)
+            if untracked_unbound:
+                typer.echo("")
+                typer.echo("Untracked legacy unbound bundles")
+                for path in untracked_unbound:
+                    typer.echo(f"- {path.relative_to(PROJECT_PATHS.project_root)}")
+
+        if obligations:
+            _section("Upcoming obligations")
+            rows = []
+            for due_date, matter_dir, obligation in obligations:
+                rows.append(
+                    (
+                        due_date,
+                        obligation.kind,
+                        obligation.description,
+                        str(matter_dir.relative_to(PROJECT_PATHS.project_root)),
+                    )
+                )
+            _table(("Due", "Kind", "Description", "Matter"), rows)
+
+        if high_priority:
+            _section("High-priority matters")
+            rows = []
+            for matter in high_priority:
                 rows.append(
                     (
                         matter.priority,
+                        matter.client,
                         matter.matter_type,
-                        matter.matter_dir.name,
-                        matter.last_touched_at or "not touched",
                         str(matter.matter_dir.relative_to(PROJECT_PATHS.project_root)),
                     )
                 )
-            _table(("Priority", "Type", "Matter", "Last touched", "Path"), rows)
-        if untracked_unbound:
-            typer.echo("")
-            typer.echo("Untracked legacy unbound bundles")
-            for path in untracked_unbound:
-                typer.echo(f"- {path.relative_to(PROJECT_PATHS.project_root)}")
+            _table(("Priority", "Client", "Type", "Matter"), rows)
 
-    if obligations:
-        _section("Upcoming obligations")
-        rows = []
-        for due_date, matter_dir, obligation in obligations:
-            rows.append(
-                (
-                    due_date,
-                    obligation.kind,
-                    obligation.description,
-                    str(matter_dir.relative_to(PROJECT_PATHS.project_root)),
+        if todos:
+            _section("Todos")
+            grouped: dict[str, list[tuple[str, str, str]]] = {}
+            for todo in todos:
+                grouped.setdefault(_todo_scope(todo.matter), []).append(
+                    (todo.status, todo.priority, todo.title or todo.slug)
                 )
-            )
-        _table(("Due", "Kind", "Description", "Matter"), rows)
+            for scope in sorted(grouped, key=lambda value: (value != "Global", value)):
+                typer.echo("")
+                typer.echo(f"{scope}")
+                _table(("Status", "Priority", "Todo"), grouped[scope])
 
-    if high_priority:
-        _section("High-priority matters")
-        rows = []
-        for matter in high_priority:
-            rows.append(
-                (
-                    matter.priority,
-                    matter.client,
-                    matter.matter_type,
-                    str(matter.matter_dir.relative_to(PROJECT_PATHS.project_root)),
-                )
-            )
-        _table(("Priority", "Client", "Type", "Matter"), rows)
+        _section("Agent instructions")
+        typer.echo("Your next response must brief the lawyer in plain language.")
+        if todos:
+            typer.echo("Present surfaced todos grouped by global and matter scope.")
+        typer.echo(
+            "Do not mention command names, slugs, paths, or git details unless asked."
+        )
+        read_targets = "profile, legal context, global work logs, matter files, memories, and the current session work log"
+        if todos:
+            read_targets += ", plus surfaced todos"
+        typer.echo(
+            f"You must read the relevant {read_targets} before doing substantive legal work."
+        )
+        typer.echo(
+            f"You must read the current session work log now: {session_log.relative_to(PROJECT_PATHS.project_root)}"
+        )
+        typer.echo(
+            "You must update the current session work log as and when work is done, decisions are made, blockers appear, or next steps become clear."
+        )
+        typer.echo(
+            "If no meaningful work happens, the next onboard will remove the untouched empty log."
+        )
 
-    if todos:
-        _section("Todos")
-        grouped: dict[str, list[tuple[str, str, str]]] = {}
-        for todo in todos:
-            grouped.setdefault(_todo_scope(todo.matter), []).append(
-                (todo.status, todo.priority, todo.title or todo.slug)
-            )
-        for scope in sorted(grouped, key=lambda value: (value != "Global", value)):
-            typer.echo("")
-            typer.echo(f"{scope}")
-            _table(("Status", "Priority", "Todo"), grouped[scope])
-
-    _section("Agent instructions")
-    typer.echo("Your next response must brief the lawyer in plain language.")
-    if todos:
-        typer.echo("Present surfaced todos grouped by global and matter scope.")
-    typer.echo(
-        "Do not mention command names, slugs, paths, or git details unless asked."
-    )
-    read_targets = "profile, legal context, global work logs, matter files, memories, and the current session work log"
-    if todos:
-        read_targets += ", plus surfaced todos"
-    typer.echo(
-        f"You must read the relevant {read_targets} before doing substantive legal work."
-    )
-    typer.echo(
-        f"You must read the current session work log now: {session_log.relative_to(PROJECT_PATHS.project_root)}"
-    )
-    typer.echo(
-        "You must update the current session work log as and when work is done, decisions are made, blockers appear, or next steps become clear."
-    )
-    typer.echo(
-        "If no meaningful work happens, the next onboard will remove the untouched empty log."
-    )
+    content = buffer.getvalue()
+    output_path = _write_output(content)
+    _print_output_written(output_path, content)

@@ -1,7 +1,13 @@
 import sys
 from pathlib import Path
 
-from helpers import assert_ascii_safe, harness_command, run_command, run_setup
+from helpers import (
+    assert_ascii_safe,
+    harness_command,
+    onboard_content,
+    run_command,
+    run_setup,
+)
 
 
 def test_installed_onboard_command_runs(tmp_path: Path) -> None:
@@ -10,15 +16,19 @@ def test_installed_onboard_command_runs(tmp_path: Path) -> None:
     run_setup(target)
 
     result = run_command([*harness_command(), "onboard"], cwd=target)
+    content = onboard_content(result, target)
 
     assert result.returncode == 0
-    assert "Legal onboard context" in result.stdout
-    assert "Required docs" in result.stdout
-    assert "# .praxis/core_docs/legal_context.typ" in result.stdout
-    assert "legal_harness_function.md" not in result.stdout
-    assert "You must read the relevant profile" in result.stdout
-    assert "current session work log" in result.stdout
+    assert "Legal onboard context written to: .praxis/tmp/onboard_" in result.stdout
+    assert "NB: YOU MUST read it in full before proceeding" in result.stdout
+    assert "Legal onboard context" in content
+    assert "Required docs" in content
+    assert "# .praxis/core_docs/legal_context.typ" in content
+    assert "legal_harness_function.md" not in content
+    assert "You must read the relevant profile" in content
+    assert "current session work log" in content
     assert_ascii_safe(result.stdout)
+    assert_ascii_safe(content)
 
 
 def test_onboard_snapshots_state_but_regular_commands_do_not_snapshot_on_exit(
@@ -34,6 +44,7 @@ def test_onboard_snapshots_state_but_regular_commands_do_not_snapshot_on_exit(
     onboard = run_command([*harness, "onboard"], cwd=target)
     assert "Created local git snapshot:" in onboard.stdout
     assert (target / ".praxis" / "client_matter_index.toml").is_file()
+    assert (target / ".praxis" / "tmp").is_dir()
     first_commit = run_command(["git", "rev-parse", "HEAD"], cwd=target).stdout.strip()
 
     run_command(
@@ -57,17 +68,19 @@ def test_onboard_creates_session_log_and_removes_untouched_empty_logs(
 
     harness = harness_command()
     first = run_command([*harness, "onboard"], cwd=target)
-    assert "Session work log" in first.stdout
-    assert "You must read the current session work log now" in first.stdout
-    assert "\nTodos\n-----" not in first.stdout
-    assert "surfaced todos" not in first.stdout
+    first_content = onboard_content(first, target)
+    assert "Session work log" in first_content
+    assert "You must read the current session work log now" in first_content
+    assert "\nTodos\n-----" not in first_content
+    assert "surfaced todos" not in first_content
     logs_root = target / ".praxis" / "local_context" / "logs"
     first_logs = sorted(logs_root.glob("*.md"))
     assert len(first_logs) == 1
     assert "## What was done\n_TODO_" in first_logs[0].read_text()
 
     second = run_command([*harness, "onboard"], cwd=target)
-    assert "Removed empty work logs: 1" in second.stdout
+    second_content = onboard_content(second, target)
+    assert "Removed empty work logs: 1" in second_content
     second_logs = sorted(logs_root.glob("*.md"))
     assert len(second_logs) == 1
 
@@ -79,9 +92,10 @@ def test_onboard_creates_session_log_and_removes_untouched_empty_logs(
         )
     )
     third = run_command([*harness, "onboard"], cwd=target)
-    assert "Removed empty work logs" not in third.stdout
-    assert "Recent global work logs" in third.stdout
-    assert "Opened the file and reviewed context." in third.stdout
+    third_content = onboard_content(third, target)
+    assert "Removed empty work logs" not in third_content
+    assert "Recent global work logs" in third_content
+    assert "Opened the file and reviewed context." in third_content
     assert len(sorted(logs_root.glob("*.md"))) == 2
 
 

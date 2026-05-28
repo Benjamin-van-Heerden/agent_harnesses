@@ -62,6 +62,7 @@ def test_setup_installs_native_harness_and_preserves_user_content(
     assert not (target / ".agent_docs").exists()
     assert (target / ".praxis" / "local_context" / "lawyer_profile.md").is_file()
     assert (target / ".praxis" / "core_docs" / "legal_context.typ").is_file()
+    assert (target / ".praxis" / "tmp").is_dir()
     assert not (target / ".praxis" / "docs" / "legal_harness_function.md").exists()
     assert (
         target / ".praxis" / "docs" / "legal_harness_typst_basic_reference.typ"
@@ -117,6 +118,7 @@ def test_setup_installs_native_harness_and_preserves_user_content(
     assert (target / "CLAUDE.md").exists()
     assert "legal Agent Core setup" in (target / ".gitignore").read_text()
     assert "*.p.pdf" in (target / ".gitignore").read_text()
+    assert ".praxis/tmp/" in (target / ".gitignore").read_text()
     assert (LEGAL_ROOT / "README.md").is_file()
     assert not (LEGAL_ROOT / "agent_rules").exists()
     assert not (LEGAL_ROOT / "bash_setup.sh").exists()

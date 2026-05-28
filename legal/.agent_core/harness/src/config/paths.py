@@ -10,6 +10,7 @@ class ProjectPaths:
     config_file: Path
     core_docs_root: Path
     docs_root: Path
+    tmp_root: Path
     legal_context: Path
     client_matter_index: Path
     workflows_root: Path
@@ -65,6 +66,7 @@ def build_project_paths(project_root: Path | None = None) -> ProjectPaths:
         config_file=state_root / "config.toml",
         core_docs_root=core_docs_root,
         docs_root=docs_root,
+        tmp_root=state_root / "tmp",
         legal_context=core_docs_root / "legal_context.typ",
         client_matter_index=state_root / "client_matter_index.toml",
         workflows_root=local_context_root / "workflows",

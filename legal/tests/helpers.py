@@ -49,3 +49,11 @@ def read_toml(path: Path) -> dict[str, Any]:
 
 def harness_command() -> list[str]:
     return [sys.executable, "-B", ".praxis/harness/main.py"]
+
+
+def onboard_content(result: subprocess.CompletedProcess[str], target: Path) -> str:
+    prefix = "Legal onboard context written to: "
+    for line in result.stdout.splitlines():
+        if line.startswith(prefix):
+            return (target / line.removeprefix(prefix)).read_text()
+    raise AssertionError(f"onboard output path not found in stdout:\n{result.stdout}")
