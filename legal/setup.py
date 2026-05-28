@@ -170,6 +170,16 @@ description = """
 Describe this legal practice workspace.
 """
 
+# Files to include in onboard output
+# [[files]]
+# path = "README.md"
+# description = "Practice overview and setup instructions"
+
+# Directories whose tree structure is included in onboard output
+[[tree_dirs]]
+path = "src"
+description = "Reusable Typst source"
+
 [harness]
 name = "legal"
 local_git_snapshots = true

@@ -2,6 +2,18 @@ from dataclasses import dataclass
 
 
 @dataclass(frozen=True)
+class ImportantFileConfig:
+    path: str
+    description: str = ""
+
+
+@dataclass(frozen=True)
+class TreeDirConfig:
+    path: str
+    description: str = ""
+
+
+@dataclass(frozen=True)
 class ProjectConfig:
     name: str
     description: str
@@ -23,5 +35,7 @@ class LegalConfig:
 @dataclass(frozen=True)
 class LegalHarnessConfig:
     project: ProjectConfig
+    files: list[ImportantFileConfig]
+    tree_dirs: list[TreeDirConfig]
     harness: HarnessConfig
     legal: LegalConfig

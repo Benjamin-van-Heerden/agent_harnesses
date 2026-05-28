@@ -27,6 +27,10 @@ def test_installed_onboard_command_runs(tmp_path: Path) -> None:
     assert "Critical legal context warning" in content
     assert "legal context file has not been set up" in content
     assert "strongly warn the lawyer" in content
+    assert "Directory trees" in content
+    assert "# src" in content
+    assert "Reusable Typst source" in content
+    assert "src/types/Client.typ" in content
     assert "legal_harness_function.md" not in content
     assert "You must read the relevant profile" in content
     assert "current session work log" in content

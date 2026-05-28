@@ -148,8 +148,13 @@ def test_setup_installs_native_harness_and_preserves_user_content(
     config = read_toml(target / ".praxis" / "config.toml")
     assert config["harness"]["name"] == "legal"
     assert config["harness"]["update_interval_days"] == 3
+    assert config["tree_dirs"][0]["path"] == "src"
+    assert config["tree_dirs"][0]["description"] == "Reusable Typst source"
     assert "last_updated_at" in config["harness"]
     assert (target / ".praxis" / "harness" / "update.py").is_file()
+    config_text = (target / ".praxis" / "config.toml").read_text()
+    assert "# [[files]]" in config_text
+    assert '# path = "README.md"' in config_text
 
 
 def test_setup_update_refreshes_managed_runtime_without_clobbering_lawyer_state(

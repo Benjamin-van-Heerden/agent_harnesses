@@ -5,6 +5,8 @@ from datetime import datetime, timedelta
 from pathlib import Path
 
 import typer
+from src.config.main import load_config
+from src.config.models import ImportantFileConfig, TreeDirConfig
 from src.config.paths import PROJECT_PATHS
 from src.state.client_index import refresh_client_matter_index
 from src.state.clients import list_clients
@@ -54,6 +56,15 @@ def _read_text(path: Path) -> str:
         return "[Skipped binary or non-text file]"
     except OSError as error:
         return f"[Could not read file: {error}]"
+
+
+def _configured_path(path: str) -> Path | None:
+    candidate = (PROJECT_PATHS.project_root / path).resolve()
+    try:
+        candidate.relative_to(PROJECT_PATHS.project_root)
+    except ValueError:
+        return None
+    return candidate
 
 
 def _relative(path: Path) -> str:
@@ -108,6 +119,36 @@ def _onboard_docs() -> list[Path]:
         PROJECT_PATHS.typst_house_rules_reference,
     ]
     return [path for path in candidates if path.is_file() and _read_text(path)]
+
+
+def _tree_dir(path: Path, max_entries: int = 300) -> str:
+    if not path.exists():
+        return f"{_relative(path)} (not found)"
+    if not path.is_dir():
+        return f"{_relative(path)} (not a directory)"
+
+    entries: list[str] = []
+    skipped_parts = {".git", ".venv", "__pycache__", "node_modules"}
+    for child in sorted(path.rglob("*"), key=lambda item: str(item).lower()):
+        if any(part in skipped_parts for part in child.parts):
+            continue
+        if len(entries) >= max_entries:
+            entries.append("...")
+            break
+        entries.append(_relative(child) + ("/" if child.is_dir() else ""))
+    return "\n".join(entries) or f"{_relative(path)} (empty)"
+
+
+def _configured_files(
+    files: list[ImportantFileConfig],
+) -> list[tuple[ImportantFileConfig, Path | None]]:
+    return [(item, _configured_path(item.path)) for item in files]
+
+
+def _configured_tree_dirs(
+    tree_dirs: list[TreeDirConfig],
+) -> list[tuple[TreeDirConfig, Path | None]]:
+    return [(item, _configured_path(item.path)) for item in tree_dirs]
 
 
 def _legal_context_needs_setup() -> bool:
@@ -190,6 +231,9 @@ def run() -> None:
     session_log = create_work_log()
     todos = list_all_todos()
     typst_files = _typst_files()
+    config = load_config(PROJECT_PATHS.config_file)
+    configured_files = _configured_files(config.files)
+    configured_tree_dirs = _configured_tree_dirs(config.tree_dirs)
     high_priority = [
         matter for matter in open_matters if matter.priority in ("high", "urgent")
     ]
@@ -243,6 +287,35 @@ def run() -> None:
             for path in onboard_docs:
                 _file(_relative(path))
                 typer.echo(_read_text(path))
+                typer.echo("")
+
+        if configured_files:
+            _section("Configured files")
+            for item, path in configured_files:
+                _file(item.path)
+                if item.description:
+                    typer.echo(item.description)
+                    typer.echo("")
+                if path is None:
+                    typer.echo("[Skipped: configured path is outside the workspace]")
+                else:
+                    typer.echo(_read_text(path))
+                typer.echo("")
+
+        if configured_tree_dirs:
+            _section("Directory trees")
+            for item, path in configured_tree_dirs:
+                _file(item.path)
+                if item.description:
+                    typer.echo(item.description)
+                    typer.echo("")
+                typer.echo("```text")
+                typer.echo(
+                    "[Skipped: configured path is outside the workspace]"
+                    if path is None
+                    else _tree_dir(path)
+                )
+                typer.echo("```")
                 typer.echo("")
 
         _section("Practice summary")
