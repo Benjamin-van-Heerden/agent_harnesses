@@ -330,6 +330,10 @@ def test_lifecycle_commands_create_and_resolve_chronology(tmp_path: Path) -> Non
     assert len(open_matters) == 1
     matter_dir = open_matters[0]
     assert (matter_dir / "info" / "status.md").is_file()
+    status_text = (matter_dir / "info" / "status.md").read_text()
+    assert "## How to update this status" in status_text
+    assert "Do not guess." in status_text
+    assert "Not yet recorded." in status_text
     assert (matter_dir / "info" / "chronology.toml").is_file()
     assert "[[events]]" not in (matter_dir / "info" / "chronology.toml").read_text()
 

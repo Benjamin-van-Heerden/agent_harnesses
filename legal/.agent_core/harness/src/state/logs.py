@@ -18,6 +18,12 @@ EMPTY_LOG_MARKERS = (
     "## What's next\n_TODO_",
     "## Notes\n_TODO_",
 )
+DESCRIPTIVE_LOG_MARKERS = (
+    "Leave this section in its descriptive form until actual work has been done.",
+    "Leave this section in its descriptive form if no next action is known.",
+    "Leave this section in its descriptive form if no files were affected.",
+    "Leave this section in its descriptive form if there are no extra notes.",
+)
 
 
 def parse_work_log(path: Path) -> WorkLogRecord:
@@ -61,7 +67,9 @@ def is_empty_work_log(path: Path) -> bool:
     if not path.is_file():
         return False
     document = read_markdown(path)
-    return all(marker in document.body for marker in EMPTY_LOG_MARKERS)
+    return all(marker in document.body for marker in EMPTY_LOG_MARKERS) or all(
+        marker in document.body for marker in DESCRIPTIVE_LOG_MARKERS
+    )
 
 
 def cleanup_empty_work_logs(paths: ProjectPaths = PROJECT_PATHS) -> list[Path]:

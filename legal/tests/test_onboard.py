@@ -96,7 +96,8 @@ def test_onboard_creates_session_log_and_removes_untouched_empty_logs(
     logs_root = target / ".praxis" / "local_context" / "logs"
     first_logs = sorted(logs_root.glob("*.md"))
     assert len(first_logs) == 1
-    assert "## What was done\n_TODO_" in first_logs[0].read_text()
+    assert "Leave this section in its descriptive form" in first_logs[0].read_text()
+    assert "## Affected files" in first_logs[0].read_text()
 
     second = run_command([*harness, "onboard"], cwd=target)
     second_content = onboard_content(second, target)
@@ -107,8 +108,8 @@ def test_onboard_creates_session_log_and_removes_untouched_empty_logs(
     edited = second_logs[0]
     edited.write_text(
         edited.read_text().replace(
-            "## What was done\n_TODO_",
-            "## What was done\nOpened the file and reviewed context.",
+            "Leave this section in its descriptive form until actual work has been done. Do not invent work merely to fill the log.",
+            "Opened the file and reviewed context.",
         )
     )
     third = run_command([*harness, "onboard"], cwd=target)
