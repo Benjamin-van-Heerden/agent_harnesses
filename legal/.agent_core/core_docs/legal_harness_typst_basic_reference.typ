@@ -1,6 +1,6 @@
 = Typst Agent Brief
 
-Condensed Typst reference for agents working in the Praxis system of work. Targets Typst 0.13 / 0.14. Older patterns (`#locate`, `#style`, `counter.display` without `context`) are deprecated — do not use them.
+Condensed Typst reference for agents working in the Praxis system of work. Targets Typst 0.13 / 0.14. Older patterns (`#locate`, `#style`, `counter.display` without `context`) are deprecated - do not use them.
 
 
 == Mental model
@@ -15,7 +15,7 @@ In markup, `#` switches to code mode for one expression. In code mode (inside ar
 #text(font: "Inria Serif")[important]
 ```
 
-Inside the parens, `"Inria Serif"` is already code — no `#` on it. Inside the `[...]`, you are back in markup.
+Inside the parens, `"Inria Serif"` is already code - no `#` on it. Inside the `[...]`, you are back in markup.
 
 
 == Syntax cheat sheet
@@ -51,28 +51,28 @@ _italic_               // else #emph[]
   [`length`], [`12pt`, `2.5cm`, `1in`, `1.2em`, `50%`, `1fr`],
   [`color`], [`red`, `luma(80)`, `rgb("#1a4d8c")`, `cmyk(...)`],
   [`alignment`], [`left`, `right`, `center`, `top`, `bottom`, `horizon`, `start`, `end`. Combine with `+`.],
-  [`array`], [`(1, 2, 3)`. One-element: `(1,)` — trailing comma matters.],
+  [`array`], [`(1, 2, 3)`. One-element: `(1,)` - trailing comma matters.],
   [`dictionary`], [`(key: "value")`],
   [`datetime`], [`datetime(year: 2026, month: 4, day: 30)`],
   [`function`], [`text`, `image`, your own `#let f(x) = x + 1`],
   [`none`], [Explicit absence.],
-  [`auto`], [Smart default — let Typst pick.],
+  [`auto`], [Smart default - let Typst pick.],
 )
 
 `none` and `auto` are not interchangeable. `header: auto` keeps the default; `header: none` removes it entirely. Read the function ref to know which to pass.
 
 
-== Length units — when to use which
+== Length units - when to use which
 
 #table(
   columns: (auto, 1fr),
   stroke: 0.4pt + luma(180),
   inset: 6pt,
   align: (left, left),
-  [`pt` `mm` `cm` `in`], [Physical units — page dimensions, margins, drawing.],
-  [`em`], [Relative to current font size — text-related spacing.],
-  [`%`], [Relative to parent — widths within containers.],
-  [`fr`], [Fraction of remaining free space — track sizes, `h(1fr)` spacers.],
+  [`pt` `mm` `cm` `in`], [Physical units - page dimensions, margins, drawing.],
+  [`em`], [Relative to current font size - text-related spacing.],
+  [`%`], [Relative to parent - widths within containers.],
+  [`fr`], [Fraction of remaining free space - track sizes, `h(1fr)` spacers.],
 )
 
 Habit: physical things in physical units, type spacing in `em`, "fill rest" in `fr`. Templates that follow this rule survive font changes and paper-size changes without manual fixup.
@@ -80,7 +80,7 @@ Habit: physical things in physical units, type spacing in `em`, "fill rest" in `
 
 == Styling: the one thing to internalise
 
-*Set rule* — change default parameters of a function for the rest of scope.
+*Set rule* - change default parameters of a function for the rest of scope.
 
 ```typ
 #set text(font: "Libertinus Serif", size: 11pt)
@@ -88,14 +88,14 @@ Habit: physical things in physical units, type spacing in `em`, "fill rest" in `
 #set par(justify: true, leading: 0.65em)
 ```
 
-*Show-set rule* — apply a set rule only to elements matching a selector.
+*Show-set rule* - apply a set rule only to elements matching a selector.
 
 ```typ
 #show heading: set text(weight: "bold")
 #show heading.where(level: 1): set align(center)
 ```
 
-*Transformational show rule* — replace or wrap an element with arbitrary content.
+*Transformational show rule* - replace or wrap an element with arbitrary content.
 
 ```typ
 #show heading: it => [
@@ -104,14 +104,14 @@ Habit: physical things in physical units, type spacing in `em`, "fill rest" in `
 ]
 ```
 
-*Everything-show* (templating) — pass the rest of the document to a function.
+*Everything-show* (templating) - pass the rest of the document to a function.
 
 ```typ
 #show: my_template
 #show: my_template.with(matter: "Acme v Beta")  // pre-supply named args
 ```
 
-*Literal replacement* — a string or content RHS substitutes directly.
+*Literal replacement* - a string or content RHS substitutes directly.
 
 ```typ
 #show "TBD": text(fill: red, weight: "bold")[TO BE DETERMINED]
@@ -158,7 +158,7 @@ Selectors: element function (`heading`), `element.where(field: value)`, `"litera
 #set heading(numbering: "1.1")          // "1.1", "1.a.i", "I.", or a function
 ```
 
-*Gotcha.* `par.first-line-indent` and `hanging-indent` apply only to *semantic paragraphs* — text between paragraph breaks at the document level. They do not apply inside table cells, captions, list items, or many other inline contexts. This is by design.
+*Gotcha.* `par.first-line-indent` and `hanging-indent` apply only to *semantic paragraphs* - text between paragraph breaks at the document level. They do not apply inside table cells, captions, list items, or many other inline contexts. This is by design.
 
 
 == Page patterns
@@ -171,7 +171,7 @@ Selectors: element function (`heading`), `element.where(field: value)`, `"litera
 ])
 ```
 
-`h(1fr)` absorbs all remaining horizontal space — use it to push items apart. The header is bottom-aligned by default; wrap in `align(top, ...)` to override.
+`h(1fr)` absorbs all remaining horizontal space - use it to push items apart. The header is bottom-aligned by default; wrap in `align(top, ...)` to override.
 
 === First-page-different (no header on title page)
 
@@ -183,7 +183,7 @@ Selectors: element function (`heading`), `element.where(field: value)`, `"litera
 })
 ```
 
-`counter(page).get()` returns an array (counters can be multi-level); `.first()` extracts the page number. `context` is required because the value changes per page — the header must be re-evaluated per page.
+`counter(page).get()` returns an array (counters can be multi-level); `.first()` extracts the page number. `context` is required because the value changes per page - the header must be re-evaluated per page.
 
 === Page X of Y in a custom footer
 
@@ -221,7 +221,7 @@ When you set a custom footer, the `page` element's `numbering` parameter is *ign
 
 === One-off page override
 
-For a single landscape page mid-document, call `page` as a function (not via `#set page`) — overrides apply only to that call and revert afterwards.
+For a single landscape page mid-document, call `page` as a function (not via `#set page`) - overrides apply only to that call and revert afterwards.
 
 ```typ
 #page(flipped: true, margin: 1.5cm)[
@@ -249,7 +249,7 @@ On odd (recto) pages, `inside` is the left margin; on even (verso) pages, `insid
 
 == Layout primitives
 
-=== `align` — block-level alignment
+=== `align` - block-level alignment
 
 ```typ
 #align(center)[Centred]
@@ -261,23 +261,23 @@ Horizontal: `left`, `right`, `center`, `start`, `end` (start/end are RTL-aware).
 
 === `block` vs `box`
 
-`block` is full-width and paragraph-breaking — most things in a document are blocks. `box` is inline; it does not break and reserves space within text flow. Both accept `fill`, `stroke`, `inset`, `outset`, `radius`, `width`, `height`. Use `box` for things that must not wrap (names, phone numbers, "Mr Smith").
+`block` is full-width and paragraph-breaking - most things in a document are blocks. `box` is inline; it does not break and reserves space within text flow. Both accept `fill`, `stroke`, `inset`, `outset`, `radius`, `width`, `height`. Use `box` for things that must not wrap (names, phone numbers, "Mr Smith").
 
-=== `pad` — spacing without decoration
+=== `pad` - spacing without decoration
 
 ```typ
 #pad(left: 2cm, right: 2cm)[Indented quote]
 #pad(x: 1cm, y: 0.5cm)[All-around shorthand]
 ```
 
-=== `stack` — items along an axis
+=== `stack` - items along an axis
 
 ```typ
 #stack(dir: ttb, spacing: 1em, [a], [b], [c])
 #stack(dir: ltr, spacing: 1cm, sig-a, sig-b)
 ```
 
-=== `grid` — explicit columns and rows (workhorse for layout)
+=== `grid` - explicit columns and rows (workhorse for layout)
 
 ```typ
 #grid(
@@ -293,9 +293,9 @@ Horizontal: `left`, `right`, `center`, `start`, `end` (start/end are RTL-aware).
 
 Column and row sizes: `auto` (fits), length, ratio (`%`), fraction (`fr`), or array. Shorthand for N equal columns: `columns: (1fr,) * 5`.
 
-`grid` is for *layout*. `table` is for *data*. Same API, different semantic intent — agents and screen readers treat them differently.
+`grid` is for *layout*. `table` is for *data*. Same API, different semantic intent - agents and screen readers treat them differently.
 
-=== `place` — escape the flow, span beyond columns
+=== `place` - escape the flow, span beyond columns
 
 ```typ
 #place(top + right, dx: -1cm, dy: 1cm, image("logo.svg", width: 3cm))
@@ -316,7 +316,7 @@ Two-column body with a title that spans both columns:
 
 `scope: "parent"` makes placement relative to the page rather than the column.
 
-=== `h`, `v` — spacers
+=== `h`, `v` - spacers
 
 ```typ
 #h(1cm)                                   // fixed horizontal gap
@@ -394,7 +394,7 @@ Bold header row: `#show table.cell.where(y: 0): strong`. \
 Cell override: `table.cell(colspan: 2, fill: orange, [merged])`. \
 Spanning lines: `table.hline(y: 2)`, `table.vline(x: 1, start: 1)`.
 
-Long tables — repeating header on every page:
+Long tables - repeating header on every page:
 
 ```typ
 #show figure: set block(breakable: true)
@@ -408,7 +408,7 @@ Long tables — repeating header on every page:
 
 == Control flow
 
-`if` / `else if` / `else` — body is a code or content block.
+`if` / `else if` / `else` - body is a code or content block.
 
 ```typ
 #if x > 0 [positive] else if x < 0 [negative] else [zero]
@@ -421,7 +421,7 @@ Long tables — repeating header on every page:
 #for (k, v) in dict [#k -> #v \ ]
 ```
 
-Loops produce content directly via joining — do not build up arrays manually.
+Loops produce content directly via joining - do not build up arrays manually.
 
 ```typ
 // Idiomatic:
@@ -444,7 +444,7 @@ Definition with positional and named parameters and defaults:
 ]
 ```
 
-Trailing content block — last content argument moves out of the parens:
+Trailing content block - last content argument moves out of the parens:
 
 ```typ
 #emph[important]                            // == #emph([important])
@@ -458,7 +458,7 @@ Spread `..` unpacks arrays into positional args, dictionaries into named args, a
 #let log(..items) = items.pos().join(", ")
 ```
 
-`.with()` partially applies — returns a new function with some args fixed:
+`.with()` partially applies - returns a new function with some args fixed:
 
 ```typ
 #show: contract.with(matter: "Acme v Beta")
@@ -486,7 +486,7 @@ Local files:
 #include "boilerplate.typ"                  // splice content (not definitions)
 ```
 
-Packages — *always pin a version*; unversioned imports are an error.
+Packages - *always pin a version*; unversioned imports are an error.
 
 ```typ
 #import "@preview/cetz:0.4.1": *
@@ -509,7 +509,7 @@ A template is a function that wraps the document. Apply via everything-show. Sta
   matter: "",
   date: datetime.today(),
   letterhead: "Doe & Doe Inc.",
-  doc,                                      // body — last positional param
+  doc,                                      // body - last positional param
 ) = {
   // 1. Page-wide set rules.
   set page(
@@ -559,7 +559,7 @@ Dear Ms Khumalo, ...
 
 Counters: `counter(page)`, `counter(heading)`, `counter(figure)`, `counter(footnote)`, or `counter("custom-name")` for your own. Methods: `.get()`, `.at(<label>)`, `.final()`, `.display(pattern)`, `.step()`, `.update(n)`, `.update(n => n + 1)`.
 
-State — like counters but holds arbitrary values:
+State - like counters but holds arbitrary values:
 
 ```typ
 #let chapter = state("chapter", "")
@@ -590,7 +590,7 @@ Heuristic: before reaching for `query`, check whether a counter, state, or label
 
 == Gotchas
 
-+ *Spurious `#` inside argument lists.* Wrong: `#text(font: #"Inria Serif")`. Right: `#text(font: "Inria Serif")`. Inside parens you are already in code mode — no inner `#`.
++ *Spurious `#` inside argument lists.* Wrong: `#text(font: #"Inria Serif")`. Right: `#text(font: "Inria Serif")`. Inside parens you are already in code mode - no inner `#`.
 
 + *`()` vs `[]` when calling a function.* `#title()` asks the document for its title. `#title[]` sets the title to empty content. Different. Silent bug.
 

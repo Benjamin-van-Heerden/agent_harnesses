@@ -11,6 +11,8 @@ python -B .praxis/harness/main.py onboard
 
 Onboard creates the session work log, summarizes live practice context, and tells you what must be read before substantive work. Use onboard to understand the practice-level picture: open matters, upcoming obligations, todos, memories, recent logs, and the current session log. Do not treat onboard as matter analysis; it must stay concise.
 
+**Note:** The onboard command (and indeed many of the harness commands) performs git and outbound network operations. It must be ran it in an elevated shell with outbound network access. Run all harness commands with such elevation.
+
 Keep the system small and predictable. Prefer the core primitive that matches the legal significance of the instruction:
 
 - **Matter**: the legal file and working container.
@@ -249,7 +251,7 @@ Do not create a memory for transient matter facts, tactical guesses, one-off ins
 
 Draft matter-specific documents at the matter root as `NN_<slug>.typ`. Use `src/components/` for reusable visual primitives and style, `src/templates/` for reusable document shells and domain renderers, `src/types/` for soft domain structures, and `src/constants/` for constants and theme tokens. Put reusable static assets under root `assets/`. Do not create a `src/functions/` layer for document UI.
 
-Use Typst reference docs only when needed. Detailed and optional Typst reference docs live under `.praxis/docs/` so they do not bloat routine onboard context.
+Required Typst harness guidance lives under `.praxis/core_docs/` and is surfaced by onboard. Use the detailed Typst reference under `.praxis/docs/` only when needed.
 
 Do not treat drafting as chronology unless the draft is sent, filed, served, discussed, or otherwise becomes an event.
 

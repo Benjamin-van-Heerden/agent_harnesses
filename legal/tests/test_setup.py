@@ -36,6 +36,14 @@ def test_repository_template_layout_matches_legal_harness_contract() -> None:
     template_root = LEGAL_ROOT / ".agent_core"
 
     assert (template_root / "core_docs" / "legal_context.typ").is_file()
+    assert (
+        template_root / "core_docs" / "legal_harness_typst_basic_reference.typ"
+    ).is_file()
+    assert (
+        template_root
+        / "core_docs"
+        / "legal_harness_typst_soft_typesystem_and_house_rules.typ"
+    ).is_file()
     assert (template_root / "docs" / "typst_detailed_reference.typ").is_file()
     assert (template_root / "local_context" / "lawyer_profile.md").is_file()
     assert (template_root / "harness" / "templates" / "log.md").is_file()
@@ -44,6 +52,7 @@ def test_repository_template_layout_matches_legal_harness_contract() -> None:
     assert (template_root / "harness" / "templates" / "status.md").is_file()
     assert (template_root / "harness" / "templates" / "todo.md").is_file()
     assert not (LEGAL_ROOT / ".agent_docs").exists()
+    assert not (LEGAL_ROOT / "optional_docs").exists()
     assert not (LEGAL_ROOT / ".DS_Store").exists()
 
 
@@ -65,20 +74,33 @@ def test_setup_installs_native_harness_and_preserves_user_content(
     assert (target / ".praxis" / "tmp").is_dir()
     assert not (target / ".praxis" / "docs" / "legal_harness_function.md").exists()
     assert (
-        target / ".praxis" / "docs" / "legal_harness_typst_basic_reference.typ"
+        target / ".praxis" / "core_docs" / "legal_harness_typst_basic_reference.typ"
     ).read_text() == (
-        LEGAL_ROOT / "optional_docs" / "legal_harness_typst_basic_reference.typ"
+        LEGAL_ROOT
+        / ".agent_core"
+        / "core_docs"
+        / "legal_harness_typst_basic_reference.typ"
     ).read_text()
     assert (
         target
         / ".praxis"
-        / "docs"
+        / "core_docs"
         / "legal_harness_typst_soft_typesystem_and_house_rules.typ"
     ).read_text() == (
         LEGAL_ROOT
-        / "optional_docs"
+        / ".agent_core"
+        / "core_docs"
         / "legal_harness_typst_soft_typesystem_and_house_rules.typ"
     ).read_text()
+    assert not (
+        target / ".praxis" / "docs" / "legal_harness_typst_basic_reference.typ"
+    ).exists()
+    assert not (
+        target
+        / ".praxis"
+        / "docs"
+        / "legal_harness_typst_soft_typesystem_and_house_rules.typ"
+    ).exists()
     assert (
         target / ".praxis" / "docs" / "typst_detailed_reference.typ"
     ).read_text() == (
@@ -161,6 +183,15 @@ def test_setup_update_refreshes_managed_runtime_without_clobbering_lawyer_state(
         / "docs"
         / "legal_harness_typst_soft_typesystem_and_house_rules.typ"
     ).write_text("stale soft type doc\n")
+    (
+        target / ".praxis" / "core_docs" / "legal_harness_typst_basic_reference.typ"
+    ).write_text("stale core basic doc\n")
+    (
+        target
+        / ".praxis"
+        / "core_docs"
+        / "legal_harness_typst_soft_typesystem_and_house_rules.typ"
+    ).write_text("stale core soft type doc\n")
     (target / ".praxis" / "docs" / "typst_basic_reference.typ").write_text(
         "old managed doc\n"
     )
@@ -184,7 +215,6 @@ def test_setup_update_refreshes_managed_runtime_without_clobbering_lawyer_state(
     assert custom_workflow.read_text() == "custom workflow\n"
     assert client_note.read_text() == "confidential client state\n"
     assert not stale_harness_file.exists()
-    assert "Updated optional doc: legal_harness_typst_basic_reference" in result.stdout
     assert (
         "Updated managed file: .praxis/docs/typst_detailed_reference.typ"
         in result.stdout
@@ -194,20 +224,41 @@ def test_setup_update_refreshes_managed_runtime_without_clobbering_lawyer_state(
         in result.stdout
     )
     assert (
-        target / ".praxis" / "docs" / "legal_harness_typst_basic_reference.typ"
+        "Removed relocated core doc: .praxis/docs/legal_harness_typst_basic_reference.typ"
+        in result.stdout
+    )
+    assert (
+        "Removed relocated core doc: .praxis/docs/legal_harness_typst_soft_typesystem_and_house_rules.typ"
+        in result.stdout
+    )
+    assert (
+        target / ".praxis" / "core_docs" / "legal_harness_typst_basic_reference.typ"
     ).read_text() == (
-        LEGAL_ROOT / "optional_docs" / "legal_harness_typst_basic_reference.typ"
+        LEGAL_ROOT
+        / ".agent_core"
+        / "core_docs"
+        / "legal_harness_typst_basic_reference.typ"
     ).read_text()
     assert (
         target
         / ".praxis"
-        / "docs"
+        / "core_docs"
         / "legal_harness_typst_soft_typesystem_and_house_rules.typ"
     ).read_text() == (
         LEGAL_ROOT
-        / "optional_docs"
+        / ".agent_core"
+        / "core_docs"
         / "legal_harness_typst_soft_typesystem_and_house_rules.typ"
     ).read_text()
+    assert not (
+        target / ".praxis" / "docs" / "legal_harness_typst_basic_reference.typ"
+    ).exists()
+    assert not (
+        target
+        / ".praxis"
+        / "docs"
+        / "legal_harness_typst_soft_typesystem_and_house_rules.typ"
+    ).exists()
     assert not (target / ".praxis" / "docs" / "typst_basic_reference.typ").exists()
     assert not (
         target
@@ -220,9 +271,10 @@ def test_setup_update_refreshes_managed_runtime_without_clobbering_lawyer_state(
     ).read_text() == (
         LEGAL_ROOT / ".agent_core" / "docs" / "typst_detailed_reference.typ"
     ).read_text()
-    assert (target / "src" / "types" / "Client.typ").read_text() == (
-        LEGAL_ROOT / "src" / "types" / "Client.typ"
-    ).read_text()
+    assert (
+        target / "src" / "types" / "Client.typ"
+    ).read_text() == "stale managed source\n"
+    assert "Updated managed file: src/types/Client.typ" not in result.stdout
 
 
 def test_setup_update_runs_needed_source_patches_without_installing_patch_scripts(
@@ -318,60 +370,16 @@ def test_setup_update_runs_needed_source_patches_without_installing_patch_script
     assert len(read_toml(target / ".praxis" / "patches.toml")["patches"]) == 1
 
 
-def test_setup_docs_commands_manage_optional_docs(tmp_path: Path) -> None:
+def test_setup_rejects_removed_docs_commands(tmp_path: Path) -> None:
     target = tmp_path / "practice"
     target.mkdir()
     run_setup(target)
 
-    docs_list = run_command(
-        [sys.executable, "-B", str(LEGAL_ROOT / "setup.py"), "docs", "list"], cwd=target
-    )
-    assert "legal_harness_typst_basic_reference" in docs_list.stdout
-    assert "legal_harness_function" not in docs_list.stdout
-
-    target_doc = target / ".praxis" / "docs" / "legal_harness_typst_basic_reference.typ"
-    target_doc.unlink()
-    docs_add = run_command(
-        [
-            sys.executable,
-            "-B",
-            str(LEGAL_ROOT / "setup.py"),
-            "docs",
-            "add",
-            "legal_harness_typst_basic_reference",
-        ],
-        cwd=target,
-    )
-    assert "Added optional doc: legal_harness_typst_basic_reference" in docs_add.stdout
-    assert target_doc.is_file()
-
-    target_doc.write_text("stale\n")
-    docs_update = run_command(
-        [sys.executable, "-B", str(LEGAL_ROOT / "setup.py"), "docs", "update"],
-        cwd=target,
-    )
-    assert (
-        "Updated optional doc: legal_harness_typst_basic_reference"
-        in docs_update.stdout
-    )
-    assert (
-        target_doc.read_text()
-        == (
-            LEGAL_ROOT / "optional_docs" / "legal_harness_typst_basic_reference.typ"
-        ).read_text()
-    )
-
-    missing_function_doc = run_command(
-        [
-            sys.executable,
-            "-B",
-            str(LEGAL_ROOT / "setup.py"),
-            "docs",
-            "add",
-            "legal_harness_function",
-        ],
+    result = run_command(
+        [sys.executable, "-B", str(LEGAL_ROOT / "setup.py"), "docs", "list"],
         cwd=target,
         check=False,
     )
-    assert missing_function_doc.returncode == 1
-    assert "unknown optional doc: legal_harness_function" in missing_function_doc.stderr
+
+    assert result.returncode == 1
+    assert "setup.py [--update]" in result.stderr

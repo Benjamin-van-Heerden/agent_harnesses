@@ -106,6 +106,8 @@ def _todo_scope(matter: str) -> str:
 def _onboard_docs() -> list[Path]:
     candidates = [
         PROJECT_PATHS.legal_context,
+        PROJECT_PATHS.typst_basic_reference,
+        PROJECT_PATHS.typst_house_rules_reference,
     ]
     return [path for path in candidates if path.is_file() and _read_text(path)]
 

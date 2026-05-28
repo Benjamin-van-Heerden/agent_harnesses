@@ -70,8 +70,9 @@ def build_project_paths(project_root: Path | None = None) -> ProjectPaths:
         legal_context=core_docs_root / "legal_context.typ",
         client_matter_index=state_root / "client_matter_index.toml",
         workflows_root=local_context_root / "workflows",
-        typst_basic_reference=docs_root / "legal_harness_typst_basic_reference.typ",
-        typst_house_rules_reference=docs_root
+        typst_basic_reference=core_docs_root
+        / "legal_harness_typst_basic_reference.typ",
+        typst_house_rules_reference=core_docs_root
         / "legal_harness_typst_soft_typesystem_and_house_rules.typ",
         typst_detailed_reference=docs_root / "typst_detailed_reference.typ",
         local_context_root=local_context_root,
