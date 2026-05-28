@@ -9,7 +9,13 @@ from src.state.models import TodoRecord
 from src.state.templates import render_template
 from src.state.time import today
 from src.state.validation import validate_slug, validate_todo_priority
-from src.utils.markdown import MarkdownDocument, frontmatter_get, frontmatter_set, read_markdown, write_markdown
+from src.utils.markdown import (
+    MarkdownDocument,
+    frontmatter_get,
+    frontmatter_set,
+    read_markdown,
+    write_markdown,
+)
 
 
 def _title_from_body(body: str) -> str:
@@ -32,13 +38,21 @@ def parse_todo(path: Path) -> TodoRecord:
     )
 
 
-def global_todo_path(slug: str, claimed: bool = False, paths: ProjectPaths = PROJECT_PATHS) -> Path:
-    bucket = paths.global_claimed_todos_root if claimed else paths.global_open_todos_root
+def global_todo_path(
+    slug: str, claimed: bool = False, paths: ProjectPaths = PROJECT_PATHS
+) -> Path:
+    bucket = (
+        paths.global_claimed_todos_root if claimed else paths.global_open_todos_root
+    )
     return bucket / f"{slug}.md"
 
 
 def matter_todo_path(matter_dir: Path, slug: str, claimed: bool = False) -> Path:
-    bucket = matter_dir / "info" / "todos" / "claimed" if claimed else matter_dir / "info" / "todos"
+    bucket = (
+        matter_dir / "info" / "todos" / "claimed"
+        if claimed
+        else matter_dir / "info" / "todos"
+    )
     return bucket / f"{slug}.md"
 
 
@@ -57,7 +71,11 @@ def create_todo(
         matter_dir = resolve_matter(matter_ref, paths)
         matter_path = str(matter_dir.relative_to(paths.project_root))
 
-    path = matter_todo_path(matter_dir, slug) if matter_dir is not None else global_todo_path(slug, paths=paths)
+    path = (
+        matter_todo_path(matter_dir, slug)
+        if matter_dir is not None
+        else global_todo_path(slug, paths=paths)
+    )
     if path.exists():
         raise FileExistsError(f"todo already exists: {slug}")
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -79,7 +97,9 @@ def create_todo(
     return path
 
 
-def claim_todo(slug: str, matter_ref: str = "", paths: ProjectPaths = PROJECT_PATHS) -> Path:
+def claim_todo(
+    slug: str, matter_ref: str = "", paths: ProjectPaths = PROJECT_PATHS
+) -> Path:
     validate_slug(slug)
     if matter_ref:
         matter_dir = resolve_matter(matter_ref, paths)
@@ -105,10 +125,14 @@ def claim_todo(slug: str, matter_ref: str = "", paths: ProjectPaths = PROJECT_PA
 def list_global_todos(paths: ProjectPaths = PROJECT_PATHS) -> list[TodoRecord]:
     if not paths.global_open_todos_root.is_dir():
         return []
-    return [parse_todo(path) for path in sorted(paths.global_open_todos_root.glob("*.md"))]
+    return [
+        parse_todo(path) for path in sorted(paths.global_open_todos_root.glob("*.md"))
+    ]
 
 
-def list_matter_todos(matter_ref: str, paths: ProjectPaths = PROJECT_PATHS) -> list[TodoRecord]:
+def list_matter_todos(
+    matter_ref: str, paths: ProjectPaths = PROJECT_PATHS
+) -> list[TodoRecord]:
     matter_dir = resolve_matter(matter_ref, paths)
     todos_dir = matter_dir / "info" / "todos"
     if not todos_dir.is_dir():
@@ -119,10 +143,15 @@ def list_matter_todos(matter_ref: str, paths: ProjectPaths = PROJECT_PATHS) -> l
 def list_claimed_global_todos(paths: ProjectPaths = PROJECT_PATHS) -> list[TodoRecord]:
     if not paths.global_claimed_todos_root.is_dir():
         return []
-    return [parse_todo(path) for path in sorted(paths.global_claimed_todos_root.glob("*.md"))]
+    return [
+        parse_todo(path)
+        for path in sorted(paths.global_claimed_todos_root.glob("*.md"))
+    ]
 
 
-def list_claimed_matter_todos(matter_ref: str, paths: ProjectPaths = PROJECT_PATHS) -> list[TodoRecord]:
+def list_claimed_matter_todos(
+    matter_ref: str, paths: ProjectPaths = PROJECT_PATHS
+) -> list[TodoRecord]:
     matter_dir = resolve_matter(matter_ref, paths)
     todos_dir = matter_dir / "info" / "todos" / "claimed"
     if not todos_dir.is_dir():
@@ -132,10 +161,28 @@ def list_claimed_matter_todos(matter_ref: str, paths: ProjectPaths = PROJECT_PAT
 
 def list_all_todos(paths: ProjectPaths = PROJECT_PATHS) -> list[TodoRecord]:
     records = list_global_todos(paths) + list_claimed_global_todos(paths)
-    for matter_dir in sorted(paths.clients_root.glob("*/matters/*/*")):
+    matter_dirs = [
+        path
+        for path in sorted(paths.clients_root.glob("*/matters/*/*"))
+        if path.is_dir()
+    ]
+    if paths.unbound_root.is_dir():
+        matter_dirs.extend(
+            path.parent.parent
+            for path in sorted(paths.unbound_root.glob("**/info/status.md"))
+        )
+    for matter_dir in matter_dirs:
         if not matter_dir.is_dir():
             continue
         matter_ref = str(matter_dir.relative_to(paths.project_root))
         records.extend(list_matter_todos(matter_ref, paths))
         records.extend(list_claimed_matter_todos(matter_ref, paths))
-    return sorted(records, key=lambda record: (record.matter or "", record.status, record.priority, record.slug))
+    return sorted(
+        records,
+        key=lambda record: (
+            record.matter or "",
+            record.status,
+            record.priority,
+            record.slug,
+        ),
+    )

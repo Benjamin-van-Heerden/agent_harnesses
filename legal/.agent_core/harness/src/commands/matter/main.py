@@ -4,7 +4,20 @@ import typer
 
 from src.config.paths import PROJECT_PATHS
 from src.state.chronology import list_chronology
-from src.state.matters import close_matter, create_matter, find_matters, list_open_matters, list_unparsed_files, resolve_matter, touch_matter
+from src.state.matters import (
+    bind_unbound_matter,
+    close_matter,
+    create_matter,
+    create_unbound_matter,
+    find_matters,
+    list_closed_unbound_matters,
+    list_open_matters,
+    list_open_unbound_matters,
+    list_unparsed_files,
+    list_untracked_unbound_bundles,
+    resolve_matter,
+    touch_matter,
+)
 from src.state.obligations import list_obligations
 from src.state.todos import list_claimed_matter_todos, list_matter_todos
 from src.state.workflows import workflow_focus
@@ -20,14 +33,53 @@ def run() -> None:
 
 
 @app.command("list")
-def list_command() -> None:
+def list_command(
+    unbound: Annotated[
+        bool,
+        typer.Option(
+            "--unbound", help="List unbound matters instead of client matters."
+        ),
+    ] = False,
+    closed: Annotated[
+        bool, typer.Option("--closed", help="Include closed/resolved matter bucket.")
+    ] = False,
+) -> None:
+    if unbound:
+        matters = (
+            list_closed_unbound_matters() if closed else list_open_unbound_matters()
+        )
+        typer.echo(
+            "workspace\tmatter\ttype\tpriority\tnext_obligation\topen_todos\tpath"
+        )
+        if not matters:
+            typer.echo("(no unbound matters)")
+        for matter in matters:
+            matter_ref_path = str(
+                matter.matter_dir.relative_to(PROJECT_PATHS.project_root)
+            )
+            todos = list_matter_todos(matter_ref_path)
+            rel = matter.matter_dir.relative_to(PROJECT_PATHS.project_root)
+            typer.echo(
+                f"unbound\t{matter.matter_dir.name}\t{matter.matter_type}\t{matter.priority}\t"
+                f"{matter.next_obligation}\t{len(todos)}\t{rel}"
+            )
+        untracked = list_untracked_unbound_bundles()
+        if untracked and not closed:
+            typer.echo("")
+            typer.echo("Untracked legacy unbound bundles:")
+            for path in untracked:
+                typer.echo(path.relative_to(PROJECT_PATHS.project_root))
+        return
+
     matters = list_open_matters()
     typer.echo("client\tmatter\ttype\tpriority\tnext_obligation\topen_todos\tpath")
     if not matters:
         typer.echo("(no open matters)")
         return
     for matter in matters:
-        todos = list_matter_todos(str(matter.matter_dir.relative_to(PROJECT_PATHS.project_root)))
+        todos = list_matter_todos(
+            str(matter.matter_dir.relative_to(PROJECT_PATHS.project_root))
+        )
         rel = matter.matter_dir.relative_to(PROJECT_PATHS.project_root)
         typer.echo(
             f"{matter.client}\t{matter.matter_dir.name}\t{matter.matter_type}\t{matter.priority}\t"
@@ -37,20 +89,72 @@ def list_command() -> None:
 
 @app.command("new")
 def new_command(
-    client_slug: Annotated[str, typer.Argument()],
-    matter_type: Annotated[str, typer.Argument()],
-    matter_slug: Annotated[str, typer.Argument()],
+    client_slug: Annotated[str | None, typer.Argument()] = None,
+    matter_type: Annotated[str | None, typer.Argument()] = None,
+    matter_slug: Annotated[str | None, typer.Argument()] = None,
     priority: Annotated[str, typer.Argument()] = "normal",
     billing: Annotated[str, typer.Argument()] = "hourly",
+    unbound: Annotated[
+        str,
+        typer.Option(
+            "--unbound",
+            help="Create an unbound matter from a slash-separated nesting expression.",
+        ),
+    ] = "",
+    priority_option: Annotated[
+        str, typer.Option("--priority", help="Priority for --unbound creation.")
+    ] = "",
+    billing_option: Annotated[
+        str, typer.Option("--billing", help="Billing marker for --unbound creation.")
+    ] = "",
 ) -> None:
+    if unbound:
+        if (
+            client_slug is not None
+            or matter_type is not None
+            or matter_slug is not None
+        ):
+            typer.echo(
+                "When using --unbound, use --priority and --billing instead of client matter arguments.",
+                err=True,
+            )
+            raise typer.Exit(code=1)
+        try:
+            matter_dir = create_unbound_matter(
+                unbound, priority_option or priority, billing_option or billing
+            )
+        except (FileExistsError, ValueError) as error:
+            exit_on_error(error)
+
+        typer.echo(f"Created unbound matter: {matter_dir.name}")
+        typer.echo(f"Matter: {matter_dir.relative_to(PROJECT_PATHS.project_root)}")
+        typer.echo(
+            "You must review status, chronology, obligations, and todos before advising or drafting."
+        )
+        return
+
+    if client_slug is None or matter_type is None or matter_slug is None:
+        typer.echo(
+            "Use matter new <client_slug> <matter_type> <matter_slug>, or matter new --unbound <path>.",
+            err=True,
+        )
+        raise typer.Exit(code=1)
     try:
-        matter_dir = create_matter(client_slug, matter_type, matter_slug, priority, billing)
+        matter_dir = create_matter(
+            client_slug,
+            matter_type,
+            matter_slug,
+            priority_option or priority,
+            billing_option or billing,
+        )
     except (FileExistsError, FileNotFoundError, ValueError) as error:
         exit_on_error(error)
 
     typer.echo(f"Created matter: {matter_dir.name}")
     typer.echo(f"Matter: {matter_dir.relative_to(PROJECT_PATHS.project_root)}")
-    typer.echo("You must review status, chronology, obligations, and todos before advising or drafting.")
+    typer.echo(
+        "You must review status, chronology, obligations, and todos before advising or drafting."
+    )
 
 
 @app.command("resolve")
@@ -62,7 +166,32 @@ def resolve_command(matter_ref: Annotated[str, typer.Argument()]) -> None:
 
     typer.echo(f"Resolved matter: {matter_dir.name}")
     typer.echo(f"Matter: {matter_dir.relative_to(PROJECT_PATHS.project_root)}")
-    typer.echo("You must confirm the closure to the lawyer in plain language and note any unresolved practical follow-up.")
+    typer.echo(
+        "You must confirm the closure to the lawyer in plain language and note any unresolved practical follow-up."
+    )
+
+
+@app.command("bind")
+def bind_command(
+    unbound_ref: Annotated[str, typer.Argument()],
+    client_slug: Annotated[str, typer.Argument()],
+    matter_type: Annotated[str, typer.Argument()],
+    matter_slug: Annotated[str, typer.Argument()],
+    priority: Annotated[str, typer.Argument()] = "normal",
+    billing: Annotated[str, typer.Argument()] = "hourly",
+) -> None:
+    try:
+        matter_dir = bind_unbound_matter(
+            unbound_ref, client_slug, matter_type, matter_slug, priority, billing
+        )
+    except (FileExistsError, FileNotFoundError, ValueError) as error:
+        exit_on_error(error)
+
+    typer.echo(f"Bound unbound matter: {matter_dir.name}")
+    typer.echo(f"Matter: {matter_dir.relative_to(PROJECT_PATHS.project_root)}")
+    typer.echo(
+        "You must review the new client matter status and chronology before advising or drafting."
+    )
 
 
 @app.command("find")
@@ -98,27 +227,51 @@ def focus(matter_ref: str) -> None:
     chronology_dir = matter_dir / "info" / "chronology"
     obligations_dir = matter_dir / "info" / "obligations"
     typst_files = sorted(path for path in matter_dir.glob("*.typ") if path.is_file())
-    generated_pdf_files = sorted(path for path in matter_dir.glob("*.p.pdf") if path.is_file())
+    generated_pdf_files = sorted(
+        path for path in matter_dir.glob("*.p.pdf") if path.is_file()
+    )
     other_pdf_files = sorted(
         path
         for path in matter_dir.glob("*.pdf")
         if path.is_file() and path.suffixes[-2:] != [".p", ".pdf"]
     )
-    raw_files = sorted(path for path in (matter_dir / "raw").iterdir() if path.is_file()) if (matter_dir / "raw").is_dir() else []
-    reference_files = sorted(path for path in (matter_dir / "reference").iterdir() if path.is_file()) if (matter_dir / "reference").is_dir() else []
-    unparsed = list_unparsed_files(str(matter_dir.relative_to(PROJECT_PATHS.project_root)))
+    raw_files = (
+        sorted(path for path in (matter_dir / "raw").iterdir() if path.is_file())
+        if (matter_dir / "raw").is_dir()
+        else []
+    )
+    reference_files = (
+        sorted(path for path in (matter_dir / "reference").iterdir() if path.is_file())
+        if (matter_dir / "reference").is_dir()
+        else []
+    )
+    unparsed = list_unparsed_files(
+        str(matter_dir.relative_to(PROJECT_PATHS.project_root))
+    )
     matter_ref_path = str(matter_dir.relative_to(PROJECT_PATHS.project_root))
-    todos = list_matter_todos(matter_ref_path) + list_claimed_matter_todos(matter_ref_path)
-    chronology = list_chronology(str(matter_dir.relative_to(PROJECT_PATHS.project_root)))
-    obligations = list_obligations(str(matter_dir.relative_to(PROJECT_PATHS.project_root)))
+    todos = list_matter_todos(matter_ref_path) + list_claimed_matter_todos(
+        matter_ref_path
+    )
+    chronology = list_chronology(
+        str(matter_dir.relative_to(PROJECT_PATHS.project_root))
+    )
+    obligations = list_obligations(
+        str(matter_dir.relative_to(PROJECT_PATHS.project_root))
+    )
     workflow_state = workflow_focus(matter_dir)
 
     typer.echo(f"Focused matter: {matter_dir.relative_to(PROJECT_PATHS.project_root)}")
     typer.echo(f"Status file: {'present' if status_file.is_file() else 'missing'}")
-    typer.echo(f"Chronology directory: {'present' if chronology_dir.is_dir() else 'missing'}")
+    typer.echo(
+        f"Chronology directory: {'present' if chronology_dir.is_dir() else 'missing'}"
+    )
     typer.echo(f"Chronology events: {len(chronology)}")
-    typer.echo(f"Obligations directory: {'present' if obligations_dir.is_dir() else 'missing'}")
-    typer.echo(f"Open obligations: {len([obligation for obligation in obligations if obligation.status == 'open'])}")
+    typer.echo(
+        f"Obligations directory: {'present' if obligations_dir.is_dir() else 'missing'}"
+    )
+    typer.echo(
+        f"Open obligations: {len([obligation for obligation in obligations if obligation.status == 'open'])}"
+    )
     typer.echo(f"Matter todos: {len(todos)}")
     typer.echo(f"Typst drafts: {len(typst_files)}")
     typer.echo(f"Generated PDF outputs: {len(generated_pdf_files)}")
@@ -126,17 +279,31 @@ def focus(matter_ref: str) -> None:
     typer.echo(f"Raw files: {len(raw_files)}")
     typer.echo(f"Reference files: {len(reference_files)}")
     typer.echo(f"Unparsed raw files: {len(unparsed)}")
-    workflow_name = workflow_state.workflow.name if workflow_state is not None and workflow_state.workflow is not None else "(none)"
+    workflow_name = (
+        workflow_state.workflow.name
+        if workflow_state is not None and workflow_state.workflow is not None
+        else "(none)"
+    )
     if workflow_state is not None and workflow_state.error is not None:
         workflow_name = "(invalid)"
     typer.echo(f"Workflow: {workflow_name}")
     typer.echo("")
     typer.echo("Matter focus read set:")
-    typer.echo(f"- Status: {status_file.relative_to(PROJECT_PATHS.project_root) if status_file.is_file() else 'missing'}")
-    typer.echo(f"- Chronology: {min(len(chronology), 5)} recent event(s) shown below from {len(chronology)} total event(s)")
-    typer.echo(f"- Open obligations: {len([obligation for obligation in obligations if obligation.status == 'open'])} shown below")
-    typer.echo(f"- Drafts/outputs: {len(typst_files)} Typst source(s), {len(generated_pdf_files)} generated .p.pdf output(s), {len(other_pdf_files)} other PDF(s)")
-    typer.echo(f"- Reference material: {len(reference_files)} reference file(s), {len(raw_files)} raw file(s), {len(unparsed)} unparsed raw file(s)")
+    typer.echo(
+        f"- Status: {status_file.relative_to(PROJECT_PATHS.project_root) if status_file.is_file() else 'missing'}"
+    )
+    typer.echo(
+        f"- Chronology: {min(len(chronology), 5)} recent event(s) shown below from {len(chronology)} total event(s)"
+    )
+    typer.echo(
+        f"- Open obligations: {len([obligation for obligation in obligations if obligation.status == 'open'])} shown below"
+    )
+    typer.echo(
+        f"- Drafts/outputs: {len(typst_files)} Typst source(s), {len(generated_pdf_files)} generated .p.pdf output(s), {len(other_pdf_files)} other PDF(s)"
+    )
+    typer.echo(
+        f"- Reference material: {len(reference_files)} reference file(s), {len(raw_files)} raw file(s), {len(unparsed)} unparsed raw file(s)"
+    )
     typer.echo(f"- Matter todos: {len(todos)} shown below")
     if workflow_state is not None:
         typer.echo(f"- Workflow next action: {workflow_state.next_action}")
@@ -146,7 +313,9 @@ def focus(matter_ref: str) -> None:
         typer.echo("Open obligations:")
         for obligation in obligations:
             if obligation.status == "open":
-                typer.echo(f"- {obligation.due_date} - {obligation.kind} - {obligation.description}")
+                typer.echo(
+                    f"- {obligation.due_date} - {obligation.kind} - {obligation.description}"
+                )
     if chronology:
         typer.echo("")
         typer.echo("Recent chronology:")
@@ -164,9 +333,15 @@ def focus(matter_ref: str) -> None:
             typer.echo(f"- Workflow error: {workflow_state.error}")
         elif workflow_state.workflow is not None:
             typer.echo(f"- Workflow: {workflow_state.workflow.name}")
-        typer.echo(f"- Completed: {', '.join(workflow_state.progress.completed_steps) or '(none)'}")
-        typer.echo(f"- Current: {', '.join(step.id for step in workflow_state.available_steps) or '(none)'}")
-        typer.echo(f"- Blocked: {', '.join(step.id for step in workflow_state.blocked_steps) or '(none)'}")
+        typer.echo(
+            f"- Completed: {', '.join(workflow_state.progress.completed_steps) or '(none)'}"
+        )
+        typer.echo(
+            f"- Current: {', '.join(step.id for step in workflow_state.available_steps) or '(none)'}"
+        )
+        typer.echo(
+            f"- Blocked: {', '.join(step.id for step in workflow_state.blocked_steps) or '(none)'}"
+        )
         if workflow_state.missing_prerequisites:
             typer.echo("- Missing prerequisites:")
             for step_id, required in workflow_state.missing_prerequisites.items():
@@ -186,9 +361,13 @@ def focus(matter_ref: str) -> None:
         typer.echo("")
         typer.echo("Drafts and outputs:")
         for path in typst_files:
-            typer.echo(f"- Typst source: {path.relative_to(PROJECT_PATHS.project_root)}")
+            typer.echo(
+                f"- Typst source: {path.relative_to(PROJECT_PATHS.project_root)}"
+            )
         for path in generated_pdf_files:
-            typer.echo(f"- Generated PDF: {path.relative_to(PROJECT_PATHS.project_root)}")
+            typer.echo(
+                f"- Generated PDF: {path.relative_to(PROJECT_PATHS.project_root)}"
+            )
         for path in other_pdf_files:
             typer.echo(f"- Other PDF: {path.relative_to(PROJECT_PATHS.project_root)}")
     if reference_files:
@@ -197,4 +376,6 @@ def focus(matter_ref: str) -> None:
         for path in reference_files:
             typer.echo(f"- {path.relative_to(PROJECT_PATHS.project_root)}")
     typer.echo("")
-    typer.echo("Brief the lawyer in plain language. Do not mention file paths unless asked.")
+    typer.echo(
+        "Brief the lawyer in plain language. Do not mention file paths unless asked."
+    )

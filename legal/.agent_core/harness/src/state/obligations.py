@@ -19,7 +19,14 @@ VALID_OBLIGATION_KINDS = (
     "client_meeting",
     "other",
 )
-VALID_OBLIGATION_STATUSES = ("open", "done", "missed", "waived", "extended", "superseded")
+VALID_OBLIGATION_STATUSES = (
+    "open",
+    "done",
+    "missed",
+    "waived",
+    "extended",
+    "superseded",
+)
 
 
 def validate_obligation_kind(value: str) -> None:
@@ -70,18 +77,28 @@ def create_obligation(
     paths: ProjectPaths = PROJECT_PATHS,
 ) -> Path:
     matter_dir = resolve_matter(matter_ref, paths)
-    target = matter_obligations_dir(matter_dir) / kind / f"{due_date}-{obligation_id}.toml"
+    target = (
+        matter_obligations_dir(matter_dir) / kind / f"{due_date}-{obligation_id}.toml"
+    )
     if target.exists():
         raise FileExistsError(f"obligation already exists: {target}")
     target.parent.mkdir(parents=True, exist_ok=True)
-    target.write_text(obligation_content(obligation_id, kind, status, due_date, description, source_event))
+    target.write_text(
+        obligation_content(
+            obligation_id, kind, status, due_date, description, source_event
+        )
+    )
     if status == "open":
         open_dates = [
             parse_obligation(path).due_date
             for path in sorted(matter_obligations_dir(matter_dir).glob("*/*.toml"))
             if parse_obligation(path).status == "open"
         ]
-        frontmatter_set(matter_dir / "info" / "status.md", "next_obligation", min(open_dates) if open_dates else "null")
+        frontmatter_set(
+            matter_dir / "info" / "status.md",
+            "next_obligation",
+            min(open_dates) if open_dates else "null",
+        )
     touch_matter(matter_dir)
     return target
 
@@ -99,7 +116,9 @@ def parse_obligation(path: Path) -> ObligationRecord:
     )
 
 
-def list_obligations(matter_ref: str, paths: ProjectPaths = PROJECT_PATHS) -> list[ObligationRecord]:
+def list_obligations(
+    matter_ref: str, paths: ProjectPaths = PROJECT_PATHS
+) -> list[ObligationRecord]:
     matter_dir = resolve_matter(matter_ref, paths)
     obligations_dir = matter_obligations_dir(matter_dir)
     if not obligations_dir.is_dir():
@@ -107,15 +126,28 @@ def list_obligations(matter_ref: str, paths: ProjectPaths = PROJECT_PATHS) -> li
     return [parse_obligation(path) for path in sorted(obligations_dir.glob("*/*.toml"))]
 
 
-def upcoming_obligations(days: int = 14, paths: ProjectPaths = PROJECT_PATHS) -> list[tuple[str, Path, ObligationRecord]]:
+def upcoming_obligations(
+    days: int = 14, paths: ProjectPaths = PROJECT_PATHS
+) -> list[tuple[str, Path, ObligationRecord]]:
     from datetime import datetime, timedelta
 
     from src.state.time import today
 
     today_date = today()
-    cutoff = (datetime.strptime(today_date, "%Y-%m-%d") + timedelta(days=days)).strftime("%Y-%m-%d")
+    cutoff = (
+        datetime.strptime(today_date, "%Y-%m-%d") + timedelta(days=days)
+    ).strftime("%Y-%m-%d")
     rows: list[tuple[str, Path, ObligationRecord]] = []
-    for obligation_file in sorted(paths.clients_root.glob("*/matters/open/*/info/obligations/*/*.toml")):
+    for obligation_file in sorted(
+        paths.clients_root.glob("*/matters/open/*/info/obligations/*/*.toml")
+    ):
+        matter_dir = obligation_file.parent.parent.parent.parent
+        obligation = parse_obligation(obligation_file)
+        if obligation.status == "open" and today_date <= obligation.due_date <= cutoff:
+            rows.append((obligation.due_date, matter_dir, obligation))
+    for obligation_file in sorted(
+        paths.unbound_open_root.glob("**/info/obligations/*/*.toml")
+    ):
         matter_dir = obligation_file.parent.parent.parent.parent
         obligation = parse_obligation(obligation_file)
         if obligation.status == "open" and today_date <= obligation.due_date <= cutoff:

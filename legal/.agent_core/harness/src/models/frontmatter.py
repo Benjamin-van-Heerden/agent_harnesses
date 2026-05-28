@@ -28,6 +28,9 @@ class MatterStatusFrontmatter(BaseModel):
     priority: Priority = "normal"
     opened: str
     client: str
+    workspace: str = "client"
+    unbound_path: str | None = None
+    bound_from: str | None = None
     co_clients: list[str] = []
     opposing_parties: list[str] = []
     court: str | None = None

@@ -47,6 +47,7 @@ def test_installed_runtime_foundation_commands_run(tmp_path: Path) -> None:
     assert "deadline" not in help_result.stdout
     assert "record" not in help_result.stdout
     assert "lint" in help_result.stdout
+    assert "repair" in help_result.stdout
 
     paths_result = run_command([*harness, "paths"], cwd=target)
     assert f"Project root: {target}" in paths_result.stdout
@@ -59,10 +60,18 @@ def test_installed_runtime_foundation_commands_run(tmp_path: Path) -> None:
         in paths_result.stdout
     )
     assert f"Clients root: {target / 'ZZ_CLIENTS'}" in paths_result.stdout
+    assert f"Unbound root: {target / 'UNBOUND'}" in paths_result.stdout
     assert f"WIP root: {target / 'WIP'}" in paths_result.stdout
+    assert f"Assets root: {target / 'assets'}" in paths_result.stdout
     assert_ascii_safe(paths_result.stdout)
 
     config_result = run_command([*harness, "config", "show"], cwd=target)
     assert "Harness: legal" in config_result.stdout
     assert "Local git snapshots: True" in config_result.stdout
     assert_ascii_safe(config_result.stdout)
+
+    repair = run_command([*harness, "repair", "audit"], cwd=target)
+    assert "Legal repair audit" in repair.stdout
+    assert "Relevant global work logs" in repair.stdout
+    assert "Repair instructions" in repair.stdout
+    assert_ascii_safe(repair.stdout)

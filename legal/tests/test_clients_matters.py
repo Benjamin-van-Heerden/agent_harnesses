@@ -346,3 +346,76 @@ def test_lifecycle_commands_create_and_resolve_chronology(tmp_path: Path) -> Non
 
     clients = run_command([*harness, "client", "list"], cwd=target)
     assert "smith\tSmith Corp\tentity\t0\t1" in clients.stdout
+
+
+def test_unbound_matter_creation_onboard_and_binding(tmp_path: Path) -> None:
+    target = tmp_path / "practice"
+    target.mkdir()
+    run_setup(target)
+
+    harness = harness_command()
+    unbound = run_command(
+        [
+            *harness,
+            "matter",
+            "new",
+            "--unbound",
+            "VALUATIONS/CHARL_VAN_DUYKER_VALUATIONS/Grobler Abbey Valuation",
+            "--priority",
+            "high",
+        ],
+        cwd=target,
+    )
+    assert "Created unbound matter: grobler_abbey_valuation" in unbound.stdout
+    unbound_dir = (
+        target
+        / "UNBOUND"
+        / "open"
+        / "VALUATIONS"
+        / "CHARL_VAN_DUYKER_VALUATIONS"
+        / "grobler_abbey_valuation"
+    )
+    assert (unbound_dir / "info" / "status.md").is_file()
+    assert "workspace: unbound" in (unbound_dir / "info" / "status.md").read_text()
+
+    legacy = target / "UNBOUND" / "VALUATIONS" / "LEGACY_VALUATION"
+    legacy.mkdir(parents=True)
+    (legacy / "legacy.typ").write_text("#let x = 1")
+
+    listed = run_command([*harness, "matter", "list", "--unbound"], cwd=target)
+    assert "grobler_abbey_valuation" in listed.stdout
+    assert "Untracked legacy unbound bundles" in listed.stdout
+    assert "UNBOUND/VALUATIONS/LEGACY_VALUATION" in listed.stdout
+
+    onboard = run_command([*harness, "onboard"], cwd=target)
+    assert "Unbound matters" in onboard.stdout
+    assert "grobler_abbey_valuation" in onboard.stdout
+    assert "UNBOUND/VALUATIONS/LEGACY_VALUATION" in onboard.stdout
+
+    run_command(
+        [*harness, "client", "new", "Smith Corp", "entity", "--slug", "smith"],
+        cwd=target,
+    )
+    bound = run_command(
+        [
+            *harness,
+            "matter",
+            "bind",
+            "grobler_abbey_valuation",
+            "smith",
+            "valuation",
+            "grobler_abbey",
+            "high",
+            "hourly",
+        ],
+        cwd=target,
+    )
+    assert "Bound unbound matter:" in bound.stdout
+    bound_dir = next((target / "ZZ_CLIENTS" / "SMITH" / "matters" / "open").iterdir())
+    status = (bound_dir / "info" / "status.md").read_text()
+    assert "client: smith" in status
+    assert (
+        "bound_from: UNBOUND/open/VALUATIONS/CHARL_VAN_DUYKER_VALUATIONS/grobler_abbey_valuation"
+        in status
+    )
+    assert not unbound_dir.exists()

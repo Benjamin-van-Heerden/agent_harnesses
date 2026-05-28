@@ -82,7 +82,7 @@ assert "status: claimed" in claimed.read_text()
 memory = create_memory("affidavit_style", "Affidavit style")
 assert list_memories()[0].path == memory
 
-work_log = create_work_log("jones_dispute")
+work_log = create_work_log()
 assert recent_work_logs()[0].path == work_log
 
 obligation = create_obligation("jones_dispute", "prepare_bundle", "preparation", "2999-05-20", "Prepare indexed bundle")

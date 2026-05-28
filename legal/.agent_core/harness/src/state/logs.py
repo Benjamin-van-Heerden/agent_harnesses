@@ -2,11 +2,15 @@ from pathlib import Path
 
 from src.config.paths import PROJECT_PATHS, ProjectPaths
 from src.models.frontmatter import WorkLogFrontmatter
-from src.state.matters import resolve_matter, touch_matter
 from src.state.models import WorkLogRecord
 from src.state.templates import render_template
 from src.state.time import now_stamp, now_time, today
-from src.utils.markdown import MarkdownDocument, frontmatter_get, read_markdown, write_markdown
+from src.utils.markdown import (
+    MarkdownDocument,
+    frontmatter_get,
+    read_markdown,
+    write_markdown,
+)
 
 
 EMPTY_LOG_MARKERS = (
@@ -26,11 +30,10 @@ def parse_work_log(path: Path) -> WorkLogRecord:
 
 
 def create_work_log(matter_ref: str = "", paths: ProjectPaths = PROJECT_PATHS) -> Path:
-    matter_path: str | None = None
     if matter_ref:
-        matter_dir = resolve_matter(matter_ref, paths)
-        matter_path = str(matter_dir.relative_to(paths.project_root))
-        touch_matter(matter_dir)
+        raise ValueError(
+            "matter-specific work logs are retired. Use chronology, obligations, todos, and status for matter-specific context."
+        )
 
     stamp = now_stamp()
     path = paths.logs_root / f"{stamp}_log.md"
@@ -46,7 +49,7 @@ def create_work_log(matter_ref: str = "", paths: ProjectPaths = PROJECT_PATHS) -
             frontmatter=WorkLogFrontmatter(
                 date=today(),
                 session_start=now_time(),
-                matter=matter_path,
+                matter=None,
             ).to_dict(),
             body=body,
         ),
@@ -72,7 +75,24 @@ def cleanup_empty_work_logs(paths: ProjectPaths = PROJECT_PATHS) -> list[Path]:
     return removed
 
 
-def recent_work_logs(limit: int = 5, paths: ProjectPaths = PROJECT_PATHS) -> list[WorkLogRecord]:
+def recent_work_logs(
+    limit: int = 5, paths: ProjectPaths = PROJECT_PATHS
+) -> list[WorkLogRecord]:
     if not paths.logs_root.is_dir():
         return []
-    return [parse_work_log(path) for path in sorted(paths.logs_root.glob("*.md"), reverse=True)[:limit]]
+    return [
+        parse_work_log(path)
+        for path in sorted(paths.logs_root.glob("*.md"), reverse=True)[:limit]
+    ]
+
+
+def recent_global_work_logs(
+    limit: int = 5, paths: ProjectPaths = PROJECT_PATHS
+) -> list[WorkLogRecord]:
+    if not paths.logs_root.is_dir():
+        return []
+    records = [
+        parse_work_log(path)
+        for path in sorted(paths.logs_root.glob("*.md"), reverse=True)
+    ]
+    return [record for record in records if record.matter == "null"][:limit]

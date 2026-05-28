@@ -20,6 +20,9 @@ class ProjectPaths:
     lawyer_profile: Path
     firm_profile: Path
     clients_root: Path
+    unbound_root: Path
+    unbound_open_root: Path
+    unbound_closed_root: Path
     wip_root: Path
     wip_drafts_root: Path
     wip_experiments_root: Path
@@ -29,7 +32,9 @@ class ProjectPaths:
     global_open_todos_root: Path
     global_claimed_todos_root: Path
     templates_root: Path
+    assets_root: Path
     src_root: Path
+    src_components_root: Path
     src_types_root: Path
     src_constants_root: Path
     src_functions_root: Path
@@ -64,12 +69,16 @@ def build_project_paths(project_root: Path | None = None) -> ProjectPaths:
         client_matter_index=state_root / "client_matter_index.toml",
         workflows_root=local_context_root / "workflows",
         typst_basic_reference=docs_root / "legal_harness_typst_basic_reference.typ",
-        typst_house_rules_reference=docs_root / "legal_harness_typst_soft_typesystem_and_house_rules.typ",
+        typst_house_rules_reference=docs_root
+        / "legal_harness_typst_soft_typesystem_and_house_rules.typ",
         typst_detailed_reference=docs_root / "typst_detailed_reference.typ",
         local_context_root=local_context_root,
         lawyer_profile=local_context_root / "lawyer_profile.md",
         firm_profile=local_context_root / "firm_profile.md",
         clients_root=root / "ZZ_CLIENTS",
+        unbound_root=root / "UNBOUND",
+        unbound_open_root=root / "UNBOUND" / "open",
+        unbound_closed_root=root / "UNBOUND" / "closed",
         wip_root=root / "WIP",
         wip_drafts_root=root / "WIP" / "drafts",
         wip_experiments_root=root / "WIP" / "experiments",
@@ -79,7 +88,9 @@ def build_project_paths(project_root: Path | None = None) -> ProjectPaths:
         global_open_todos_root=state_root / "todos" / "open",
         global_claimed_todos_root=state_root / "todos" / "claimed",
         templates_root=harness_root / "templates",
+        assets_root=root / "assets",
         src_root=root / "src",
+        src_components_root=root / "src" / "components",
         src_types_root=root / "src" / "types",
         src_constants_root=root / "src" / "constants",
         src_functions_root=root / "src" / "functions",
@@ -104,11 +115,15 @@ def client_profile(client_slug: str, paths: ProjectPaths = PROJECT_PATHS) -> Pat
     return client_dir(client_slug, paths) / "profile.md"
 
 
-def matter_bucket(client_slug: str, status: str, paths: ProjectPaths = PROJECT_PATHS) -> Path:
+def matter_bucket(
+    client_slug: str, status: str, paths: ProjectPaths = PROJECT_PATHS
+) -> Path:
     return client_dir(client_slug, paths) / "matters" / status
 
 
-def matter_dir(client_slug: str, status: str, matter_slug: str, paths: ProjectPaths = PROJECT_PATHS) -> Path:
+def matter_dir(
+    client_slug: str, status: str, matter_slug: str, paths: ProjectPaths = PROJECT_PATHS
+) -> Path:
     return matter_bucket(client_slug, status, paths) / matter_slug
 
 

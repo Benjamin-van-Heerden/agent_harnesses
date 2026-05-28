@@ -6,8 +6,16 @@ import typer
 from src.config.paths import PROJECT_PATHS
 from src.state.client_index import refresh_client_matter_index
 from src.state.clients import list_clients
-from src.state.logs import cleanup_empty_work_logs, create_work_log, recent_work_logs
-from src.state.matters import list_open_matters
+from src.state.logs import (
+    cleanup_empty_work_logs,
+    create_work_log,
+    recent_global_work_logs,
+)
+from src.state.matters import (
+    list_open_matters,
+    list_open_unbound_matters,
+    list_untracked_unbound_bundles,
+)
 from src.state.memories import list_memories
 from src.state.obligations import upcoming_obligations
 from src.state.todos import list_all_todos
@@ -33,7 +41,9 @@ def _has_placeholder(path: Path) -> bool:
 def _typst_files() -> list[Path]:
     if not PROJECT_PATHS.src_root.is_dir():
         return []
-    return sorted(path for path in PROJECT_PATHS.src_root.rglob("*.typ") if path.is_file())
+    return sorted(
+        path for path in PROJECT_PATHS.src_root.rglob("*.typ") if path.is_file()
+    )
 
 
 def _read_text(path: Path) -> str:
@@ -70,10 +80,20 @@ def _table(headers: Sequence[str], rows: Sequence[Sequence[str]]) -> None:
         max(len(header), *(len(row[index]) for row in rows))
         for index, header in enumerate(headers)
     ]
-    typer.echo("| " + " | ".join(header.ljust(widths[index]) for index, header in enumerate(headers)) + " |")
+    typer.echo(
+        "| "
+        + " | ".join(
+            header.ljust(widths[index]) for index, header in enumerate(headers)
+        )
+        + " |"
+    )
     typer.echo("| " + " | ".join("-" * width for width in widths) + " |")
     for row in rows:
-        typer.echo("| " + " | ".join(value.ljust(widths[index]) for index, value in enumerate(row)) + " |")
+        typer.echo(
+            "| "
+            + " | ".join(value.ljust(widths[index]) for index, value in enumerate(row))
+            + " |"
+        )
 
 
 def _todo_scope(matter: str) -> str:
@@ -118,15 +138,19 @@ def run() -> None:
     ]
     clients = list_clients()
     open_matters = list_open_matters()
+    open_unbound_matters = list_open_unbound_matters()
+    untracked_unbound = list_untracked_unbound_bundles()
     client_index = refresh_client_matter_index()
     obligations = upcoming_obligations(14)
     memories = list_memories()
     removed_logs = cleanup_empty_work_logs()
-    logs = recent_work_logs(3)
+    logs = recent_global_work_logs(5)
     session_log = create_work_log()
     todos = list_all_todos()
     typst_files = _typst_files()
-    high_priority = [matter for matter in open_matters if matter.priority in ("high", "urgent")]
+    high_priority = [
+        matter for matter in open_matters if matter.priority in ("high", "urgent")
+    ]
     onboard_docs = _onboard_docs()
     post_command_snapshot(PROJECT_PATHS.project_root)
 
@@ -139,14 +163,19 @@ def run() -> None:
         [
             ("Project root", str(PROJECT_PATHS.project_root)),
             ("Lawyer profile", "present" if profile_ready else "missing"),
-            ("Session work log", str(session_log.relative_to(PROJECT_PATHS.project_root))),
+            (
+                "Session work log",
+                str(session_log.relative_to(PROJECT_PATHS.project_root)),
+            ),
         ],
     )
 
     if placeholder_files:
         _section("Setup warnings")
         for path in placeholder_files:
-            typer.echo(f"- Placeholder remains: {path.relative_to(PROJECT_PATHS.project_root)}")
+            typer.echo(
+                f"- Placeholder remains: {path.relative_to(PROJECT_PATHS.project_root)}"
+            )
 
     if onboard_docs:
         _section("Required docs")
@@ -161,10 +190,12 @@ def run() -> None:
         [
             ("Clients", str(len(clients))),
             ("Open matters", str(len(open_matters))),
+            ("Open unbound matters", str(len(open_unbound_matters))),
+            ("Untracked unbound bundles", str(len(untracked_unbound))),
             ("Upcoming obligations within 14 days", str(len(obligations))),
             ("High-priority matters", str(len(high_priority))),
             ("Practice memories", str(len(memories))),
-            ("Recent work logs", str(len(logs))),
+            ("Recent global work logs", str(len(logs))),
             ("Typst building blocks", str(len(typst_files))),
         ],
     )
@@ -186,6 +217,37 @@ def run() -> None:
                 matters = "(no matters)"
             rows.append((entry.client.display_name, matters))
         _table(("Client", "Recent matters"), rows)
+
+    if logs:
+        _section("Recent global work logs")
+        typer.echo(
+            "These are prior session continuity records. You must read them before substantive work."
+        )
+        for log in logs:
+            _file(str(log.path.relative_to(PROJECT_PATHS.project_root)))
+            typer.echo(_read_text(log.path))
+            typer.echo("")
+
+    if open_unbound_matters or untracked_unbound:
+        _section("Unbound matters")
+        if open_unbound_matters:
+            rows = []
+            for matter in open_unbound_matters:
+                rows.append(
+                    (
+                        matter.priority,
+                        matter.matter_type,
+                        matter.matter_dir.name,
+                        matter.last_touched_at or "not touched",
+                        str(matter.matter_dir.relative_to(PROJECT_PATHS.project_root)),
+                    )
+                )
+            _table(("Priority", "Type", "Matter", "Last touched", "Path"), rows)
+        if untracked_unbound:
+            typer.echo("")
+            typer.echo("Untracked legacy unbound bundles")
+            for path in untracked_unbound:
+                typer.echo(f"- {path.relative_to(PROJECT_PATHS.project_root)}")
 
     if obligations:
         _section("Upcoming obligations")
@@ -231,9 +293,21 @@ def run() -> None:
     typer.echo("Your next response must brief the lawyer in plain language.")
     if todos:
         typer.echo("Present surfaced todos grouped by global and matter scope.")
-    typer.echo("Do not mention command names, slugs, paths, or git details unless asked.")
-    read_targets = "profile, legal context, matter files, memories, and logs"
+    typer.echo(
+        "Do not mention command names, slugs, paths, or git details unless asked."
+    )
+    read_targets = "profile, legal context, global work logs, matter files, memories, and the current session work log"
     if todos:
         read_targets += ", plus surfaced todos"
-    typer.echo(f"You must read the relevant {read_targets} before doing substantive legal work.")
-    typer.echo("Keep the session work log updated as work happens. If no meaningful work happens, the next onboard will remove the untouched empty log.")
+    typer.echo(
+        f"You must read the relevant {read_targets} before doing substantive legal work."
+    )
+    typer.echo(
+        f"You must read the current session work log now: {session_log.relative_to(PROJECT_PATHS.project_root)}"
+    )
+    typer.echo(
+        "You must update the current session work log as and when work is done, decisions are made, blockers appear, or next steps become clear."
+    )
+    typer.echo(
+        "If no meaningful work happens, the next onboard will remove the untouched empty log."
+    )

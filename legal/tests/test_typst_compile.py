@@ -19,8 +19,8 @@ from src.state.matters import create_matter
 
 create_client("smith", "Smith Corp", "entity")
 matter = create_matter("smith", "litigation", "compile_test", "normal", "hourly")
-Path("src/templates/components/style.typ").write_text("#let marker = [Hello]")
-(matter / "draft.typ").write_text('#import "../../../../../src/templates/components/style.typ": marker\\n#marker')
+Path("src/components/style.typ").write_text("#let marker = [Hello]")
+(matter / "draft.typ").write_text('#import "../../../../../src/components/style.typ": marker\\n#marker')
 (matter / "source.pdf").write_text("external pdf")
 """.strip()
     run_command(

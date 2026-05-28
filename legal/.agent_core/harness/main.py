@@ -16,6 +16,7 @@ from src.commands.matter.main import app as matter_app  # noqa: E402
 from src.commands.memory.main import app as memory_app  # noqa: E402
 from src.commands.obligation.main import app as obligation_app  # noqa: E402
 from src.commands.onboard.main import app as onboard_app  # noqa: E402
+from src.commands.repair.main import app as repair_app  # noqa: E402
 from src.commands.todo.main import app as todo_app  # noqa: E402
 from src.commands.workflow.main import app as workflow_app  # noqa: E402
 from src.config.main import load_config  # noqa: E402
@@ -36,6 +37,7 @@ app.add_typer(log_app, name="log")
 app.add_typer(workflow_app, name="workflow")
 app.add_typer(lint_app, name="lint")
 app.add_typer(compile_app, name="compile")
+app.add_typer(repair_app, name="repair")
 
 
 @app.command()
@@ -48,7 +50,9 @@ def paths() -> None:
     typer.echo(f"Docs root: {PROJECT_PATHS.docs_root}")
     typer.echo(f"Local context root: {PROJECT_PATHS.local_context_root}")
     typer.echo(f"Clients root: {PROJECT_PATHS.clients_root}")
+    typer.echo(f"Unbound root: {PROJECT_PATHS.unbound_root}")
     typer.echo(f"WIP root: {PROJECT_PATHS.wip_root}")
+    typer.echo(f"Assets root: {PROJECT_PATHS.assets_root}")
     typer.echo(f"Typst source root: {PROJECT_PATHS.src_root}")
 
 

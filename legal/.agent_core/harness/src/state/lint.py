@@ -29,7 +29,11 @@ def lint_frontmatter(paths: ProjectPaths = PROJECT_PATHS) -> list[str]:
         if error is not None:
             errors.append(error)
 
-    for file in sorted(paths.clients_root.glob("*/matters/*/*/info/status.md")):
+    matter_status_files = list(
+        sorted(paths.clients_root.glob("*/matters/*/*/info/status.md"))
+    )
+    matter_status_files.extend(sorted(paths.unbound_root.glob("**/info/status.md")))
+    for file in matter_status_files:
         for key in ("matter_type", "client", "billing"):
             error = _missing_required(file, key)
             if error is not None:
@@ -41,5 +45,13 @@ def lint_frontmatter(paths: ProjectPaths = PROJECT_PATHS) -> list[str]:
             error = _invalid_choice(file, key, allowed)
             if error is not None:
                 errors.append(error)
+
+    if paths.src_functions_root.is_dir():
+        errors.append(
+            f"{paths.src_functions_root}: deprecated Typst layout; use src/components, src/templates, src/types, or src/constants"
+        )
+    nested_assets = paths.src_templates_root / "components" / "assets"
+    if nested_assets.is_dir():
+        errors.append(f"{nested_assets}: deprecated asset location; use root assets/")
 
     return errors

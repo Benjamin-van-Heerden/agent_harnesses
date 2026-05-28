@@ -28,6 +28,8 @@ class MatterStatus:
     tags: list[str]
     path: Path
     matter_dir: Path
+    workspace: str = "client"
+    unbound_path: str = ""
 
 
 @dataclass(frozen=True)

@@ -178,12 +178,12 @@ def test_bookkeeping_commands_create_chronology_obligations_and_todos(
     assert memory_file.is_file()
     assert "_TODO_" in memory_file.read_text()
 
-    work_log = run_command([*harness, "log", "new", "shareholder_dispute"], cwd=target)
+    work_log = run_command([*harness, "log", "new"], cwd=target)
     assert "Created work log:" in work_log.stdout
     assert "replace every TODO" in work_log.stdout
     log_files = list((target / ".praxis" / "local_context" / "logs").glob("*.md"))
     assert len(log_files) == 1
-    assert "matter: ZZ_CLIENTS/SMITH/matters/open/" in log_files[0].read_text()
+    assert "matter: null" in log_files[0].read_text()
 
     obligation = run_command(
         [*harness, "obligation", "list", "shareholder_dispute"], cwd=target

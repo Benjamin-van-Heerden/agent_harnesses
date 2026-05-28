@@ -1,3 +1,4 @@
+import sys
 from pathlib import Path
 
 from helpers import assert_ascii_safe, harness_command, run_command, run_setup
@@ -16,6 +17,7 @@ def test_installed_onboard_command_runs(tmp_path: Path) -> None:
     assert "# .praxis/core_docs/legal_context.typ" in result.stdout
     assert "legal_harness_function.md" not in result.stdout
     assert "You must read the relevant profile" in result.stdout
+    assert "current session work log" in result.stdout
     assert_ascii_safe(result.stdout)
 
 
@@ -56,6 +58,7 @@ def test_onboard_creates_session_log_and_removes_untouched_empty_logs(
     harness = harness_command()
     first = run_command([*harness, "onboard"], cwd=target)
     assert "Session work log" in first.stdout
+    assert "You must read the current session work log now" in first.stdout
     assert "\nTodos\n-----" not in first.stdout
     assert "surfaced todos" not in first.stdout
     logs_root = target / ".praxis" / "local_context" / "logs"
@@ -77,4 +80,33 @@ def test_onboard_creates_session_log_and_removes_untouched_empty_logs(
     )
     third = run_command([*harness, "onboard"], cwd=target)
     assert "Removed empty work logs" not in third.stdout
+    assert "Recent global work logs" in third.stdout
+    assert "Opened the file and reviewed context." in third.stdout
     assert len(sorted(logs_root.glob("*.md"))) == 2
+
+
+def test_log_new_rejects_matter_specific_work_logs(tmp_path: Path) -> None:
+    target = tmp_path / "practice"
+    target.mkdir()
+    run_setup(target)
+
+    script = """
+from src.state.clients import create_client
+from src.state.matters import create_matter
+
+create_client("smith", "Smith Corp", "entity")
+create_matter("smith", "litigation", "shareholder_dispute", "normal", "hourly")
+""".strip()
+    run_command(
+        [sys.executable, "-B", "-c", script],
+        cwd=target,
+        extra_env={"PYTHONPATH": str(target / ".praxis" / "harness")},
+    )
+
+    result = run_command(
+        [*harness_command(), "log", "new", "shareholder_dispute"],
+        cwd=target,
+        check=False,
+    )
+    assert result.returncode == 1
+    assert "matter-specific work logs are retired" in result.stderr

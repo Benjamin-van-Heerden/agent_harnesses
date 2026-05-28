@@ -40,7 +40,7 @@ Use `onboard` at the start of every session. It creates the session log, refresh
 Use `client new` when the lawyer opens work for a new person or entity. Use `client list` when you need to inspect existing client records or avoid creating a duplicate. Natural-person clients use surname-first display names; entity clients must be created explicitly as non-person clients.
 
 **Matters:**
-Use `matter new` when a new legal file must be opened for a client. Use `matter list` for a broad overview, `matter find` when the lawyer gives a practical identifier, and `matter focus` before advising, drafting, or changing matter-specific state. Use `matter resolve` when the lawyer says a matter is closed or otherwise resolved. Use `matter list-unparsed` to find loose or imported matter folders that still need to be brought into the harness structure.
+Use `matter new` when a new legal file must be opened for a client. Use `matter new --unbound "<path>"` when the work is legally meaningful but not yet tied to a known client. In an unbound path, `/` separates nesting layers and the final segment names the matter. Use `matter bind` when an unbound matter becomes tied to a client. Use `matter list` for a broad client-matter overview, `matter list --unbound` for open unbound matters, `matter find` when the lawyer gives a practical identifier, and `matter focus` before advising, drafting, or changing matter-specific state. Use `matter resolve` when the lawyer says a matter is closed or otherwise resolved. Use `matter list-unparsed` to find loose or imported matter folders that still need to be brought into the harness structure.
 
 **Chronology:**
 Use `chronology add conversation`, `chronology add meeting`, `chronology add email`, `chronology add letter`, `chronology add filing`, `chronology add service`, or `chronology add note` when something happened and should become part of the dated matter history. Use `chronology list` to inspect the matter timeline. Chronology is factual history, not a task list.
@@ -55,7 +55,7 @@ Use `todo new` for concrete work that must be done but is not itself the legal d
 Use `memory new` when the lawyer asks you to remember a stable practice preference, drafting convention, reusable style rule, or future-facing workflow choice. Do not use memories for one-off matter facts or temporary strategy.
 
 **Work logs:**
-Use `log new` when meaningful work has happened and the next agent needs a durable session record. The log should capture what changed, what was decided, blockers, and next steps without requiring the next agent to reconstruct the chat.
+Onboard creates the global session work log at the start of the session. You must read that work log immediately and update it as and when work happens. Use work logs only for global session continuity. Do not create matter-specific work logs; matter-specific history belongs in chronology, obligations, todos, status, raw/reference material, and drafts.
 
 **Workflows:**
 Use `workflow new` to create a reusable matter workflow, `workflow list` to inspect available workflows, `workflow show` to understand workflow steps, and `workflow link` to attach a workflow to a matter. Workflows are useful for repeatable matter patterns where the current step, blockers, prerequisites, and next recommended action should surface during `matter focus`.
@@ -118,13 +118,32 @@ ZZ_CLIENTS/<CLIENT_SLUG_IN_UPPERCASE>/matters/open/YYYYMMDD-<type>-<slug>/
   other PDFs
 ```
 
+Unbound matter state:
+
+```text
+UNBOUND/open/<NESTING>/<matter-slug>/
+  info/
+    status.md
+    chronology/
+    obligations/
+    todos/
+      claimed/
+  raw/
+  reference/
+  *.typ
+  *.p.pdf
+  other PDFs
+
+UNBOUND/closed/<NESTING>/<matter-slug>/
+```
+
 Folder hierarchy mirrors command hierarchy: `chronology add email` writes under `info/chronology/email/`; `obligation add deadline` writes under `info/obligations/deadline/`. Global todos live under `.praxis/todos`; matter todos live under `info/todos` for the matter.
 
 Matter status frontmatter includes practical lookup metadata: `physical_files`, `workflow`, `last_touched_at`, `case_number`, and `tags`. Physical file numbers are arbitrary strings and must not be normalized as slugs.
 
-Matter-touching actions update `last_touched_at`. This includes matter focus, matter resolution, chronology additions, obligation additions, matter todo creation/claiming, matter-specific work logs, and workflow-related matter commands. Broad list/find commands must not touch matters.
+Matter-touching actions update `last_touched_at`. This includes matter focus, matter resolution, chronology additions, obligation additions, matter todo creation/claiming, matter binding, and workflow-related matter commands. Broad list/find commands must not touch matters.
 
-Onboard refreshes `.praxis/client_matter_index.toml`, a generated harness index that lists each client and up to two recently touched matters. The lawyer should not edit generated files under `.praxis/` directly.
+Onboard refreshes `.praxis/client_matter_index.toml`, a generated harness index that lists each client and up to two recently touched matters. It also surfaces open unbound matters and untracked legacy unbound bundles. The lawyer should not edit generated files under `.praxis/` directly.
 
 Workflow templates live under `.praxis/local_context/workflows/` as plain TOML. Each workflow uses `[[steps]]` with `id`, `title`, `kind`, `requires`, `blocks`, and optional todo/obligation guidance. Matter progress lives under the matter as `info/workflow.toml`.
 
@@ -138,7 +157,7 @@ WIP/
 
 Use WIP only for non-matter drafting, template/style experiments, and workflow iteration. You must create organized subfolders under `WIP/drafts/` or `WIP/experiments/` instead of dropping loose files directly into `WIP/`. Matter-specific drafts and source material belong in the matter folder.
 
-## Clients And Matters
+## Clients, Matters, And Unbound Work
 
 Natural person clients use surname-first display names, for example `Van Heerden, Benjamin`. The harness generates deterministic slugs from that form, for example `van_heerden_benjamin`.
 
@@ -153,6 +172,10 @@ Run `matter focus` before advising, drafting, changing matter state, or answerin
 Matter lookup accepts practical identifiers. It searches the matter directory name, client slug, client display name, matter type, matter status, case number, physical file numbers, tags, and workflow. If a lookup matches multiple matters, stop and ask the lawyer which matter to use.
 
 When a matter has a linked workflow, `matter focus` surfaces completed, current, blocked, missing prerequisites, workflow-generated todos/obligations where present, and the next recommended action. Do not automatically create risky legal obligations unless the command explicitly says it is creating them.
+
+Unbound matters live under `UNBOUND/open/` until they are bound to a client or closed. Use them for valuations, drafting bundles, or other legal work where the client container is not yet clear. Do not hide active unbound work in WIP. When creating an unbound matter, use `/` inside the quoted path to express nesting, for example `VALUATIONS/CHARL_VAN_DUYKER_VALUATIONS/Grobler Abbey Valuation`; the final segment becomes the matter name. If a Windows-style `\` path is received, normalize it to the same nesting model.
+
+When an unbound matter becomes tied to a client, use `matter bind`. Binding must preserve source material, drafts, chronology, obligations, todos, and generated-output classification. Closed unbound matters belong under `UNBOUND/closed/` and should not appear in routine onboard output.
 
 ## Chronology
 
@@ -228,13 +251,13 @@ Do not create a memory for transient matter facts, tactical guesses, one-off ins
 
 ## Drafting
 
-Draft matter-specific documents at the matter root as `NN_<slug>.typ`. Use `src/` for reusable Typst types, constants, functions, templates, style, currency, dates, citations, letterhead, and signature blocks.
+Draft matter-specific documents at the matter root as `NN_<slug>.typ`. Use `src/components/` for reusable visual primitives and style, `src/templates/` for reusable document shells and domain renderers, `src/types/` for soft domain structures, and `src/constants/` for constants and theme tokens. Put reusable static assets under root `assets/`. Do not create a `src/functions/` layer for document UI.
 
 Use Typst reference docs only when needed. Detailed and optional Typst reference docs live under `.praxis/docs/` so they do not bloat routine onboard context.
 
 Do not treat drafting as chronology unless the draft is sent, filed, served, discussed, or otherwise becomes an event.
 
-Create or update the work log as meaningful work happens. The log should let the next agent resume without reconstructing the session from chat.
+Update the current global session work log as meaningful work happens. The log should let the next agent resume without reconstructing the session from chat.
 
 ## Confidentiality And Care
 

@@ -88,12 +88,12 @@ the value is specifically the business payment account.
 
 All reusable colors and visual tokens live in `src/constants/theme.typ`. Do not
 introduce literal `rgb(...)`, `luma(...)`, or hex colors in templates or
-rendering functions. Add a named theme constant first, then import it where
+rendering helpers. Add a named theme constant first, then import it where
 needed.
 
-Rendering functions live under `src/functions/`. Small generic helpers may live
-under `src/functions/helpers/` when the same simple behavior is needed across
-multiple rendering modules.
+Reusable visual primitives and style helpers live under `src/components/`.
+Reusable document shells and domain renderers live under `src/templates/`.
+Do not create a `src/functions/` layer for document UI.
 
 == Constructor Shape
 
@@ -440,6 +440,7 @@ them in `extra-details`; do not hard-code them into the general template.
 
 == Module Size
 
-Keep `src/functions/` modules small and self-contained. A module should usually
-own one rendering primitive, such as payment instructions, invoice details, or a
-work log. Do not create broad god files for entire domains.
+Keep shared `src/components/` and `src/templates/` modules small and self-contained.
+A module should usually own one rendering primitive or document shell, such as
+payment instructions, invoice details, valuation schedules, letters, forms, or
+agreements. Do not create broad god files for entire domains.

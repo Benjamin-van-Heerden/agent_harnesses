@@ -94,6 +94,8 @@ def test_setup_installs_native_harness_and_preserves_user_content(
         LEGAL_ROOT / "src" / "types" / "Client.typ"
     ).read_text()
     assert (target / "ZZ_CLIENTS").is_dir()
+    assert (target / "UNBOUND" / "open").is_dir()
+    assert (target / "UNBOUND" / "closed").is_dir()
     assert not (target / "clients").exists()
     assert (target / "WIP" / "drafts").is_dir()
     assert (target / "WIP" / "experiments").is_dir()
@@ -101,7 +103,9 @@ def test_setup_installs_native_harness_and_preserves_user_content(
         "Matter-specific drafts belong in the matter folder"
         in (target / "WIP" / "README.md").read_text()
     )
-    assert (target / "src" / "functions").is_dir()
+    assert (target / "assets").is_dir()
+    assert (target / "src" / "components").is_dir()
+    assert not (target / "src" / "functions").exists()
     assert (target / "src" / "templates").is_dir()
     agents_text = (target / "AGENTS.md").read_text()
     assert "Existing lawyer-specific instruction." in agents_text
@@ -133,7 +137,7 @@ def test_setup_update_refreshes_managed_runtime_without_clobbering_lawyer_state(
 
     profile = target / ".praxis" / "local_context" / "lawyer_profile.md"
     legal_context = target / ".praxis" / "core_docs" / "legal_context.typ"
-    custom_source = target / "src" / "functions" / "custom.typ"
+    custom_source = target / "src" / "components" / "custom.typ"
     custom_workflow = target / ".praxis" / "local_context" / "workflows" / "custom.toml"
     client_note = target / "ZZ_CLIENTS" / "SMITH" / "profile.md"
     stale_harness_file = target / ".praxis" / "harness" / "stale.txt"
