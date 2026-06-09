@@ -31,6 +31,33 @@ WORKTREE_SYMLINK_PATHS_COMMENT = (
     "# Every listed path is automatically added to .gitignore and must be safe to keep untracked.",
     "# Typical examples are .env, .claude, .venv, node_modules, or deps. Use care with manifests and lock files such as pyproject.toml, package.json, or bun.lock; list them only when the project deliberately treats them as local-only.",
 )
+OPTIONAL_ONBOARD_CONFIG_BLOCKS = {
+    "files": "\n".join(
+        (
+            "# Files to include in onboard output",
+            "# [[files]]",
+            '# path = "README.md"',
+            '# description = "Project overview and setup instructions"',
+        )
+    ),
+    "tree_dirs": "\n".join(
+        (
+            "# Directories whose tree structure is included in onboard output",
+            "# [[tree_dirs]]",
+            '# path = "src"',
+            '# description = "Source code"',
+        )
+    ),
+    "runnables": "\n".join(
+        (
+            "# Commands whose output is included in onboard output",
+            "# [[runnables]]",
+            '# command = "python -m your_tool --print-context"',
+            '# description = "Generated project context"',
+            "# timeout_seconds = 60",
+        )
+    ),
+}
 LEGACY_WORKTREE_SYMLINK_PATHS_COMMENT = "# Paths to symlink into worktrees instead of copying"
 AGENT_CORE_TMP_IGNORE_ENTRY = ".agent_core/tmp/"
 LEGACY_AGENT_CORE_TMP_IGNORE_ENTRY = ".agent_core/tmp"
@@ -184,6 +211,17 @@ Add your project description here.
 # path = "README.md"
 # description = "Project overview and setup instructions"
 
+# Directories whose tree structure is included in onboard output
+# [[tree_dirs]]
+# path = "src"
+# description = "Source code"
+
+# Commands whose output is included in onboard output
+# [[runnables]]
+# command = "python -m your_tool --print-context"
+# description = "Generated project context"
+# timeout_seconds = 60
+
 [worktree]
 # Project-root relative paths to symlink from the main checkout into spec worktrees.
 # Every listed path is automatically added to .gitignore and must be safe to keep untracked.
@@ -208,6 +246,10 @@ def section_exists(content: str, section: str) -> bool:
 
 def section_declared(content: str, section: str) -> bool:
     return re.search(rf"^\s*#?\s*\[{re.escape(section)}\]\s*$", content, re.MULTILINE) is not None
+
+
+def array_table_declared(content: str, name: str) -> bool:
+    return re.search(rf"^\s*#?\s*\[\[{re.escape(name)}\]\]\s*$", content, re.MULTILINE) is not None
 
 
 def key_declared(content: str, section: str, key: str) -> bool:
@@ -306,6 +348,17 @@ def apply_config_patches(content: str) -> str:
     return content
 
 
+def ensure_optional_onboard_config_block(content: str) -> str:
+    missing_blocks = [
+        block
+        for name, block in OPTIONAL_ONBOARD_CONFIG_BLOCKS.items()
+        if not array_table_declared(content, name)
+    ]
+    if not missing_blocks:
+        return content
+    return append_if_missing(content, "\n\n".join(missing_blocks))
+
+
 def upsert_config(path: Path, project_name: str) -> None:
     if not path.exists():
         path.parent.mkdir(parents=True, exist_ok=True)
@@ -382,6 +435,7 @@ test = "test"
         if section_exists(content, "branches") and not key_declared(content, "branches", "test"):
             content = insert_key(content, "branches", 'test = "test"')
 
+    content = ensure_optional_onboard_config_block(content)
     content = apply_config_patches(content)
     if content != original_content:
         path.write_text(content)

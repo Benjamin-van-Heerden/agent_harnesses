@@ -30,6 +30,9 @@ def test_template_setup_preserves_state_and_avoids_removed_surfaces(tmp_path: Pa
     assert (target / ".agent_core" / "user_mappings.toml").is_file()
     config = read_toml(target / ".agent_core" / "config.toml")
     assert config["worktree"]["symlink_paths"] == [".claude"]
+    config_text = (target / ".agent_core" / "config.toml").read_text()
+    assert "# [[runnables]]" in config_text
+    assert "\n[[runnables]]" not in config_text
     gitignore_lines = (target / ".gitignore").read_text().splitlines()
     assert ".claude" in gitignore_lines
     assert ".claude/" in gitignore_lines
@@ -319,6 +322,41 @@ main = "main"
     content = config_path.read_text()
     assert "# [[files]]" in content
     assert "\n[[files]]" not in content
+
+
+def test_setup_injects_commented_optional_onboard_config_blocks(tmp_path: Path) -> None:
+    target = tmp_path / "project"
+    target.mkdir()
+    init_git_project(target)
+
+    config_path = target / ".agent_core" / "config.toml"
+    config_path.parent.mkdir(parents=True)
+    config_path.write_text(
+        '''[project]
+name = "Existing Project"
+description = "Project description."
+
+[worktree]
+symlink_paths = [".claude"]
+
+[branches]
+dev = "dev"
+test = "test"
+main = "main"
+'''
+    )
+    run_command(["git", "add", ".agent_core/config.toml"], cwd=target)
+    run_command(["git", "commit", "-m", "add agent config"], cwd=target)
+
+    install_harness(target)
+
+    content = config_path.read_text()
+    assert "# [[files]]" in content
+    assert "# [[tree_dirs]]" in content
+    assert "# [[runnables]]" in content
+    assert "\n[[files]]" not in content
+    assert "\n[[tree_dirs]]" not in content
+    assert "\n[[runnables]]" not in content
 
 
 def test_setup_does_not_activate_commented_required_config(tmp_path: Path) -> None:

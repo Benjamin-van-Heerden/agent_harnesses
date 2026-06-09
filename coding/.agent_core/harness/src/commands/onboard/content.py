@@ -1,3 +1,4 @@
+import subprocess
 from datetime import datetime
 from pathlib import Path
 
@@ -99,6 +100,67 @@ def _tree_sections(config: AgentCoreConfig) -> list[str]:
     if not tree_sections:
         return []
     return [*subsection("🌲 DIRECTORY TREES"), *tree_sections]
+
+
+def _runnable_output(command: str, timeout_seconds: int) -> tuple[str, str, int | None, str | None]:
+    try:
+        result = subprocess.run(
+            command,
+            cwd=PROJECT_PATHS.project_root,
+            shell=True,
+            capture_output=True,
+            text=True,
+            timeout=timeout_seconds,
+            check=False,
+        )
+        return result.stdout.strip(), result.stderr.strip(), result.returncode, None
+    except subprocess.TimeoutExpired as error:
+        stdout = error.stdout if isinstance(error.stdout, str) else ""
+        stderr = error.stderr if isinstance(error.stderr, str) else ""
+        return stdout.strip(), stderr.strip(), None, f"Timed out after {timeout_seconds} seconds"
+    except OSError as error:
+        return "", "", None, f"Could not run command: {error}"
+
+
+def _runnable_sections(config: AgentCoreConfig) -> list[str]:
+    runnable_sections: list[str] = []
+    for index, item in enumerate(config.runnables, start=1):
+        title = item.description or f"Runnable {index}"
+        stdout, stderr, returncode, error = _runnable_output(item.command, item.timeout_seconds)
+        runnable_sections.extend(file(title))
+        if item.description:
+            runnable_sections.append(f"*{item.description}*")
+            runnable_sections.append("")
+        runnable_sections.append("Command:")
+        runnable_sections.append("```bash")
+        runnable_sections.append(item.command.strip())
+        runnable_sections.append("```")
+        runnable_sections.append("")
+        if error is not None:
+            runnable_sections.append(f"Status: {error}")
+            runnable_sections.append("")
+        elif returncode != 0:
+            runnable_sections.append(f"Exit code: {returncode}")
+            runnable_sections.append("")
+        if stdout:
+            runnable_sections.append("Stdout:")
+            runnable_sections.append("```text")
+            runnable_sections.append(stdout)
+            runnable_sections.append("```")
+            runnable_sections.append("")
+        if stderr:
+            runnable_sections.append("Stderr:")
+            runnable_sections.append("```text")
+            runnable_sections.append(stderr)
+            runnable_sections.append("```")
+            runnable_sections.append("")
+        if not stdout and not stderr and error is None:
+            runnable_sections.append("[Command produced no output]")
+            runnable_sections.append("")
+
+    if not runnable_sections:
+        return []
+    return [*subsection("🏃 RUNNABLES"), *runnable_sections]
 
 
 def _docs_section() -> list[str]:
@@ -639,9 +701,10 @@ def _codebase_and_conventions_section(config: AgentCoreConfig) -> list[str]:
         lines.append(f"**Description:** {description}")
     lines.append(f"**Generated:** {datetime.now().isoformat()}")
     lines.append("")
+    lines.extend(_docs_section())
     lines.extend(_important_files_section(config))
     lines.extend(_tree_sections(config))
-    lines.extend(_docs_section())
+    lines.extend(_runnable_sections(config))
     lines.extend(_memories_section())
     return lines
 

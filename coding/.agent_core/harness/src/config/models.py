@@ -28,6 +28,18 @@ class TreeDirConfig(BaseModel):
     description: str | None = Field(default=None, description="Why this directory matters")
 
 
+class RunnableConfig(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+
+    command: str = Field(..., description="Shell command to run from the project root during onboard")
+    description: str | None = Field(default=None, description="Why this command output matters")
+    timeout_seconds: int = Field(
+        default=60,
+        ge=1,
+        description="Maximum seconds to allow the runnable command to execute",
+    )
+
+
 class WorktreeConfig(BaseModel):
     model_config = ConfigDict(extra="ignore")
 
@@ -108,6 +120,7 @@ class AgentCoreConfig(BaseModel):
     project: ProjectConfig
     files: list[ImportantFileConfig] = Field(default_factory=list)
     tree_dirs: list[TreeDirConfig] = Field(default_factory=list)
+    runnables: list[RunnableConfig] = Field(default_factory=list)
     worktree: WorktreeConfig = Field(default_factory=WorktreeConfig)
     harness: HarnessConfig = Field(default_factory=HarnessConfig)
     branches: BranchConfig

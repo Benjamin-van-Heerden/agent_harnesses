@@ -1,4 +1,5 @@
 import os
+import sys
 from pathlib import Path
 from types import ModuleType
 
@@ -44,6 +45,67 @@ def test_template_onboard_reads_docs_without_indexing(tmp_path: Path) -> None:
     assert ".env/" in gitignore_lines
     assert not (target / ".agent_core" / "tmp").exists()
     assert not (target / ".agent_core" / "docs" / "data").exists()
+
+
+def test_template_onboard_places_configured_outputs_after_docs_and_runs_runnables(tmp_path: Path) -> None:
+    target = tmp_path / "project"
+    target.mkdir()
+    (target / "README.md").write_text("# Project\nImportant readme body\n")
+    (target / "src").mkdir()
+    (target / "src" / "app.py").write_text("print('hello')\n")
+    init_git_project(target)
+    run_command(["git", "add", "README.md", "src/app.py"], cwd=target)
+    run_command(["git", "commit", "-m", "track project files"], cwd=target)
+    install_harness(target)
+
+    docs_dir = target / ".agent_core" / "docs"
+    (docs_dir / "alpha.md").write_text("Alpha doc body\n")
+    config_path = target / ".agent_core" / "config.toml"
+    config_path.write_text(
+        f'''[project]
+name = "Project"
+description = "Project description."
+
+[[files]]
+path = "README.md"
+description = "Readme"
+
+[[tree_dirs]]
+path = "src"
+description = "Source tree"
+
+[[runnables]]
+command = "{sys.executable} -c \\"print('Runnable docs')\\""
+description = "Generated docs"
+
+[worktree]
+symlink_paths = [".claude"]
+
+[harness]
+update_interval_days = 3
+
+[branches]
+dev = "dev"
+main = "main"
+test = "test"
+'''
+    )
+
+    result = run_command(
+        harness_command() + ["onboard", "--stdout", "--no-sync"],
+        cwd=target,
+        env=command_env(),
+    )
+
+    docs_index = result.stdout.index("📚 PROJECT DOCS")
+    files_index = result.stdout.index("📄 IMPORTANT FILES")
+    trees_index = result.stdout.index("🌲 DIRECTORY TREES")
+    runnables_index = result.stdout.index("🏃 RUNNABLES")
+    assert docs_index < files_index < trees_index < runnables_index
+    assert "Alpha doc body" in result.stdout
+    assert "Important readme body" in result.stdout
+    assert "src/app.py" in result.stdout
+    assert "Runnable docs" in result.stdout
 
 
 def test_template_onboard_hides_management_commands_on_non_dev_branch(tmp_path: Path) -> None:
