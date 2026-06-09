@@ -13,6 +13,7 @@ from src.config.models import (
     ImportantFileConfig,
     NoSwitchBranches,
     ProjectConfig,
+    RunnableConfig,
     TreeDirConfig,
     WorktreeConfig,
 )
@@ -159,6 +160,7 @@ def generate_default_config_toml(
     project_description: str = "Add your project description here.",
     important_files: list[ImportantFileConfig] | None = None,
     tree_dirs: list[TreeDirConfig] | None = None,
+    runnables: list[RunnableConfig] | None = None,
     symlink_paths: list[str] | None = None,
     dev_branch: str = "dev",
     main_branch: str = "main",
@@ -167,6 +169,8 @@ def generate_default_config_toml(
 ) -> str:
     if important_files is None:
         important_files = []
+    if runnables is None:
+        runnables = []
     if symlink_paths is None:
         symlink_paths = WorktreeConfig().symlink_paths
 
@@ -208,6 +212,23 @@ def generate_default_config_toml(
         lines.append('# [[tree_dirs]]')
         lines.append('# path = "src"')
         lines.append('# description = "Source code"')
+        lines.append("")
+
+    lines.append("# Commands whose output is included in onboard output")
+    if runnables:
+        for item in runnables:
+            lines.append("[[runnables]]")
+            lines.append(f"command = {_format_multiline_string(item.command)}")
+            if item.description:
+                lines.append(f'description = "{_escape_toml_string(item.description)}"')
+            if item.timeout_seconds != RunnableConfig().timeout_seconds:
+                lines.append(f"timeout_seconds = {item.timeout_seconds}")
+            lines.append("")
+    else:
+        lines.append("# [[runnables]]")
+        lines.append('# command = "python -m your_tool --print-context"')
+        lines.append('# description = "Generated project context"')
+        lines.append("# timeout_seconds = 60")
         lines.append("")
 
     lines.extend(
