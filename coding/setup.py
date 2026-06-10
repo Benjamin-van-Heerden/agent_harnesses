@@ -1498,7 +1498,8 @@ def install(template_root: Path, target_root: Path, update: bool) -> None:
     ensure_claude_file(target_root)
     if update:
         docs_update(optional_docs_dir, state_dir, [])
-    install_default_docs(optional_docs_dir, state_dir, selected_docs)
+    else:
+        install_default_docs(optional_docs_dir, state_dir, selected_docs)
     upsert_last_updated_at(config_file)
     if not update:
         finalize_initial_install_git_flow(target_root, config_file)

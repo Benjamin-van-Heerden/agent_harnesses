@@ -47,6 +47,7 @@ def test_template_setup_preserves_state_and_avoids_removed_surfaces(tmp_path: Pa
 
     (target / ".agent_core" / "specs" / "keep.md").write_text("state\n")
     (target / ".agent_core" / "docs" / "coding_general.md").write_text("project notes\n")
+    (target / ".agent_core" / "docs" / "coding_testing.md").unlink()
     (target / ".agent_core" / "README.md").write_text("stale readme\n")
     config_path = target / ".agent_core" / "config.toml"
     run_command(["git", "branch", "prod"], cwd=target)
@@ -67,6 +68,7 @@ def test_template_setup_preserves_state_and_avoids_removed_surfaces(tmp_path: Pa
     assert (target / ".agent_core" / "docs" / "coding_general.md").read_text() == (
         HARNESS_ROOT / "optional_docs" / "coding_general.md"
     ).read_text()
+    assert not (target / ".agent_core" / "docs" / "coding_testing.md").exists()
     assert (target / ".agent_core" / "README.md").read_text() == (HARNESS_ROOT / "README.md").read_text()
     gitignore_lines = (target / ".gitignore").read_text().splitlines()
     assert gitignore_lines.count(".claude") == 1
