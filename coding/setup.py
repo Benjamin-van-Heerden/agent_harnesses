@@ -52,6 +52,7 @@ OPTIONAL_ONBOARD_CONFIG_BLOCKS = {
         (
             "# Commands whose output is included in onboard output",
             "# [[runnables]]",
+            '# name = "Generated project context"',
             '# command = "python -m your_tool --print-context"',
             '# description = "Generated project context"',
             "# timeout_seconds = 60",
@@ -218,6 +219,7 @@ Add your project description here.
 
 # Commands whose output is included in onboard output
 # [[runnables]]
+# name = "Generated project context"
 # command = "python -m your_tool --print-context"
 # description = "Generated project context"
 # timeout_seconds = 60
@@ -359,6 +361,33 @@ def ensure_optional_onboard_config_block(content: str) -> str:
     return append_if_missing(content, "\n\n".join(missing_blocks))
 
 
+def ensure_commented_runnable_name_scaffold(content: str) -> str:
+    lines = content.splitlines()
+    changed = False
+    for index, line in enumerate(lines):
+        if line.strip() != "# [[runnables]]":
+            continue
+
+        next_index = index + 1
+        has_name = False
+        while next_index < len(lines):
+            stripped = lines[next_index].strip()
+            if re.match(r"^#?\s*\[\[?[^\]]+\]?\]\s*$", stripped):
+                break
+            if re.match(r"^#\s*name\s*=", stripped):
+                has_name = True
+                break
+            next_index += 1
+
+        if not has_name:
+            lines.insert(index + 1, '# name = "Generated project context"')
+            changed = True
+
+    if not changed:
+        return content
+    return "\n".join(lines).rstrip() + "\n"
+
+
 def upsert_config(path: Path, project_name: str) -> None:
     if not path.exists():
         path.parent.mkdir(parents=True, exist_ok=True)
@@ -436,6 +465,7 @@ test = "test"
             content = insert_key(content, "branches", 'test = "test"')
 
     content = ensure_optional_onboard_config_block(content)
+    content = ensure_commented_runnable_name_scaffold(content)
     content = apply_config_patches(content)
     if content != original_content:
         path.write_text(content)

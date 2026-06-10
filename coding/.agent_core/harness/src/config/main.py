@@ -218,6 +218,8 @@ def generate_default_config_toml(
     if runnables:
         for item in runnables:
             lines.append("[[runnables]]")
+            if item.name:
+                lines.append(f'name = "{_escape_toml_string(item.name)}"')
             lines.append(f"command = {_format_multiline_string(item.command)}")
             if item.description:
                 lines.append(f'description = "{_escape_toml_string(item.description)}"')
@@ -226,6 +228,7 @@ def generate_default_config_toml(
             lines.append("")
     else:
         lines.append("# [[runnables]]")
+        lines.append('# name = "Generated project context"')
         lines.append('# command = "python -m your_tool --print-context"')
         lines.append('# description = "Generated project context"')
         lines.append("# timeout_seconds = 60")

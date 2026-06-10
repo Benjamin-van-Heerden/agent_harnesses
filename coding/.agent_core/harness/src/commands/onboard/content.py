@@ -102,7 +102,7 @@ def _tree_sections(config: AgentCoreConfig) -> list[str]:
     return [*subsection("🌲 DIRECTORY TREES"), *tree_sections]
 
 
-def _runnable_output(command: str, timeout_seconds: int) -> tuple[str, str, int | None, str | None]:
+def _runnable_output(command: str, timeout_seconds: int) -> tuple[str, int | None, str | None]:
     try:
         result = subprocess.run(
             command,
@@ -113,48 +113,43 @@ def _runnable_output(command: str, timeout_seconds: int) -> tuple[str, str, int 
             timeout=timeout_seconds,
             check=False,
         )
-        return result.stdout.strip(), result.stderr.strip(), result.returncode, None
-    except subprocess.TimeoutExpired as error:
-        stdout = error.stdout if isinstance(error.stdout, str) else ""
-        stderr = error.stderr if isinstance(error.stderr, str) else ""
-        return stdout.strip(), stderr.strip(), None, f"Timed out after {timeout_seconds} seconds"
+        return result.stdout.strip(), result.returncode, None
+    except subprocess.TimeoutExpired:
+        return "", None, f"timed out after {timeout_seconds} seconds"
     except OSError as error:
-        return "", "", None, f"Could not run command: {error}"
+        return "", None, f"could not run: {error}"
+
+
+def _runnable_failure_message(title: str, returncode: int | None, error: str | None) -> str:
+    if error is not None:
+        return f"The configured runnable `{title}` failed because it {error}. You must notify the user that they need to fix this runnable in {PROJECT_PATHS.config_file_display}."
+    return f"The configured runnable `{title}` failed with exit code {returncode}. You must notify the user that they need to fix this runnable in {PROJECT_PATHS.config_file_display}."
 
 
 def _runnable_sections(config: AgentCoreConfig) -> list[str]:
     runnable_sections: list[str] = []
     for index, item in enumerate(config.runnables, start=1):
-        title = item.description or f"Runnable {index}"
-        stdout, stderr, returncode, error = _runnable_output(item.command, item.timeout_seconds)
+        title = item.name or f"Runnable {index}"
+        stdout, returncode, error = _runnable_output(item.command, item.timeout_seconds)
         runnable_sections.extend(file(title))
         if item.description:
             runnable_sections.append(f"*{item.description}*")
             runnable_sections.append("")
-        runnable_sections.append("Command:")
-        runnable_sections.append("```bash")
-        runnable_sections.append(item.command.strip())
-        runnable_sections.append("```")
-        runnable_sections.append("")
         if error is not None:
-            runnable_sections.append(f"Status: {error}")
+            runnable_sections.append(_runnable_failure_message(title, returncode, error))
             runnable_sections.append("")
-        elif returncode != 0:
-            runnable_sections.append(f"Exit code: {returncode}")
+            continue
+        if returncode != 0:
+            runnable_sections.append(_runnable_failure_message(title, returncode, error))
             runnable_sections.append("")
+            continue
         if stdout:
             runnable_sections.append("Stdout:")
             runnable_sections.append("```text")
             runnable_sections.append(stdout)
             runnable_sections.append("```")
             runnable_sections.append("")
-        if stderr:
-            runnable_sections.append("Stderr:")
-            runnable_sections.append("```text")
-            runnable_sections.append(stderr)
-            runnable_sections.append("```")
-            runnable_sections.append("")
-        if not stdout and not stderr and error is None:
+        else:
             runnable_sections.append("[Command produced no output]")
             runnable_sections.append("")
 

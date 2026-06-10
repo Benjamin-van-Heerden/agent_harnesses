@@ -75,8 +75,13 @@ path = "src"
 description = "Source tree"
 
 [[runnables]]
-command = "{sys.executable} -c \\"print('Runnable docs')\\""
-description = "Generated docs"
+command = "{sys.executable} -c \\"import sys; print('Runnable docs'); sys.stderr.write(chr(88) + chr(10))\\""
+description = "Generated docs that should appear once"
+
+[[runnables]]
+name = "Broken docs"
+command = "{sys.executable} -c \\"import sys; sys.stderr.write(chr(89) + chr(10)); sys.exit(2)\\""
+description = "Broken generated docs"
 
 [worktree]
 symlink_paths = [".claude"]
@@ -106,6 +111,11 @@ test = "test"
     assert "Important readme body" in result.stdout
     assert "src/app.py" in result.stdout
     assert "Runnable docs" in result.stdout
+    assert result.stdout.count("Generated docs that should appear once") == 1
+    assert "Stderr:" not in result.stdout
+    assert f"{sys.executable} -c" not in result.stdout
+    assert "The configured runnable `Broken docs` failed with exit code 2." in result.stdout
+    assert "You must notify the user that they need to fix this runnable in .agent_core/config.toml." in result.stdout
 
 
 def test_template_onboard_hides_management_commands_on_non_dev_branch(tmp_path: Path) -> None:

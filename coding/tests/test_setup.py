@@ -354,8 +354,46 @@ main = "main"
     assert "# [[files]]" in content
     assert "# [[tree_dirs]]" in content
     assert "# [[runnables]]" in content
+    assert '# name = "Generated project context"' in content
     assert "\n[[files]]" not in content
     assert "\n[[tree_dirs]]" not in content
+    assert "\n[[runnables]]" not in content
+
+
+def test_setup_updates_existing_commented_runnable_scaffold_with_name(tmp_path: Path) -> None:
+    target = tmp_path / "project"
+    target.mkdir()
+    init_git_project(target)
+
+    config_path = target / ".agent_core" / "config.toml"
+    config_path.parent.mkdir(parents=True)
+    config_path.write_text(
+        '''[project]
+name = "Existing Project"
+description = "Project description."
+
+# Commands whose output is included in onboard output
+# [[runnables]]
+# command = "python -m your_tool --print-context"
+# description = "Generated project context"
+# timeout_seconds = 60
+
+[worktree]
+symlink_paths = [".claude"]
+
+[branches]
+dev = "dev"
+test = "test"
+main = "main"
+'''
+    )
+    run_command(["git", "add", ".agent_core/config.toml"], cwd=target)
+    run_command(["git", "commit", "-m", "add agent config"], cwd=target)
+
+    install_harness(target)
+
+    content = config_path.read_text()
+    assert "# [[runnables]]\n# name = \"Generated project context\"\n# command" in content
     assert "\n[[runnables]]" not in content
 
 
