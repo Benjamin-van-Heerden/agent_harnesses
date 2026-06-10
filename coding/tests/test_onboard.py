@@ -187,10 +187,77 @@ def test_template_onboard_expands_current_user_and_recent_logs(tmp_path: Path) -
     assert "Current user log 4" in result.stdout
     assert "Current user log 3" in result.stdout
     assert "Current user log 2" in result.stdout
-    assert "Current user log 1" in result.stdout
+    assert "Current user log 1" not in result.stdout
     assert "General log 6" in result.stdout
     assert "General log 5" not in result.stdout
     assert "General log 2" not in result.stdout
+    assert "General log 1" not in result.stdout
+
+
+def test_template_onboard_shows_three_logs_for_new_current_user(tmp_path: Path) -> None:
+    target = tmp_path / "project"
+    target.mkdir()
+    (target / "README.md").write_text("# Project\n")
+    init_git_project(target)
+    run_command(["git", "add", "README.md"], cwd=target)
+    run_command(["git", "commit", "-m", "track readme"], cwd=target)
+    install_harness(target)
+
+    logs_dir = target / ".agent_core" / "logs"
+    for index in range(1, 7):
+        (logs_dir / f"other_2026041{index}_120000_session.md").write_text(
+            f"---\ncreated_at: 2026-04-1{index}T12:00:00\nusername: other\n---\n"
+            f"General log {index}\n"
+        )
+
+    result = run_command(
+        harness_command() + ["onboard", "--stdout", "--no-sync"],
+        cwd=target,
+        env=command_env(),
+    )
+
+    assert "General log 6" in result.stdout
+    assert "General log 5" in result.stdout
+    assert "General log 4" in result.stdout
+    assert "General log 3" not in result.stdout
+    assert "General log 1" not in result.stdout
+
+
+def test_template_onboard_includes_single_current_user_log_in_four_log_mix(tmp_path: Path) -> None:
+    target = tmp_path / "project"
+    target.mkdir()
+    (target / "README.md").write_text("# Project\n")
+    init_git_project(target)
+    run_command(["git", "add", "README.md"], cwd=target)
+    run_command(["git", "commit", "-m", "track readme"], cwd=target)
+    install_harness(target)
+
+    (target / ".agent_core" / "user_mappings.toml").write_text(
+        f'[octo]\nname = "{GIT_USER_NAME}"\nemail = "octo@example.com"\n'
+    )
+
+    logs_dir = target / ".agent_core" / "logs"
+    (logs_dir / "octo_20260401_120000_session.md").write_text(
+        "---\ncreated_at: 2026-04-01T12:00:00\nusername: octo\n---\n"
+        "Current user log 1\n"
+    )
+    for index in range(1, 7):
+        (logs_dir / f"other_2026051{index}_120000_session.md").write_text(
+            f"---\ncreated_at: 2026-05-1{index}T12:00:00\nusername: other\n---\n"
+            f"General log {index}\n"
+        )
+
+    result = run_command(
+        harness_command() + ["onboard", "--stdout", "--no-sync"],
+        cwd=target,
+        env=command_env(),
+    )
+
+    assert "Current user log 1" in result.stdout
+    assert "General log 6" in result.stdout
+    assert "General log 5" in result.stdout
+    assert "General log 4" in result.stdout
+    assert "General log 3" not in result.stdout
     assert "General log 1" not in result.stdout
 
 

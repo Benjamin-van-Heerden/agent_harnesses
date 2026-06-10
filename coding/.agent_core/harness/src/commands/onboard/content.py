@@ -275,32 +275,52 @@ def _log_entry(record: WorkLog, current_username: str) -> str:
 
 
 def _recent_log_records(active_spec: Spec | None) -> list[WorkLog]:
+    max_displayed = 4
+    new_user_displayed = 3
+    current_user_target = 2
+    current_user_max = 3
+    candidate_pool = 6
     current_username = logs.current_username()
     spec_slug = active_spec.slug if active_spec is not None else None
     current_records = logs.list_all(
-        limit=5,
+        limit=current_user_max,
         spec_slug=spec_slug,
         username=current_username,
     )
-    general_records = logs.list_all(limit=5, spec_slug=spec_slug)
+    general_records = logs.list_all(limit=candidate_pool, spec_slug=spec_slug)
+
+    if not current_records:
+        selected = general_records[:new_user_displayed]
+        selected.sort(key=lambda item: item.created_at)
+        return selected
+
     selected: list[WorkLog] = []
     seen: set[str] = set()
 
-    for record in current_records[:3]:
+    recent_three = general_records[:current_user_max]
+    current_pin_count = min(current_user_target, len(current_records))
+    if len(recent_three) == current_user_max and all(
+        record.username == current_username for record in recent_three
+    ):
+        current_pin_count = min(current_user_max, len(current_records))
+
+    for record in current_records[:current_pin_count]:
         selected.append(record)
         seen.add(record.filename)
 
-    candidates = {
-        record.filename: record for record in [*current_records, *general_records]
-    }
-    for record in sorted(
-        candidates.values(), key=lambda item: item.created_at, reverse=True
-    ):
+    current_selected_count = sum(
+        1 for record in selected if record.username == current_username
+    )
+    for record in general_records:
         if record.filename in seen:
+            continue
+        if record.username == current_username and current_selected_count >= current_user_max:
             continue
         selected.append(record)
         seen.add(record.filename)
-        if len(selected) >= 6:
+        if record.username == current_username:
+            current_selected_count += 1
+        if len(selected) >= max_displayed:
             break
 
     selected.sort(key=lambda item: item.created_at)
