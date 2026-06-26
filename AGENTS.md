@@ -224,7 +224,7 @@ Repair commands are for explicit recovery or reconciliation. Do not run them as 
 - The outputs produced by harness commands are to be strictly adhered to. Especially in cases where the harness instructs you to stop and give feedback. This is important to keep a human in the loop.
 - When working within a spec, DO NOT CREATE TASKS unless explicitly prompted to do so.
 - Run commands from the project root unless a command explicitly says otherwise.
-- When you encounter a file or changes that you did not make, you must stop and ask about them. Removing such files or changes is NOT ACCEPTABLE unless explicit consent is given.
+- When you encounter a file or changes that you did not make, you must assume the user made those changes *and* that their preference is reflected by those changes. You are free to ask about them if you notice something strange or incorrect, but as a rule you should not modify or undo such changes, rather you should incorporate them as updated context into your own working session. 
 - When you are interrupted by the user with "Stop" or "No" or similar, you must **IMMEDIATELY** stop what you are doing, give a brief explanation of what you were busy with, and wait for further instructions. DO NOT continue working.
 - Refrain from performing actions without user consent unless the action is trivial or has very low risk. Always explain choices and invite user feedback.
 - Strive for a workflow loop where:
@@ -240,12 +240,146 @@ Repair commands are for explicit recovery or reconciliation. Do not run them as 
 
 ---------------------------------------------------------------
 
+# General Principles
+
+## Key Principle
+
+Remember: "Whenever I'm about to do something, I think, 'Would an idiot do that?' And if they would, I do not do that thing." - Dwight Schrute
+
+## Communication Style
+- Be conversational but professional
+- Think through considerations and requirements before writing code
+- Planning first, then execution - we discuss the problem before implementing
+- Don't be afraid to ask for help or input
+- If you are unsure or need to guess about something, please ask
+
+## Code Quality Standards
+- Code should be self-explanatory - NEVER add comments unless absolutely necessary
+- Avoid print statements apart from ad-hoc testing, when necessary defer to formal logging
+- Follow established patterns and conventions in the codebase
+- Prioritize clarity and maintainability over cleverness
+
+## Performance Considerations
+- Chunked processing for batch operations when applicable
+- Database query optimization with proper indexing
+- Memory management for large batch processing
+
+## Modular Design
+- Separate concerns into focused modules
+- Robust error handling wherever applicable
+
+## Functional Approach
+- Prefer functional and procedural programming patterns over heavy OOP
+- OOP is only used when it provides clear benefits
+- Minimal abstractions - prefer explicit over implicit, declarative over imperative
+
 ### Source Formatting
 
 - Do not hard-wrap lines just to satisfy an arbitrary line length. This project assumes modern editors with line wrapping.
 - Keep user-facing strings, command strings, markdown output fragments, and simple expressions on one line when that is clearer.
 - Only split a line when it improves structure or readability, such as a genuinely complex expression, a long data literal, or nested call arguments. When applicable use multiline strings for this.
 - Do not reflow existing prose or strings unless the requested change requires it.
+
+# Behavioral Guidelines
+
+**Tradeoff:** These guidelines bias toward caution over speed. For trivial tasks, use judgment.
+
+### 1. Think Before Coding
+
+**Don't assume. Don't hide confusion. Surface tradeoffs.**
+
+Before implementing:
+- State your assumptions explicitly. If uncertain, ask.
+- If multiple interpretations exist, present them - don't pick silently.
+- If a simpler approach exists, say so. Push back when warranted.
+- If something is unclear, stop. Name what's confusing. Ask.
+
+### 2. Simplicity First
+
+**Minimum code that solves the problem. Nothing speculative.**
+
+- No features beyond what was asked.
+- No abstractions for single-use code.
+- No "flexibility" or "configurability" that wasn't requested.
+- No error handling for impossible scenarios.
+- If you write 200 lines and it could be 50, rewrite it.
+
+Ask yourself: "Would a senior engineer say this is overcomplicated?" If yes, simplify.
+
+### 3. Surgical Changes
+
+**Touch only what you must. Clean up only your own mess.**
+
+When editing existing code:
+- Don't "improve" adjacent code, comments, or formatting.
+- Don't refactor things that aren't broken.
+- Match existing style, even if you'd do it differently.
+- If you notice unrelated dead code, mention it - don't delete it.
+
+When your changes create orphans:
+- Remove imports/variables/functions that YOUR changes made unused.
+- Don't remove pre-existing dead code unless asked.
+
+The test: Every changed line should trace directly to the user's request.
+
+### 4. Goal-Driven Execution
+
+**Define success criteria. Loop until verified.**
+
+Transform tasks into verifiable goals:
+- "Add validation" -> "Write tests for invalid inputs, then make them pass"
+- "Fix the bug" -> "Write a test that reproduces it, then make it pass"
+- "Refactor X" -> "Ensure tests pass before and after"
+
+For multi-step tasks, state a brief plan:
+
+```text
+1. [Step] -> verify: [check]
+2. [Step] -> verify: [check]
+3. [Step] -> verify: [check]
+```
+
+Strong success criteria let you loop independently. Weak criteria like "make it work" require constant clarification.
+
+---------------------------------------------------------------
+
+# Testing Philosophy
+
+Testing is critical to maintaining software quality, but not all tests are created equal. Focus on testing meaningful functionality that could actually break and impact the application.
+
+### Test Structure
+- Tests live in `tests/` directory with mirrored source structure
+- Focus on meaningful functionality that could realistically break
+- Avoid "idiot tests" that test framework behavior or trivial logic
+
+### What to Test
+- **Business logic**: Complex algorithms, validation rules, data transformations
+- **API endpoints**: Request/response handling, authentication, error cases
+- **Database operations**: Query correctness, constraint validation, data integrity
+- **Integration points**: External API calls, file processing, inter-service communication
+
+### What NOT to Test
+- Framework internals 
+- Third-party library behavior 
+- Trivial getters/setters or simple data transformations
+- Implementation details that don't affect public behavior
+
+**Test Quality Principles:**
+1. **Clarity Over Quantity** - Fewer, well-focused tests are better than many redundant ones
+2. **Test Behavior, Not Implementation** - Focus on what the code does, not how it does it
+3. **Meaningful Assertions** - Each test should verify something that could realistically fail
+4. **Isolated Tests** - Tests should not depend on each other or external state
+5. **Descriptive Names** - Test names should clearly describe what they're validating
+
+**When in Doubt, Ask:**
+- "Does this test validate critical business logic or user-facing behavior?"
+- "Could this functionality realistically break in the way it is being tested?"
+
+If the answer is no, delete the test and focus on more valuable testing efforts.
+
+DELETE tests that don't follow these principles. NO 'IDIOT TESTS'!
+
+NEVER run a full test suite unless specifically asked to. focus on specific tests related to the feature/functionality you are working on.
 </core_instructions>
 
 # Very Important Scoping Context
