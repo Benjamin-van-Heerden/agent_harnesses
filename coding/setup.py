@@ -26,6 +26,7 @@ CORE_END_TAG = "</core_instructions>"
 LEGACY_CORE_START_TAG = "<AGENT_CORE>"
 LEGACY_CORE_END_TAG = "</AGENT_CORE>"
 DEFAULT_DOCS: tuple[str, ...] = ()
+RETIRED_DEFAULT_DOCS = ("coding_general.md", "coding_testing.md")
 WORKTREE_SYMLINK_PATHS_COMMENT = (
     "# Project-root relative paths to symlink from the main checkout into spec worktrees.",
     "# Every listed path is automatically added to .gitignore and must be safe to keep untracked.",
@@ -1172,6 +1173,16 @@ def docs_update(optional_docs_dir: Path, state_dir: Path, slugs: list[str]) -> N
         print("No installed optional docs to update.")
 
 
+def remove_retired_default_docs(state_dir: Path) -> None:
+    docs_dir = state_dir / "docs"
+    for filename in RETIRED_DEFAULT_DOCS:
+        path = docs_dir / filename
+        if not path.is_file():
+            continue
+        path.unlink()
+        print(f"Removed retired default doc: {filename}")
+
+
 def parse_doc_selection(value: str) -> list[str]:
     return [part for part in re.split(r"[\s,]+", value.strip()) if part]
 
@@ -1500,6 +1511,7 @@ def install(template_root: Path, target_root: Path, update: bool) -> None:
     install_agents_file(template_root, target_root)
     ensure_claude_file(target_root)
     if update:
+        remove_retired_default_docs(state_dir)
         docs_update(optional_docs_dir, state_dir, [])
     else:
         install_default_docs(optional_docs_dir, state_dir, selected_docs)
