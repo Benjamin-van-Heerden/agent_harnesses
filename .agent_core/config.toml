@@ -27,10 +27,11 @@ dev = "dev"
 
 [harness]
 update_interval_days = 3
-last_updated_at = "2026-06-09T10:10:09Z"
+last_updated_at = "2026-06-26T09:57:59Z"
 
 # Commands whose output is included in onboard output
 # [[runnables]]
+# name = "Generated project context"
 # command = "python -m your_tool --print-context"
 # description = "Generated project context"
 # timeout_seconds = 60

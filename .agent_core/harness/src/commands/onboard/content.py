@@ -102,7 +102,7 @@ def _tree_sections(config: AgentCoreConfig) -> list[str]:
     return [*subsection("🌲 DIRECTORY TREES"), *tree_sections]
 
 
-def _runnable_output(command: str, timeout_seconds: int) -> tuple[str, str, int | None, str | None]:
+def _runnable_output(command: str, timeout_seconds: int) -> tuple[str, int | None, str | None]:
     try:
         result = subprocess.run(
             command,
@@ -113,48 +113,43 @@ def _runnable_output(command: str, timeout_seconds: int) -> tuple[str, str, int 
             timeout=timeout_seconds,
             check=False,
         )
-        return result.stdout.strip(), result.stderr.strip(), result.returncode, None
-    except subprocess.TimeoutExpired as error:
-        stdout = error.stdout if isinstance(error.stdout, str) else ""
-        stderr = error.stderr if isinstance(error.stderr, str) else ""
-        return stdout.strip(), stderr.strip(), None, f"Timed out after {timeout_seconds} seconds"
+        return result.stdout.strip(), result.returncode, None
+    except subprocess.TimeoutExpired:
+        return "", None, f"timed out after {timeout_seconds} seconds"
     except OSError as error:
-        return "", "", None, f"Could not run command: {error}"
+        return "", None, f"could not run: {error}"
+
+
+def _runnable_failure_message(title: str, returncode: int | None, error: str | None) -> str:
+    if error is not None:
+        return f"The configured runnable `{title}` failed because it {error}. You must notify the user that they need to fix this runnable in {PROJECT_PATHS.config_file_display}."
+    return f"The configured runnable `{title}` failed with exit code {returncode}. You must notify the user that they need to fix this runnable in {PROJECT_PATHS.config_file_display}."
 
 
 def _runnable_sections(config: AgentCoreConfig) -> list[str]:
     runnable_sections: list[str] = []
     for index, item in enumerate(config.runnables, start=1):
-        title = item.description or f"Runnable {index}"
-        stdout, stderr, returncode, error = _runnable_output(item.command, item.timeout_seconds)
+        title = item.name or f"Runnable {index}"
+        stdout, returncode, error = _runnable_output(item.command, item.timeout_seconds)
         runnable_sections.extend(file(title))
         if item.description:
             runnable_sections.append(f"*{item.description}*")
             runnable_sections.append("")
-        runnable_sections.append("Command:")
-        runnable_sections.append("```bash")
-        runnable_sections.append(item.command.strip())
-        runnable_sections.append("```")
-        runnable_sections.append("")
         if error is not None:
-            runnable_sections.append(f"Status: {error}")
+            runnable_sections.append(_runnable_failure_message(title, returncode, error))
             runnable_sections.append("")
-        elif returncode != 0:
-            runnable_sections.append(f"Exit code: {returncode}")
+            continue
+        if returncode != 0:
+            runnable_sections.append(_runnable_failure_message(title, returncode, error))
             runnable_sections.append("")
+            continue
         if stdout:
             runnable_sections.append("Stdout:")
             runnable_sections.append("```text")
             runnable_sections.append(stdout)
             runnable_sections.append("```")
             runnable_sections.append("")
-        if stderr:
-            runnable_sections.append("Stderr:")
-            runnable_sections.append("```text")
-            runnable_sections.append(stderr)
-            runnable_sections.append("```")
-            runnable_sections.append("")
-        if not stdout and not stderr and error is None:
+        else:
             runnable_sections.append("[Command produced no output]")
             runnable_sections.append("")
 
@@ -280,32 +275,52 @@ def _log_entry(record: WorkLog, current_username: str) -> str:
 
 
 def _recent_log_records(active_spec: Spec | None) -> list[WorkLog]:
+    max_displayed = 4
+    new_user_displayed = 3
+    current_user_target = 2
+    current_user_max = 3
+    candidate_pool = 6
     current_username = logs.current_username()
     spec_slug = active_spec.slug if active_spec is not None else None
     current_records = logs.list_all(
-        limit=5,
+        limit=current_user_max,
         spec_slug=spec_slug,
         username=current_username,
     )
-    general_records = logs.list_all(limit=5, spec_slug=spec_slug)
+    general_records = logs.list_all(limit=candidate_pool, spec_slug=spec_slug)
+
+    if not current_records:
+        selected = general_records[:new_user_displayed]
+        selected.sort(key=lambda item: item.created_at)
+        return selected
+
     selected: list[WorkLog] = []
     seen: set[str] = set()
 
-    for record in current_records[:3]:
+    recent_three = general_records[:current_user_max]
+    current_pin_count = min(current_user_target, len(current_records))
+    if len(recent_three) == current_user_max and all(
+        record.username == current_username for record in recent_three
+    ):
+        current_pin_count = min(current_user_max, len(current_records))
+
+    for record in current_records[:current_pin_count]:
         selected.append(record)
         seen.add(record.filename)
 
-    candidates = {
-        record.filename: record for record in [*current_records, *general_records]
-    }
-    for record in sorted(
-        candidates.values(), key=lambda item: item.created_at, reverse=True
-    ):
+    current_selected_count = sum(
+        1 for record in selected if record.username == current_username
+    )
+    for record in general_records:
         if record.filename in seen:
+            continue
+        if record.username == current_username and current_selected_count >= current_user_max:
             continue
         selected.append(record)
         seen.add(record.filename)
-        if len(selected) >= 6:
+        if record.username == current_username:
+            current_selected_count += 1
+        if len(selected) >= max_displayed:
             break
 
     selected.sort(key=lambda item: item.created_at)

@@ -31,6 +31,7 @@ class TreeDirConfig(BaseModel):
 class RunnableConfig(BaseModel):
     model_config = ConfigDict(extra="ignore")
 
+    name: str | None = Field(default=None, description="Short label displayed as the runnable heading")
     command: str = Field(..., description="Shell command to run from the project root during onboard")
     description: str | None = Field(default=None, description="Why this command output matters")
     timeout_seconds: int = Field(
