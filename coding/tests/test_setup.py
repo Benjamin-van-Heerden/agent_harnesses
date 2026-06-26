@@ -38,16 +38,11 @@ def test_template_setup_preserves_state_and_avoids_removed_surfaces(tmp_path: Pa
     assert ".claude/" in gitignore_lines
     assert not (target / ".agent_core" / "tmp").exists()
     assert (target / "AGENTS.md").read_text().strip()
-    assert (target / ".agent_core" / "docs" / "coding_general.md").read_text() == (
-        HARNESS_ROOT / "optional_docs" / "coding_general.md"
-    ).read_text()
-    assert (target / ".agent_core" / "docs" / "coding_testing.md").read_text() == (
-        HARNESS_ROOT / "optional_docs" / "coding_testing.md"
-    ).read_text()
+    assert not list((target / ".agent_core" / "docs").glob("*.md"))
 
     (target / ".agent_core" / "specs" / "keep.md").write_text("state\n")
-    (target / ".agent_core" / "docs" / "coding_general.md").write_text("project notes\n")
-    (target / ".agent_core" / "docs" / "coding_testing.md").unlink()
+    (target / ".agent_core" / "docs" / "project_notes.md").write_text("project notes\n")
+    (target / ".agent_core" / "docs" / "coding_python.md").write_text("stale python doc\n")
     (target / ".agent_core" / "README.md").write_text("stale readme\n")
     config_path = target / ".agent_core" / "config.toml"
     run_command(["git", "branch", "prod"], cwd=target)
@@ -65,10 +60,10 @@ def test_template_setup_preserves_state_and_avoids_removed_surfaces(tmp_path: Pa
     assert config["branches"]["test"] == "test"
     assert not stale_file.exists()
     assert (target / ".agent_core" / "specs" / "keep.md").read_text() == "state\n"
-    assert (target / ".agent_core" / "docs" / "coding_general.md").read_text() == (
-        HARNESS_ROOT / "optional_docs" / "coding_general.md"
+    assert (target / ".agent_core" / "docs" / "project_notes.md").read_text() == "project notes\n"
+    assert (target / ".agent_core" / "docs" / "coding_python.md").read_text() == (
+        HARNESS_ROOT / "optional_docs" / "coding_python.md"
     ).read_text()
-    assert not (target / ".agent_core" / "docs" / "coding_testing.md").exists()
     assert (target / ".agent_core" / "README.md").read_text() == (HARNESS_ROOT / "README.md").read_text()
     gitignore_lines = (target / ".gitignore").read_text().splitlines()
     assert gitignore_lines.count(".claude") == 1
@@ -521,7 +516,7 @@ def test_setup_optional_docs_commands_manage_project_local_docs(tmp_path: Path) 
             "docs",
             "add",
             "coding_python",
-            "coding_testing",
+            "coding_rust",
         ],
         cwd=target,
     )
@@ -529,8 +524,8 @@ def test_setup_optional_docs_commands_manage_project_local_docs(tmp_path: Path) 
     assert (docs_dir / "coding_python.md").read_text() == (
         HARNESS_ROOT / "optional_docs" / "coding_python.md"
     ).read_text()
-    assert (docs_dir / "coding_testing.md").read_text() == (
-        HARNESS_ROOT / "optional_docs" / "coding_testing.md"
+    assert (docs_dir / "coding_rust.md").read_text() == (
+        HARNESS_ROOT / "optional_docs" / "coding_rust.md"
     ).read_text()
 
     (docs_dir / "coding_python.md").write_text("stale\n")
@@ -539,11 +534,11 @@ def test_setup_optional_docs_commands_manage_project_local_docs(tmp_path: Path) 
         HARNESS_ROOT / "optional_docs" / "coding_python.md"
     ).read_text()
 
-    (docs_dir / "coding_testing.md").write_text("stale\n")
+    (docs_dir / "coding_rust.md").write_text("stale\n")
     run_command(
-        [sys.executable, str(HARNESS_ROOT / "setup.py"), "docs", "update", "coding_testing"],
+        [sys.executable, str(HARNESS_ROOT / "setup.py"), "docs", "update", "coding_rust"],
         cwd=target,
     )
-    assert (docs_dir / "coding_testing.md").read_text() == (
-        HARNESS_ROOT / "optional_docs" / "coding_testing.md"
+    assert (docs_dir / "coding_rust.md").read_text() == (
+        HARNESS_ROOT / "optional_docs" / "coding_rust.md"
     ).read_text()

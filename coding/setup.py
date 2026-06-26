@@ -25,7 +25,7 @@ CORE_START_TAG = "<core_instructions>"
 CORE_END_TAG = "</core_instructions>"
 LEGACY_CORE_START_TAG = "<AGENT_CORE>"
 LEGACY_CORE_END_TAG = "</AGENT_CORE>"
-DEFAULT_DOCS = ("coding_general", "coding_testing")
+DEFAULT_DOCS: tuple[str, ...] = ()
 WORKTREE_SYMLINK_PATHS_COMMENT = (
     "# Project-root relative paths to symlink from the main checkout into spec worktrees.",
     "# Every listed path is automatically added to .gitignore and must be safe to keep untracked.",
@@ -1189,7 +1189,10 @@ def prompt_optional_docs(optional_docs_dir: Path) -> list[str]:
         print(f"  - {slug}{marker}")
     print("")
     print("Enter doc slugs separated by spaces or commas.")
-    print("Press Enter to install the default docs, or enter 'none' to skip optional docs.")
+    if default_docs:
+        print("Press Enter to install the default docs, or enter 'none' to skip optional docs.")
+    else:
+        print("Press Enter or enter 'none' to skip optional docs.")
 
     response = input("Optional docs> ").strip()
     if not response:

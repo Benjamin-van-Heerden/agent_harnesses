@@ -275,11 +275,11 @@ def _log_entry(record: WorkLog, current_username: str) -> str:
 
 
 def _recent_log_records(active_spec: Spec | None) -> list[WorkLog]:
-    max_displayed = 4
-    new_user_displayed = 3
-    current_user_target = 2
-    current_user_max = 3
-    candidate_pool = 6
+    max_displayed = 6
+    new_user_displayed = 4
+    current_user_target = 3
+    current_user_max = 4
+    candidate_pool = 10
     current_username = logs.current_username()
     spec_slug = active_spec.slug if active_spec is not None else None
     current_records = logs.list_all(

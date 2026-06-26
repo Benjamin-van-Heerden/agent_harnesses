@@ -194,7 +194,7 @@ def test_template_onboard_expands_current_user_and_recent_logs(tmp_path: Path) -
     assert "General log 1" not in result.stdout
 
 
-def test_template_onboard_shows_three_logs_for_new_current_user(tmp_path: Path) -> None:
+def test_template_onboard_shows_four_logs_for_new_current_user(tmp_path: Path) -> None:
     target = tmp_path / "project"
     target.mkdir()
     (target / "README.md").write_text("# Project\n")
@@ -219,11 +219,12 @@ def test_template_onboard_shows_three_logs_for_new_current_user(tmp_path: Path) 
     assert "General log 6" in result.stdout
     assert "General log 5" in result.stdout
     assert "General log 4" in result.stdout
-    assert "General log 3" not in result.stdout
+    assert "General log 3" in result.stdout
+    assert "General log 2" not in result.stdout
     assert "General log 1" not in result.stdout
 
 
-def test_template_onboard_includes_single_current_user_log_in_four_log_mix(tmp_path: Path) -> None:
+def test_template_onboard_includes_single_current_user_log_in_six_log_mix(tmp_path: Path) -> None:
     target = tmp_path / "project"
     target.mkdir()
     (target / "README.md").write_text("# Project\n")
@@ -257,7 +258,8 @@ def test_template_onboard_includes_single_current_user_log_in_four_log_mix(tmp_p
     assert "General log 6" in result.stdout
     assert "General log 5" in result.stdout
     assert "General log 4" in result.stdout
-    assert "General log 3" not in result.stdout
+    assert "General log 3" in result.stdout
+    assert "General log 2" in result.stdout
     assert "General log 1" not in result.stdout
 
 
