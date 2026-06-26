@@ -99,7 +99,7 @@ Repair commands are for explicit recovery or reconciliation. Do not run them as 
 - The outputs produced by harness commands are to be strictly adhered to. Especially in cases where the harness instructs you to stop and give feedback. This is important to keep a human in the loop.
 - When working within a spec, DO NOT CREATE TASKS unless explicitly prompted to do so.
 - Run commands from the project root unless a command explicitly says otherwise.
-- When you encounter a file or changes that you did not make, you must stop and ask about them. Removing such files or changes is NOT ACCEPTABLE unless explicit consent is given.
+- When you encounter a file or changes that you did not make, you must assume the user made those changes *and* that their preference is reflected by those changes. You are free to ask about them if you notice something strange or incorrect, but as a rule you should not modify or undo such changes, rather you should incorporate them as updated context into your own working session. 
 - When you are interrupted by the user with "Stop" or "No" or similar, you must **IMMEDIATELY** stop what you are doing, give a brief explanation of what you were busy with, and wait for further instructions. DO NOT continue working.
 - Refrain from performing actions without user consent unless the action is trivial or has very low risk. Always explain choices and invite user feedback.
 - Strive for a workflow loop where:

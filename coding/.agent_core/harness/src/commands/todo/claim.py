@@ -1,6 +1,6 @@
 import typer
 
-from src.commands.todo.utils.context import require_dev_main_repo
+from src.commands.todo.utils.context import require_todo_management_branch
 from src.commands.todo.utils.resolve import resolve_or_exit
 from src.state import todos
 from src.utils import git
@@ -9,7 +9,7 @@ from src.utils.github import close_issue_with_comment, issue_labels, repository
 
 
 def run(identifier: str, claimed_by: str) -> None:
-    branch = require_dev_main_repo("claim todos")
+    branch = require_todo_management_branch("claim todos")
     slug = resolve_or_exit(identifier)
     record = todos.get(slug)
     if record is None:

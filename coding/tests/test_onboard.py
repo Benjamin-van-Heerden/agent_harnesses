@@ -148,7 +148,7 @@ def test_template_onboard_hides_management_commands_on_non_dev_branch(tmp_path: 
     )
 
     assert "No specs available. Spec creation must run from mission control on `dev`." in result.stdout
-    assert "Todo claim/create/delete commands must run from mission control on `dev`." in result.stdout
+    assert "Todo claim/create/delete commands must run from `dev` or from an active spec branch that will merge back to `dev`." in result.stdout
     assert "Create or manage a spec if needed" not in result.stdout
     assert "Or claim a todo if directed" not in result.stdout
 
