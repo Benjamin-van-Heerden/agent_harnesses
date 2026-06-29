@@ -6,6 +6,7 @@ deps.require_dependencies()
 import typer  # noqa: E402
 
 from src.commands.cleanup.main import app as cleanup_app  # noqa: E402
+from src.commands.introspect.main import app as introspect_app  # noqa: E402
 from src.commands.log.main import app as log_app  # noqa: E402
 from src.commands.memory.main import app as memory_app  # noqa: E402
 from src.commands.merge.main import app as merge_app  # noqa: E402
@@ -23,6 +24,7 @@ from src.config.paths import PROJECT_PATHS  # noqa: E402
 app = typer.Typer(help="Project-local agent harness")
 config_app = typer.Typer(help="Inspect project configuration")
 app.add_typer(config_app, name="config")
+app.add_typer(introspect_app, name="introspect")
 app.add_typer(memory_app, name="memory")
 app.add_typer(todo_app, name="todo")
 app.add_typer(log_app, name="log")

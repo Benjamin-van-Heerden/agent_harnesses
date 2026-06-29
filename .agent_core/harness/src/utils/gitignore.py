@@ -4,6 +4,16 @@ from src.config.models import AgentCoreConfig
 
 
 HEADER = "# Agent Core worktree symlinks"
+AGENT_CORE_STATE_HEADER = "# Agent Core state"
+AGENT_CORE_STATE_IGNORE_BLOCK = (
+    AGENT_CORE_STATE_HEADER,
+    "!.agent_core/",
+    "!.agent_core/**",
+    ".agent_core/tmp/",
+    ".agent_core/tmp/**",
+    ".cache/pycache/",
+    ".cache/pycache/**",
+)
 TMP_IGNORE_ENTRY = ".agent_core/tmp/"
 LEGACY_TMP_IGNORE_ENTRY = ".agent_core/tmp"
 
@@ -54,23 +64,19 @@ def ensure_symlink_paths_ignored(config: AgentCoreConfig, gitignore_file: Path) 
 
 def ensure_agent_core_tmp_ignored(gitignore_file: Path) -> bool:
     existing = gitignore_file.read_text().splitlines() if gitignore_file.exists() else []
-    changed = False
     lines: list[str] = []
 
     for line in existing:
-        if line.strip() == LEGACY_TMP_IGNORE_ENTRY:
-            lines.append(TMP_IGNORE_ENTRY)
-            changed = True
+        stripped = line.strip()
+        if stripped in AGENT_CORE_STATE_IGNORE_BLOCK or stripped == LEGACY_TMP_IGNORE_ENTRY:
             continue
         lines.append(line)
 
-    seen = {line.strip() for line in lines}
-    if TMP_IGNORE_ENTRY not in seen:
-        if lines and lines[-1].strip():
-            lines.append("")
-        lines.append(TMP_IGNORE_ENTRY)
-        changed = True
+    if lines and lines[-1].strip():
+        lines.append("")
+    lines.extend(AGENT_CORE_STATE_IGNORE_BLOCK)
 
+    changed = lines != existing
     if changed:
         gitignore_file.write_text("\n".join(lines).rstrip() + "\n")
     return changed
