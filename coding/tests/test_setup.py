@@ -26,6 +26,7 @@ def test_template_setup_preserves_state_and_avoids_removed_surfaces(tmp_path: Pa
 
     assert (target / ".agent_core" / "harness").is_dir()
     assert (target / ".agent_core" / "config.toml").is_file()
+    assert (target / ".agent_core" / "patches.toml").is_file()
     assert (target / ".agent_core" / "README.md").read_text() == (HARNESS_ROOT / "README.md").read_text()
     assert (target / ".agent_core" / "user_mappings.toml").is_file()
     config = read_toml(target / ".agent_core" / "config.toml")
@@ -46,6 +47,16 @@ def test_template_setup_preserves_state_and_avoids_removed_surfaces(tmp_path: Pa
     assert not (target / ".agent_core" / "tmp").exists()
     assert (target / "AGENTS.md").read_text().strip()
     assert not list((target / ".agent_core" / "docs").glob("*.md"))
+    patches = read_toml(target / ".agent_core" / "patches.toml")
+    applied = patches["applied"]
+    assert isinstance(applied, list)
+    applied_ids = {record["id"] for record in applied if isinstance(record, dict)}
+    assert applied_ids == {
+        "0001_agent_core_state_gitignore",
+        "0002_optional_onboard_config_scaffolds",
+        "0003_worktree_symlink_comment",
+        "0004_remove_retired_default_docs",
+    }
 
     (target / ".agent_core" / "specs" / "keep.md").write_text("state\n")
     (target / ".agent_core" / "docs" / "project_notes.md").write_text("project notes\n")
@@ -53,6 +64,7 @@ def test_template_setup_preserves_state_and_avoids_removed_surfaces(tmp_path: Pa
     (target / ".agent_core" / "docs" / "coding_general.md").write_text("retired general doc\n")
     (target / ".agent_core" / "docs" / "coding_testing.md").write_text("retired testing doc\n")
     (target / ".agent_core" / "README.md").write_text("stale readme\n")
+    (target / ".agent_core" / "patches.toml").unlink()
     config_path = target / ".agent_core" / "config.toml"
     run_command(["git", "branch", "prod"], cwd=target)
     config_path.write_text('[project]\nname = "Custom"\n\n[branches]\nmain = "prod"\n')
@@ -509,6 +521,10 @@ def test_setup_applies_agent_core_state_gitignore_patch_after_broad_ignores(tmp_
     assert run_command(["git", "check-ignore", "--no-index", ".agent_core/config.toml"], cwd=target, check=False).returncode == 1
     assert run_command(["git", "check-ignore", "--no-index", ".agent_core/tmp/onboard.md"], cwd=target, check=False).returncode == 0
     assert run_command(["git", "check-ignore", "--no-index", ".cache/pycache/example.pyc"], cwd=target, check=False).returncode == 0
+    patches = read_toml(target / ".agent_core" / "patches.toml")
+    applied = patches["applied"]
+    assert isinstance(applied, list)
+    assert any(isinstance(record, dict) and record.get("id") == "0001_agent_core_state_gitignore" for record in applied)
 
 
 def test_setup_allows_python_pycache_prefix_artifact_before_gitignore_patch(tmp_path: Path) -> None:
@@ -525,7 +541,7 @@ def test_setup_allows_python_pycache_prefix_artifact_before_gitignore_patch(tmp_
     assert run_command(["git", "check-ignore", "--no-index", ".cache/pycache/example.pyc"], cwd=target, check=False).returncode == 0
 
 
-def test_setup_config_patch_registry_updates_comments_without_resetting_values(tmp_path: Path) -> None:
+def test_setup_source_patches_update_comments_without_resetting_values(tmp_path: Path) -> None:
     target = tmp_path / "project"
     target.mkdir()
     init_git_project(target)
@@ -557,6 +573,25 @@ main = "main"
     assert "# Paths to symlink into worktrees instead of copying" not in content
     assert content.count("# Project-root relative paths to symlink from the main checkout into spec worktrees.") == 1
     assert 'symlink_paths = [".custom_link"]' in content
+    patches = read_toml(target / ".agent_core" / "patches.toml")
+    applied = patches["applied"]
+    assert isinstance(applied, list)
+    assert any(isinstance(record, dict) and record.get("id") == "0003_worktree_symlink_comment" for record in applied)
+
+
+def test_setup_skips_recorded_source_patches(tmp_path: Path) -> None:
+    target = tmp_path / "project"
+    target.mkdir()
+    init_git_project(target)
+    install_harness(target)
+    run_command(["git", "checkout", "dev"], cwd=target)
+    gitignore_file = target / ".gitignore"
+    gitignore_file.write_text(".agent_core/tmp/\n")
+
+    result = run_command([sys.executable, str(HARNESS_ROOT / "setup.py"), "--update"], cwd=target)
+
+    assert "Applied .gitignore patch" not in result.stdout
+    assert "# Agent Core state" not in gitignore_file.read_text()
 
 
 def test_setup_optional_docs_commands_manage_project_local_docs(tmp_path: Path) -> None:

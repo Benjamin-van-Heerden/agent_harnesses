@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 import argparse
+import importlib.util
 import io
 import json
 import os
@@ -16,7 +17,7 @@ import zipfile
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import NoReturn, cast
+from typing import Callable, NoReturn, cast
 
 
 REPO_ARCHIVE_URL = "https://github.com/Benjamin-van-Heerden/agent_harnesses/archive/refs/heads/main.zip"
@@ -26,41 +27,11 @@ CORE_END_TAG = "</core_instructions>"
 LEGACY_CORE_START_TAG = "<AGENT_CORE>"
 LEGACY_CORE_END_TAG = "</AGENT_CORE>"
 DEFAULT_DOCS: tuple[str, ...] = ()
-RETIRED_DEFAULT_DOCS = ("coding_general.md", "coding_testing.md")
 WORKTREE_SYMLINK_PATHS_COMMENT = (
     "# Project-root relative paths to symlink from the main checkout into spec worktrees.",
     "# Every listed path is automatically added to .gitignore and must be safe to keep untracked.",
     "# Typical examples are .env, .claude, .venv, node_modules, or deps. Use care with manifests and lock files such as pyproject.toml, package.json, or bun.lock; list them only when the project deliberately treats them as local-only.",
 )
-OPTIONAL_ONBOARD_CONFIG_BLOCKS = {
-    "files": "\n".join(
-        (
-            "# Files to include in onboard output",
-            "# [[files]]",
-            '# path = "README.md"',
-            '# description = "Project overview and setup instructions"',
-        )
-    ),
-    "tree_dirs": "\n".join(
-        (
-            "# Directories whose tree structure is included in onboard output",
-            "# [[tree_dirs]]",
-            '# path = "src"',
-            '# description = "Source code"',
-        )
-    ),
-    "runnables": "\n".join(
-        (
-            "# Commands whose output is included in onboard output",
-            "# [[runnables]]",
-            '# name = "Generated project context"',
-            '# command = "python -m your_tool --print-context"',
-            '# description = "Generated project context"',
-            "# timeout_seconds = 60",
-        )
-    ),
-}
-LEGACY_WORKTREE_SYMLINK_PATHS_COMMENT = "# Paths to symlink into worktrees instead of copying"
 AGENT_CORE_TMP_IGNORE_ENTRY = ".agent_core/tmp/"
 LEGACY_AGENT_CORE_TMP_IGNORE_ENTRY = ".agent_core/tmp"
 AGENT_CORE_STATE_GITIGNORE_HEADER = "# Agent Core state"
@@ -88,21 +59,18 @@ HARNESS_MANAGED_PATHS = (".agent_core", "AGENTS.md", "CLAUDE.md", ".gitignore")
 
 
 @dataclass(frozen=True)
-class ConfigKeyCommentPatch:
-    section: str
-    key: str
-    comment_lines: tuple[str, ...]
-    legacy_comment_blocks: tuple[tuple[str, ...], ...] = ()
+class SourcePatch:
+    id: str
+    file: str
+    description: str
+    path: Path
 
 
-CONFIG_PATCHES = (
-    ConfigKeyCommentPatch(
-        section="worktree",
-        key="symlink_paths",
-        comment_lines=WORKTREE_SYMLINK_PATHS_COMMENT,
-        legacy_comment_blocks=((LEGACY_WORKTREE_SYMLINK_PATHS_COMMENT,),),
-    ),
-)
+@dataclass(frozen=True)
+class AppliedPatch:
+    id: str
+    applied_at: str
+    description: str
 
 
 class SetupError(Exception):
@@ -283,10 +251,6 @@ def section_declared(content: str, section: str) -> bool:
     return re.search(rf"^\s*#?\s*\[{re.escape(section)}\]\s*$", content, re.MULTILINE) is not None
 
 
-def array_table_declared(content: str, name: str) -> bool:
-    return re.search(rf"^\s*#?\s*\[\[{re.escape(name)}\]\]\s*$", content, re.MULTILINE) is not None
-
-
 def key_declared(content: str, section: str, key: str) -> bool:
     lines = content.splitlines()
     in_section = False
@@ -329,96 +293,6 @@ def insert_key(content: str, section: str, line: str) -> str:
         return "\n".join(lines) + "\n"
 
     return append_if_missing(content, f"{section_header}\n{line}")
-
-
-def find_section_key_line(lines: list[str], section: str, key: str) -> int | None:
-    in_section = False
-    section_header = f"[{section}]"
-
-    for index, line in enumerate(lines):
-        stripped = line.strip()
-        if stripped == section_header:
-            in_section = True
-            continue
-        if in_section and stripped.startswith("["):
-            return None
-        if in_section and re.match(rf"^{re.escape(key)}\s*=", stripped):
-            return index
-    return None
-
-
-def _matching_comment_start(lines: list[str], key_index: int, block: tuple[str, ...]) -> int | None:
-    block_start = key_index - len(block)
-    if block_start < 0:
-        return None
-    if tuple(line.strip() for line in lines[block_start:key_index]) == block:
-        return block_start
-    return None
-
-
-def apply_key_comment_patch(content: str, patch: ConfigKeyCommentPatch) -> str:
-    lines = content.splitlines()
-    key_index = find_section_key_line(lines, patch.section, patch.key)
-    if key_index is None:
-        return content
-
-    comment_start = _matching_comment_start(lines, key_index, patch.comment_lines)
-    if comment_start is not None:
-        return content
-
-    for legacy_block in patch.legacy_comment_blocks:
-        comment_start = _matching_comment_start(lines, key_index, legacy_block)
-        if comment_start is None:
-            continue
-        lines[comment_start:key_index] = patch.comment_lines
-        return "\n".join(lines).rstrip() + "\n"
-
-    lines[key_index:key_index] = patch.comment_lines
-    return "\n".join(lines).rstrip() + "\n"
-
-
-def apply_config_patches(content: str) -> str:
-    for patch in CONFIG_PATCHES:
-        content = apply_key_comment_patch(content, patch)
-    return content
-
-
-def ensure_optional_onboard_config_block(content: str) -> str:
-    missing_blocks = [
-        block
-        for name, block in OPTIONAL_ONBOARD_CONFIG_BLOCKS.items()
-        if not array_table_declared(content, name)
-    ]
-    if not missing_blocks:
-        return content
-    return append_if_missing(content, "\n\n".join(missing_blocks))
-
-
-def ensure_commented_runnable_name_scaffold(content: str) -> str:
-    lines = content.splitlines()
-    changed = False
-    for index, line in enumerate(lines):
-        if line.strip() != "# [[runnables]]":
-            continue
-
-        next_index = index + 1
-        has_name = False
-        while next_index < len(lines):
-            stripped = lines[next_index].strip()
-            if re.match(r"^#?\s*\[\[?[^\]]+\]?\]\s*$", stripped):
-                break
-            if re.match(r"^#\s*name\s*=", stripped):
-                has_name = True
-                break
-            next_index += 1
-
-        if not has_name:
-            lines.insert(index + 1, '# name = "Generated project context"')
-            changed = True
-
-    if not changed:
-        return content
-    return "\n".join(lines).rstrip() + "\n"
 
 
 def upsert_config(path: Path, project_name: str) -> None:
@@ -497,9 +371,6 @@ test = "test"
         if section_exists(content, "branches") and not key_declared(content, "branches", "test"):
             content = insert_key(content, "branches", 'test = "test"')
 
-    content = ensure_optional_onboard_config_block(content)
-    content = ensure_commented_runnable_name_scaffold(content)
-    content = apply_config_patches(content)
     if content != original_content:
         path.write_text(content)
         print("Updated managed file: .agent_core/config.toml")
@@ -527,6 +398,146 @@ def ensure_config(config_file: Path, target_root: Path) -> bool:
     created = not config_file.exists()
     upsert_config(config_file, target_root.name)
     return created
+
+
+def _validate_patch_id(value: str) -> None:
+    if not re.match(r"^\d+_[a-z0-9_]+$", value):
+        fail(f"Invalid patch id in coding/patches/patches.toml: {value}")
+
+
+def source_patches(template_root: Path) -> list[SourcePatch]:
+    patches_dir = template_root / "patches"
+    manifest_file = patches_dir / "patches.toml"
+    if not manifest_file.exists():
+        return []
+
+    raw = read_toml(manifest_file)
+    patches_value = raw.get("patches")
+    if not isinstance(patches_value, list):
+        fail("Invalid coding/patches/patches.toml: missing [[patches]] entries")
+
+    patches: list[SourcePatch] = []
+    seen: set[str] = set()
+    for item in patches_value:
+        if not isinstance(item, dict):
+            fail("Invalid coding/patches/patches.toml: each patch entry must be a table")
+        patch = cast(dict[str, object], item)
+        patch_id = patch.get("id")
+        filename = patch.get("file")
+        description = patch.get("description")
+        if not isinstance(patch_id, str) or not isinstance(filename, str) or not isinstance(description, str):
+            fail("Invalid coding/patches/patches.toml: each patch requires string id, file, and description")
+        _validate_patch_id(patch_id)
+        if patch_id in seen:
+            fail(f"Invalid coding/patches/patches.toml: duplicate patch id {patch_id}")
+        if Path(filename).name != filename or not filename.endswith(".py"):
+            fail(f"Invalid patch file for {patch_id}: {filename}")
+        path = patches_dir / filename
+        if not path.is_file():
+            fail(f"Patch file not found for {patch_id}: coding/patches/{filename}")
+        patches.append(SourcePatch(id=patch_id, file=filename, description=description, path=path))
+        seen.add(patch_id)
+
+    return patches
+
+
+def patches_record_file(state_dir: Path) -> Path:
+    return state_dir / "patches.toml"
+
+
+def applied_patches(state_dir: Path) -> list[AppliedPatch]:
+    record_file = patches_record_file(state_dir)
+    if not record_file.exists():
+        return []
+
+    raw = read_toml(record_file)
+    applied_value = raw.get("applied")
+    if not isinstance(applied_value, list):
+        return []
+
+    records: list[AppliedPatch] = []
+    for item in applied_value:
+        if not isinstance(item, dict):
+            continue
+        record = cast(dict[str, object], item)
+        patch_id = record.get("id")
+        applied_at = record.get("applied_at")
+        description = record.get("description")
+        if isinstance(patch_id, str) and isinstance(applied_at, str) and isinstance(description, str):
+            records.append(AppliedPatch(id=patch_id, applied_at=applied_at, description=description))
+    return records
+
+
+def render_patches_record(records: list[AppliedPatch]) -> str:
+    lines = [
+        "# Source-side coding harness patches applied to this project.",
+        "# This file is managed by coding/setup.py.",
+        "",
+    ]
+    for record in records:
+        lines.extend(
+            [
+                "[[applied]]",
+                f'id = "{record.id}"',
+                f'applied_at = "{record.applied_at}"',
+                f'description = "{record.description}"',
+                "",
+            ]
+        )
+    return "\n".join(lines).rstrip() + "\n"
+
+
+def write_patches_record(state_dir: Path, records: list[AppliedPatch]) -> None:
+    record_file = patches_record_file(state_dir)
+    content = render_patches_record(records)
+    if record_file.exists() and record_file.read_text() == content:
+        return
+    record_file.write_text(content)
+    print("Updated managed file: .agent_core/patches.toml")
+
+
+def _load_patch_runner(patch: SourcePatch) -> Callable[[Path], bool]:
+    module_name = f"agent_core_source_patch_{patch.id}"
+    spec = importlib.util.spec_from_file_location(module_name, patch.path)
+    if spec is None or spec.loader is None:
+        fail(f"Could not load source patch {patch.id}")
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    runner = getattr(module, "run", None)
+    if not callable(runner):
+        fail(f"Source patch {patch.id} must define run(project_root: Path) -> bool")
+    return cast(Callable[[Path], bool], runner)
+
+
+def run_source_patches(template_root: Path, target_root: Path, state_dir: Path) -> None:
+    patches = source_patches(template_root)
+    records = applied_patches(state_dir)
+    applied_ids = {record.id for record in records}
+    changed_record = False
+
+    for patch in patches:
+        if patch.id in applied_ids:
+            continue
+
+        runner = _load_patch_runner(patch)
+        result = runner(target_root)
+        if not isinstance(result, bool):
+            fail(f"Source patch {patch.id} returned {type(result).__name__}; expected bool")
+
+        records.append(
+            AppliedPatch(
+                id=patch.id,
+                applied_at=datetime.now(UTC).replace(microsecond=0).isoformat().replace("+00:00", "Z"),
+                description=patch.description,
+            )
+        )
+        applied_ids.add(patch.id)
+        changed_record = True
+        status = "changed project files" if result else "made no file changes"
+        print(f"Recorded source patch {patch.id}: {status}.")
+
+    if changed_record or not patches_record_file(state_dir).exists():
+        write_patches_record(state_dir, records)
 
 
 def symlink_ignore_entries(config_file: Path) -> list[str]:
@@ -568,26 +579,6 @@ def ensure_symlink_paths_ignored(config_file: Path, gitignore_file: Path) -> Non
     lines.extend(missing)
     gitignore_file.write_text("\n".join(lines).rstrip() + "\n")
     print("Updated .gitignore: added configured worktree symlink ignores: " + ", ".join(missing))
-
-
-def ensure_agent_core_tmp_ignored(gitignore_file: Path) -> None:
-    existing = gitignore_file.read_text().splitlines() if gitignore_file.exists() else []
-    lines: list[str] = []
-
-    for line in existing:
-        stripped = line.strip()
-        if stripped in AGENT_CORE_STATE_GITIGNORE_BLOCK or stripped == LEGACY_AGENT_CORE_TMP_IGNORE_ENTRY:
-            continue
-        lines.append(line)
-
-    if lines and lines[-1].strip():
-        lines.append("")
-    lines.extend(AGENT_CORE_STATE_GITIGNORE_BLOCK)
-
-    changed = lines != existing
-    if changed:
-        gitignore_file.write_text("\n".join(lines).rstrip() + "\n")
-        print("Applied .gitignore patch: ensured Agent Core state is tracked except .agent_core/tmp/ and .cache/pycache/ is ignored.")
 
 
 def branch_names(config_file: Path) -> tuple[str, str, str]:
@@ -1210,16 +1201,6 @@ def docs_update(optional_docs_dir: Path, state_dir: Path, slugs: list[str]) -> N
         print("No installed optional docs to update.")
 
 
-def remove_retired_default_docs(state_dir: Path) -> None:
-    docs_dir = state_dir / "docs"
-    for filename in RETIRED_DEFAULT_DOCS:
-        path = docs_dir / filename
-        if not path.is_file():
-            continue
-        path.unlink()
-        print(f"Removed retired default doc: {filename}")
-
-
 def parse_doc_selection(value: str) -> list[str]:
     return [part for part in re.split(r"[\s,]+", value.strip()) if part]
 
@@ -1539,7 +1520,7 @@ def install(template_root: Path, target_root: Path, update: bool) -> None:
     if not update:
         complete_initial_install_git_flow(target_root, config_file)
     ensure_symlink_paths_ignored(config_file, target_root / ".gitignore")
-    ensure_agent_core_tmp_ignored(target_root / ".gitignore")
+    run_source_patches(template_root, target_root, state_dir)
     if update:
         ensure_branches_exist(target_root, config_file)
         ensure_update_branch(target_root, config_file, update)
@@ -1549,7 +1530,6 @@ def install(template_root: Path, target_root: Path, update: bool) -> None:
     install_agents_file(template_root, target_root)
     ensure_claude_file(target_root)
     if update:
-        remove_retired_default_docs(state_dir)
         docs_update(optional_docs_dir, state_dir, [])
     else:
         install_default_docs(optional_docs_dir, state_dir, selected_docs)

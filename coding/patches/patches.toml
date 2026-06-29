@@ -1,0 +1,19 @@
+[[patches]]
+id = "0001_agent_core_state_gitignore"
+file = "0001_agent_core_state_gitignore.py"
+description = "Ensure Agent Core state stays tracked while generated temp/cache paths are ignored"
+
+[[patches]]
+id = "0002_optional_onboard_config_scaffolds"
+file = "0002_optional_onboard_config_scaffolds.py"
+description = "Add commented optional onboard config scaffolds to existing configs"
+
+[[patches]]
+id = "0003_worktree_symlink_comment"
+file = "0003_worktree_symlink_comment.py"
+description = "Refresh the worktree symlink config comment without changing configured values"
+
+[[patches]]
+id = "0004_remove_retired_default_docs"
+file = "0004_remove_retired_default_docs.py"
+description = "Remove retired default coding docs from installed project docs"
