@@ -161,7 +161,7 @@ def run(
     try:
         ensure_agent_core_tmp_ignored(PROJECT_PATHS.project_root / ".gitignore")
     except OSError as error:
-        typer.echo(f"Warning: could not ensure .agent_core/tmp/ is ignored: {error}", err=True)
+        typer.echo(f"Warning: could not ensure Agent Core .gitignore state rules: {error}", err=True)
 
     typer.echo(f"Management report draft created: {output_path.relative_to(PROJECT_PATHS.project_root)}")
     typer.echo(f"Work week: {start.isoformat()} to {end.isoformat()}")

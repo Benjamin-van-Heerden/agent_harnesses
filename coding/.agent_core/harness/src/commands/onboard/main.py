@@ -33,9 +33,9 @@ app = typer.Typer(help="Build local project context")
 def _ensure_tmp_ignored() -> None:
     try:
         if ensure_agent_core_tmp_ignored(PROJECT_PATHS.project_root / ".gitignore"):
-            typer.echo("Onboard mutated .gitignore: ensured .agent_core/tmp/ is ignored.")
+            typer.echo("Onboard applied .gitignore patch: ensured Agent Core state is tracked except .agent_core/tmp/ and .cache/pycache/ is ignored.")
     except OSError as error:
-        typer.echo(f"Warning: could not ensure .agent_core/tmp/ is ignored: {error}", err=True)
+        typer.echo(f"Warning: could not ensure Agent Core .gitignore state rules: {error}", err=True)
 
 
 def _main_repo_non_dev_branch_message() -> str | None:

@@ -43,6 +43,13 @@ def test_template_onboard_reads_docs_without_indexing(tmp_path: Path) -> None:
     gitignore_lines = (target / ".gitignore").read_text().splitlines()
     assert ".env" in gitignore_lines
     assert ".env/" in gitignore_lines
+    assert "# Agent Core state" in gitignore_lines
+    assert "!.agent_core/" in gitignore_lines
+    assert "!.agent_core/**" in gitignore_lines
+    assert ".agent_core/tmp/" in gitignore_lines
+    assert ".agent_core/tmp/**" in gitignore_lines
+    assert ".cache/pycache/" in gitignore_lines
+    assert ".cache/pycache/**" in gitignore_lines
     assert not (target / ".agent_core" / "tmp").exists()
     assert not (target / ".agent_core" / "docs" / "data").exists()
 

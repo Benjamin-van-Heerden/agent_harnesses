@@ -63,6 +63,16 @@ OPTIONAL_ONBOARD_CONFIG_BLOCKS = {
 LEGACY_WORKTREE_SYMLINK_PATHS_COMMENT = "# Paths to symlink into worktrees instead of copying"
 AGENT_CORE_TMP_IGNORE_ENTRY = ".agent_core/tmp/"
 LEGACY_AGENT_CORE_TMP_IGNORE_ENTRY = ".agent_core/tmp"
+AGENT_CORE_STATE_GITIGNORE_HEADER = "# Agent Core state"
+AGENT_CORE_STATE_GITIGNORE_BLOCK = (
+    AGENT_CORE_STATE_GITIGNORE_HEADER,
+    "!.agent_core/",
+    "!.agent_core/**",
+    ".agent_core/tmp/",
+    ".agent_core/tmp/**",
+    ".cache/pycache/",
+    ".cache/pycache/**",
+)
 INSTALL_COMMIT_MESSAGE = "install agent harness"
 UNINSTALL_COMMIT_MESSAGE = "uninstall agent harness"
 UNINSTALL_CONFIRMATION = "I am sure"
@@ -190,8 +200,30 @@ def status_lines(target_root: Path) -> list[str]:
     return [line for line in output.splitlines() if line]
 
 
+def is_python_pycache_prefix_status_path(target_root: Path, path: str) -> bool:
+    normalized = path.strip().strip("/")
+    if normalized not in {".cache", ".cache/pycache"} and not normalized.startswith(".cache/pycache/"):
+        return False
+
+    cache_root = target_root / ".cache"
+    if not cache_root.exists():
+        return False
+
+    for child in cache_root.rglob("*"):
+        relative = child.relative_to(target_root).as_posix()
+        if child.is_dir():
+            continue
+        if not relative.startswith(".cache/pycache/"):
+            return False
+    return True
+
+
 def ensure_clean_worktree(target_root: Path, action: str) -> None:
-    lines = status_lines(target_root)
+    lines = [
+        line
+        for line in status_lines(target_root)
+        if not is_python_pycache_prefix_status_path(target_root, status_path(line))
+    ]
     if not lines:
         return
     eprint(f"Error: cannot {action} with a dirty working tree.")
@@ -540,26 +572,22 @@ def ensure_symlink_paths_ignored(config_file: Path, gitignore_file: Path) -> Non
 
 def ensure_agent_core_tmp_ignored(gitignore_file: Path) -> None:
     existing = gitignore_file.read_text().splitlines() if gitignore_file.exists() else []
-    changed = False
     lines: list[str] = []
 
     for line in existing:
-        if line.strip() == LEGACY_AGENT_CORE_TMP_IGNORE_ENTRY:
-            lines.append(AGENT_CORE_TMP_IGNORE_ENTRY)
-            changed = True
+        stripped = line.strip()
+        if stripped in AGENT_CORE_STATE_GITIGNORE_BLOCK or stripped == LEGACY_AGENT_CORE_TMP_IGNORE_ENTRY:
             continue
         lines.append(line)
 
-    seen = {line.strip() for line in lines}
-    if AGENT_CORE_TMP_IGNORE_ENTRY not in seen:
-        if lines and lines[-1].strip():
-            lines.append("")
-        lines.append(AGENT_CORE_TMP_IGNORE_ENTRY)
-        changed = True
+    if lines and lines[-1].strip():
+        lines.append("")
+    lines.extend(AGENT_CORE_STATE_GITIGNORE_BLOCK)
 
+    changed = lines != existing
     if changed:
         gitignore_file.write_text("\n".join(lines).rstrip() + "\n")
-        print("Updated .gitignore: ensured .agent_core/tmp/ is ignored.")
+        print("Applied .gitignore patch: ensured Agent Core state is tracked except .agent_core/tmp/ and .cache/pycache/ is ignored.")
 
 
 def branch_names(config_file: Path) -> tuple[str, str, str]:
@@ -799,12 +827,21 @@ def status_path(line: str) -> str:
     return value.strip().strip('"')
 
 
-def is_harness_managed_status_path(path: str) -> bool:
-    return path == ".agent_core" or path.startswith(".agent_core/") or path in HARNESS_MANAGED_PATHS
+def is_harness_managed_status_path(target_root: Path, path: str) -> bool:
+    return (
+        path == ".agent_core"
+        or path.startswith(".agent_core/")
+        or path in HARNESS_MANAGED_PATHS
+        or is_python_pycache_prefix_status_path(target_root, path)
+    )
 
 
 def ensure_only_harness_managed_changes(target_root: Path) -> None:
-    unexpected = [path for path in (status_path(line) for line in status_lines(target_root)) if not is_harness_managed_status_path(path)]
+    unexpected = [
+        path
+        for path in (status_path(line) for line in status_lines(target_root))
+        if not is_harness_managed_status_path(target_root, path)
+    ]
     if not unexpected:
         return
     eprint("Error: setup produced changes outside harness-managed paths:")
@@ -815,7 +852,7 @@ def ensure_only_harness_managed_changes(target_root: Path) -> None:
 
 def stage_harness_managed_paths(target_root: Path) -> None:
     ensure_only_harness_managed_changes(target_root)
-    run_git(target_root, ["add", "-A"])
+    run_git(target_root, ["add", "-A", "--", *HARNESS_MANAGED_PATHS])
 
 
 def commit_and_push_current_branch(target_root: Path, message: str, branch: str, origin_exists: bool) -> bool:
@@ -1267,6 +1304,7 @@ def uninstall_claude_file(target_root: Path) -> None:
 
 def uninstall_gitignore_entries(config_file: Path, target_root: Path) -> None:
     entries = {AGENT_CORE_TMP_IGNORE_ENTRY, LEGACY_AGENT_CORE_TMP_IGNORE_ENTRY, "# Agent Core worktree symlinks"}
+    entries.update(AGENT_CORE_STATE_GITIGNORE_BLOCK)
     if config_file.exists():
         entries.update(symlink_ignore_entries(config_file))
     remove_lines_exact(target_root / ".gitignore", entries)
@@ -1500,8 +1538,8 @@ def install(template_root: Path, target_root: Path, update: bool) -> None:
         prompt_branch_mapping(target_root, config_file)
     if not update:
         complete_initial_install_git_flow(target_root, config_file)
-    ensure_agent_core_tmp_ignored(target_root / ".gitignore")
     ensure_symlink_paths_ignored(config_file, target_root / ".gitignore")
+    ensure_agent_core_tmp_ignored(target_root / ".gitignore")
     if update:
         ensure_branches_exist(target_root, config_file)
         ensure_update_branch(target_root, config_file, update)

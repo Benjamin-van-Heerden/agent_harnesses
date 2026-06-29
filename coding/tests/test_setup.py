@@ -36,6 +36,13 @@ def test_template_setup_preserves_state_and_avoids_removed_surfaces(tmp_path: Pa
     gitignore_lines = (target / ".gitignore").read_text().splitlines()
     assert ".claude" in gitignore_lines
     assert ".claude/" in gitignore_lines
+    assert "# Agent Core state" in gitignore_lines
+    assert "!.agent_core/" in gitignore_lines
+    assert "!.agent_core/**" in gitignore_lines
+    assert ".agent_core/tmp/" in gitignore_lines
+    assert ".agent_core/tmp/**" in gitignore_lines
+    assert ".cache/pycache/" in gitignore_lines
+    assert ".cache/pycache/**" in gitignore_lines
     assert not (target / ".agent_core" / "tmp").exists()
     assert (target / "AGENTS.md").read_text().strip()
     assert not list((target / ".agent_core" / "docs").glob("*.md"))
@@ -72,6 +79,13 @@ def test_template_setup_preserves_state_and_avoids_removed_surfaces(tmp_path: Pa
     gitignore_lines = (target / ".gitignore").read_text().splitlines()
     assert gitignore_lines.count(".claude") == 1
     assert gitignore_lines.count(".claude/") == 1
+    assert gitignore_lines.count("# Agent Core state") == 1
+    assert gitignore_lines.count("!.agent_core/") == 1
+    assert gitignore_lines.count("!.agent_core/**") == 1
+    assert gitignore_lines.count(".agent_core/tmp/") == 1
+    assert gitignore_lines.count(".agent_core/tmp/**") == 1
+    assert gitignore_lines.count(".cache/pycache/") == 1
+    assert gitignore_lines.count(".cache/pycache/**") == 1
     assert not (target / ".agent_core" / "tmp").exists()
 
     harness_text = "\n".join(
@@ -469,6 +483,46 @@ main = "main"
     assert lines.count(".custom_link/") == 1
     assert lines.count("nested/cache") == 1
     assert lines.count("nested/cache/") == 1
+
+
+def test_setup_applies_agent_core_state_gitignore_patch_after_broad_ignores(tmp_path: Path) -> None:
+    target = tmp_path / "project"
+    target.mkdir()
+    init_git_project(target)
+    (target / ".gitignore").write_text(".agent_core/\nconfig/\n")
+    run_command(["git", "add", ".gitignore"], cwd=target)
+    run_command(["git", "commit", "-m", "add broad ignores"], cwd=target)
+
+    result = run_command([sys.executable, str(HARNESS_ROOT / "setup.py")], cwd=target)
+
+    lines = (target / ".gitignore").read_text().splitlines()
+    assert lines[-7:] == [
+        "# Agent Core state",
+        "!.agent_core/",
+        "!.agent_core/**",
+        ".agent_core/tmp/",
+        ".agent_core/tmp/**",
+        ".cache/pycache/",
+        ".cache/pycache/**",
+    ]
+    assert "Applied .gitignore patch: ensured Agent Core state is tracked except .agent_core/tmp/ and .cache/pycache/ is ignored." in result.stdout
+    assert run_command(["git", "check-ignore", "--no-index", ".agent_core/config.toml"], cwd=target, check=False).returncode == 1
+    assert run_command(["git", "check-ignore", "--no-index", ".agent_core/tmp/onboard.md"], cwd=target, check=False).returncode == 0
+    assert run_command(["git", "check-ignore", "--no-index", ".cache/pycache/example.pyc"], cwd=target, check=False).returncode == 0
+
+
+def test_setup_allows_python_pycache_prefix_artifact_before_gitignore_patch(tmp_path: Path) -> None:
+    target = tmp_path / "project"
+    target.mkdir()
+    init_git_project(target)
+    cache_file = target / ".cache" / "pycache" / "example.pyc"
+    cache_file.parent.mkdir(parents=True)
+    cache_file.write_bytes(b"cache")
+
+    result = run_command([sys.executable, str(HARNESS_ROOT / "setup.py")], cwd=target)
+
+    assert "Applied .gitignore patch: ensured Agent Core state is tracked except .agent_core/tmp/ and .cache/pycache/ is ignored." in result.stdout
+    assert run_command(["git", "check-ignore", "--no-index", ".cache/pycache/example.pyc"], cwd=target, check=False).returncode == 0
 
 
 def test_setup_config_patch_registry_updates_comments_without_resetting_values(tmp_path: Path) -> None:
