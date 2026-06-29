@@ -20,12 +20,12 @@ def test_introspect_structure_scaffolds_core_doc_and_instructions(tmp_path: Path
         env=command_env(),
     )
 
-    doc_path = target / ".agent_core" / "docs" / "core" / "codebase_and_structure.md"
+    doc_path = target / ".agent_core" / "docs" / "codebase_and_structure.md"
     assert doc_path.is_file()
     assert doc_path.read_text().startswith("# Codebase and Structure")
     assert "Do not infer goals or intent." in doc_path.read_text()
     assert "## Tests and Verification" in doc_path.read_text()
-    assert "Created introspection document: .agent_core/docs/core/codebase_and_structure.md" in result.stdout
+    assert "Created introspection document: .agent_core/docs/codebase_and_structure.md" in result.stdout
     assert "./README.md" in result.stdout
     assert "./src/app.py" in result.stdout
     assert ".agent_core/harness" not in result.stdout
@@ -49,10 +49,10 @@ def test_introspect_what_requires_user_interview(tmp_path: Path) -> None:
         env=command_env(),
     )
 
-    doc_path = target / ".agent_core" / "docs" / "core" / "what.md"
+    doc_path = target / ".agent_core" / "docs" / "what.md"
     assert doc_path.is_file()
     assert doc_path.read_text().startswith("# What Is This Project?")
-    assert "Created introspection document: .agent_core/docs/core/what.md" in result.stdout
+    assert "Created introspection document: .agent_core/docs/what.md" in result.stdout
     assert "You must interview the user before completing the document" in result.stdout
     assert "do not proceed until they have answered" in result.stdout
 
@@ -62,8 +62,7 @@ def test_introspect_does_not_overwrite_existing_doc_without_force(tmp_path: Path
     target.mkdir()
     init_git_project(target)
     install_harness(target)
-    doc_path = target / ".agent_core" / "docs" / "core" / "what.md"
-    doc_path.parent.mkdir(parents=True)
+    doc_path = target / ".agent_core" / "docs" / "what.md"
     doc_path.write_text("custom\n")
 
     result = run_command(
