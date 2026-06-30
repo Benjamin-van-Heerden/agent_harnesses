@@ -1,0 +1,22 @@
+# Source-side coding harness patches applied to this project.
+# This file is managed by coding/setup.py.
+
+[[applied]]
+id = "0001_agent_core_state_gitignore"
+applied_at = "2026-06-30T19:19:15Z"
+description = "Ensure Agent Core state stays tracked while generated temp/cache paths are ignored"
+
+[[applied]]
+id = "0002_optional_onboard_config_scaffolds"
+applied_at = "2026-06-30T19:19:15Z"
+description = "Add commented optional onboard config scaffolds to existing configs"
+
+[[applied]]
+id = "0003_worktree_symlink_comment"
+applied_at = "2026-06-30T19:19:15Z"
+description = "Refresh the worktree symlink config comment without changing configured values"
+
+[[applied]]
+id = "0004_remove_retired_default_docs"
+applied_at = "2026-06-30T19:19:15Z"
+description = "Remove retired default coding docs from installed project docs"

@@ -126,7 +126,7 @@ STRUCTURE_AGENT_INSTRUCTIONS = """==============================================
 INTROSPECT STRUCTURE: You must complete the generated document
 ======================================================================
 
-The file has been created at: .agent_core/docs/core/codebase_and_structure.md
+The file has been created at: .agent_core/docs/codebase_and_structure.md
 
 It contains placeholders. You must research the codebase and replace every placeholder with accurate, specific content. This document is a factual repository map, not a product vision or goals document.
 
@@ -146,14 +146,14 @@ Stay factual. Describe what is in the repository, where it lives, and how the pi
 
 Phase 3: Write the reference document
 
-Replace every placeholder in .agent_core/docs/core/codebase_and_structure.md.
+Replace every placeholder in .agent_core/docs/codebase_and_structure.md.
 
 Rules:
 - Be specific. Use actual file paths, module names, command names, and function names.
 - Be concise. This is a reference document, not a tutorial.
 - Be accurate. Only write facts confirmed by reading the code or durable project docs.
 - Do not document Agent Core itself unless this repository's product is an Agent Core harness.
-- Do not include project goals, motivation, target users, or non-goals. Those belong in .agent_core/docs/core/what.md.
+- Do not include project goals, motivation, target users, or non-goals. Those belong in .agent_core/docs/what.md.
 - Omit sections that do not apply.
 - Keep the document well under 5000 words.
 
@@ -164,7 +164,7 @@ WHAT_AGENT_INSTRUCTIONS = """===================================================
 INTROSPECT WHAT: You must interview the user before completing the document
 ======================================================================
 
-The file has been created at: .agent_core/docs/core/what.md
+The file has been created at: .agent_core/docs/what.md
 
 It contains placeholders. You must understand the project's purpose and goals, then replace every placeholder with accurate, specific content.
 
@@ -189,7 +189,7 @@ This is not the structure document. Do not drift into technical architecture exc
 
 Phase 3: Write the reference document
 
-Replace every placeholder in .agent_core/docs/core/what.md.
+Replace every placeholder in .agent_core/docs/what.md.
 
 Rules:
 - Write from the project owner's perspective.
@@ -228,7 +228,7 @@ def _relative_file_tree(project_root: Path) -> str:
 
 
 def _doc_path(doc_slug: str) -> Path:
-    return PROJECT_PATHS.docs_dir / "core" / f"{doc_slug}.md"
+    return PROJECT_PATHS.docs_dir / f"{doc_slug}.md"
 
 
 def _write_template(doc_path: Path, template: str, force: bool) -> None:

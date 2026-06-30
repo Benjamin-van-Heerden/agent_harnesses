@@ -1,19 +1,44 @@
 # Agent Core Coding Harness
 
-Agent Core is a project-local development harness for AI-assisted coding work. It gives coding agents a consistent way to gather context, plan larger changes, isolate implementation work, and leave durable handoff notes without relying on global state outside the repository.
+Agent Core is a project-local coordination harness for AI-assisted coding work. It gives coding agents a consistent repository-native workflow for getting context, planning larger changes, isolating implementation work, syncing durable state with GitHub, and leaving handoff notes for the next session.
 
-The harness is installed into a project under `.agent_core/`. It is intentionally file-first and git-native: project state is stored as readable files, the important lifecycle steps are reflected in git history, and the command output tells the agent what it must do next.
+The harness is installed into a project under `.agent_core/`. It is intentionally file-first and git-native: project state lives in readable files, important lifecycle events are reflected in git history, and command output tells the agent what it must do next.
+
+This `README.md` is copied into `.agent_core/README.md` during install and update so humans can understand the installed harness without reading the agent-facing `AGENTS.md` contract or runtime source code.
 
 ## What Gets Installed
 
-A coding harness installation has two different kinds of files:
+A coding harness installation has three main surfaces:
 
-- Managed runtime files, mainly `.agent_core/harness/`. These are replaced by setup and update commands.
-- Project-owned state, such as `.agent_core/config.toml`, `.agent_core/specs/`, `.agent_core/todos/`, `.agent_core/memories/`, `.agent_core/logs/`, `.agent_core/docs/`, and `.agent_core/user_mappings.toml`. These are preserved across updates.
+- Managed runtime files, mainly `.agent_core/harness/`. These implement the local CLI and may be replaced by setup and update commands.
+- Project-owned state, such as `.agent_core/config.toml`, `.agent_core/specs/`, `.agent_core/todos/`, `.agent_core/memories/`, `.agent_core/logs/`, `.agent_core/docs/`, `.agent_core/patches.toml`, and `.agent_core/user_mappings.toml`. These are preserved across updates.
+- Root agent instructions in `AGENTS.md`. The harness owns the `<AGENT_CORE>...</AGENT_CORE>` block, while project-specific notes outside that block are preserved.
 
-The root `AGENTS.md` file is also managed in a careful way. The harness owns the `<AGENT_CORE>...</AGENT_CORE>` block, but project-specific notes outside that block are preserved.
+Managed runtime files are disposable. Project-owned state is the durable record of what agents and humans have planned, claimed, completed, documented, or learned about the project.
 
-This `README.md` is copied into `.agent_core/README.md` during install and update so humans can understand the harness without reading the agent-facing instructions or source code.
+## The Command Surface
+
+Harness commands are run with the project-local Python entry point:
+
+```bash
+python -B .agent_core/harness/main.py <command>
+```
+
+The main command groups are:
+
+- `onboard`: build the current agent context and enforce session preflight checks.
+- `spec`: create, sync, assign, show, abandon, and complete larger planned work.
+- `task`: create, list, show, rename, amend, and complete tasks inside specs.
+- `todo`: create, list, show, claim, and delete standalone follow-up items.
+- `memory`: create, list, show, update, and delete durable project notes.
+- `log`: create, list, and show session work logs.
+- `sync`: reconcile local spec and todo state with linked GitHub issues.
+- `worktree`, `merge`, and `cleanup`: manage implementation worktrees, completed pull requests, and local branch/worktree hygiene.
+- `introspect`: scaffold durable project reference documents for agents to complete.
+- `config`: inspect or print default project configuration.
+- `paths`: print resolved harness paths for debugging.
+
+Not every command is meant to be used directly in every session. The agent-facing `AGENTS.md` block and command output define the required sequencing.
 
 ## The Onboard Loop
 
@@ -23,11 +48,11 @@ Every agent session normally starts with:
 python -B .agent_core/harness/main.py onboard
 ```
 
-Onboard is the context-building command. It fetches remote state, checks whether local git state is safe, runs the normal sync flow when possible, performs due harness updates, creates assigned spec worktrees for the authenticated user, and then generates the context the agent must read before doing work.
+Onboard is the context-building command. It checks whether local git state is safe, fetches remote state, runs the normal issue sync flow when possible, performs due harness updates, creates assigned spec worktrees for the authenticated user, and generates the context the agent must read before doing work.
 
-The generated context includes project docs, important configured files, active specs, tasks, todos, memories, recent work logs, branch state, and workflow instructions for the current location.
+The generated context can include project docs, important configured files, configured directory trees, configured runnable command output, active specs, tasks, todos, memories, recent work logs, branch state, and workflow instructions for the current checkout.
 
-Onboard is deliberately strict. If the working tree is dirty before sync, it stops and explains what must be resolved. If a required remote check fails, it stops before producing potentially stale context. The command output is part of the workflow contract, not just status text.
+Onboard is deliberately strict. If local state or a remote check makes the context unsafe, it stops and explains what must be resolved. The command output is part of the workflow contract, not just status text.
 
 ## Mission Control On Dev
 
@@ -38,9 +63,10 @@ Mission control is where agents can:
 - make small ad hoc edits;
 - inspect project state;
 - create and sync specs;
-- assign specs;
+- assign specs after explicit approval;
 - claim todos;
-- manage completed worktrees and merged work;
+- merge completed pull requests;
+- clean up completed worktrees and branches;
 - update the harness.
 
 Open specs shown during onboard are context, not automatically the current workspace. If a spec has its own worktree, implementation work belongs in that worktree, not in the main repo checkout on `dev`.
@@ -69,7 +95,7 @@ The normal spec lifecycle is:
    python -B .agent_core/harness/main.py spec sync <slug>
    ```
 
-4. Assign the spec only after explicit user approval.
+4. Assign the spec only after explicit approval.
 
    Bare assignment assigns the spec to the authenticated GitHub user, creates a dedicated local worktree, pushes the spec branch, and updates the GitHub issue:
 
@@ -85,7 +111,9 @@ The normal spec lifecycle is:
 
    The assignee receives the local worktree automatically the next time they run onboard from mission control.
 
-5. Implementation happens inside the spec worktree, on the spec branch. Tasks are completed one by one after user approval:
+   Local spec worktrees are created outside the main checkout under a sibling `<project_name>-worktrees/` directory, with a separate directory for the assigned spec.
+
+5. Implementation happens inside that spec worktree directory, on the spec branch. Tasks are completed one by one:
 
    ```bash
    python -B .agent_core/harness/main.py task complete <task_slug> "notes"
@@ -106,13 +134,26 @@ The key distinction is isolation. Mission control coordinates. Spec worktrees im
 
 Tasks belong to specs. They describe implementation steps and are completed from the relevant spec worktree.
 
-Todos are standalone reminders or small pieces of follow-up work. When a todo becomes substantial, it should become a spec. When an agent starts on a todo, it should claim it through the harness so the linked GitHub issue is closed and ownership is clear.
+Todos are standalone reminders or small pieces of follow-up work. When a todo becomes substantial, it should become a spec. When an agent starts on a todo, it claims it through the harness so the linked GitHub issue is closed and ownership is clear.
 
 Memories are short, atomic notes about durable project patterns and preferences. They are shown during onboard. They are not a substitute for specs or docs.
 
-Docs are durable project context under `.agent_core/docs/`. They are included in onboard output. The harness does not create or edit project docs unless explicitly instructed.
+Docs are durable project context under `.agent_core/docs/`. They are included in onboard output. The harness can scaffold some docs, but project-specific docs remain project-owned state.
 
-Work logs record what happened in a session, what changed, blockers, and useful next steps. They are end-of-session artifacts. The `log new` command creates a template and requires the agent to fill it in before committing or completing a spec.
+Work logs record what happened in a session, what changed, blockers, and useful next steps. They are end-of-session artifacts. The `log new` command creates a template and tells the agent what must be filled in before committing or completing a spec.
+
+## Introspection
+
+The `introspect` command scaffolds durable reference documents under `.agent_core/docs/`:
+
+```bash
+python -B .agent_core/harness/main.py introspect structure
+python -B .agent_core/harness/main.py introspect what
+```
+
+`introspect structure` creates a factual codebase map for an agent to complete after reading the repository. `introspect what` creates a project-purpose document and instructs the agent to interview the user before filling it in.
+
+These commands create starting points, not finished documentation. The generated files contain placeholders and agent-facing completion instructions.
 
 ## Configuration
 
@@ -121,15 +162,16 @@ The main configuration file is `.agent_core/config.toml`.
 Important fields include:
 
 - `[project]`: project name and human-readable description for onboard context.
-- `[[files]]`: optional individual files to include in onboard output. The default README example is commented out; projects should opt in deliberately.
+- `[[files]]`: optional individual files to include in onboard output. Projects should opt in deliberately.
 - `[[tree_dirs]]`: optional directory trees to include in onboard output.
+- `[[runnables]]`: optional project-local commands whose output should be captured in onboard context.
 - `[worktree].symlink_paths`: project-root relative paths that should be symlinked from the main checkout into spec worktrees. Each configured path is automatically added to `.gitignore`; only use paths that are intentionally untracked, such as local env files, local dependency directories, or other development-only artifacts.
 - `[branches]`: logical branch mapping for `dev`, `test`, and `main`, plus optional no-switch branch mappings.
 - `[harness]`: update settings, including `update_interval_days` and `last_updated_at`.
 
-Setup and update preserve configured values. They may patch managed comments or add missing required keys, but they should not overwrite project-specific choices.
+Setup and update preserve configured values. They may patch managed comments, add missing required keys, or run recorded migrations, but they should not overwrite project-specific choices.
 
-## Update Mechanism
+## Updates And Patches
 
 The harness can be updated manually or during onboard.
 
@@ -139,9 +181,9 @@ Manual project-local update:
 python -B .agent_core/harness/update.py --force
 ```
 
-The update command runs only from the main checkout, not from a spec worktree. It expects to run on the configured dev branch. It downloads the current `coding/setup.py` from the harness repository and executes it with `--update` in the target project.
+The update command runs only from the main checkout, not from a spec worktree. It expects to run on the configured dev branch. It downloads the current setup script for the coding harness and executes it with `--update` in the target project.
 
-Onboard also checks whether an update is due based on `[harness].update_interval_days` and `[harness].last_updated_at`. If an update is due, onboard runs the same setup update flow and then restarts itself with the refreshed harness.
+Onboard also checks whether an update is due based on `[harness].update_interval_days` and `[harness].last_updated_at`. If an update is due, onboard runs the same setup update flow and restarts itself with the refreshed harness.
 
 The setup update flow:
 
@@ -149,20 +191,9 @@ The setup update flow:
 - refreshes the managed `AGENTS.md` core block;
 - refreshes installed optional docs that still match harness-provided docs;
 - copies this human README to `.agent_core/README.md`;
+- applies source-side harness patches that have not yet been recorded in `.agent_core/patches.toml`;
 - updates managed config comments and missing required config keys without resetting project-specific values;
 - records a new `last_updated_at` timestamp;
-- preserves specs, tasks, todos, memories, logs, docs, config choices, and user mappings.
+- preserves specs, tasks, todos, memories, logs, docs, config choices, patch records, and user mappings.
 
 If setup or onboard creates changes during a harness update, the harness update helper commits and pushes those changes so the refreshed harness state is durable.
-
-## Development Boundary
-
-When developing the coding harness itself, source changes belong under `coding/`. The installed `.agent_core/harness/` directory in this repository is generated runtime and should not be manually edited as the source of truth.
-
-The normal local propagation loop while developing the coding harness is:
-
-```bash
-python -B coding/setup.py --update
-```
-
-For installed projects outside this repository, updates flow through `.agent_core/harness/update.py` or onboard's automatic update check after the harness changes have been pushed to the repository branch used by the remote setup URL.
