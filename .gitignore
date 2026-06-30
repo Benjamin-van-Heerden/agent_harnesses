@@ -1,5 +1,4 @@
 __pycache__
-.agent_core/tmp/
 .pytest_cache/
 .ruff_cache/
 
@@ -13,3 +12,11 @@ __pycache__
 *.zip
 
 .cache/
+
+# Agent Core state
+!.agent_core/
+!.agent_core/**
+.agent_core/tmp/
+.agent_core/tmp/**
+.cache/pycache/
+.cache/pycache/**
