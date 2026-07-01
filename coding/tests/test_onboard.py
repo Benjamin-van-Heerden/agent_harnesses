@@ -1,3 +1,4 @@
+import importlib
 import os
 import sys
 from pathlib import Path
@@ -6,6 +7,25 @@ from types import ModuleType
 import pytest
 from constants import GIT_USER_NAME
 from helpers import HARNESS_ROOT, command_env, harness_command, init_git_project, install_harness, run_command
+
+
+def test_onboard_sync_warning_guides_agent_for_missing_github_token(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.syspath_prepend(str(HARNESS_ROOT / ".agent_core" / "harness"))
+    content = importlib.import_module("src.commands.onboard.content")
+    warning = "\n".join(
+        [
+            "GITHUB_TOKEN is not set.",
+            "Create a GitHub token with repo and read:user scopes, then run:",
+            "  export GITHUB_TOKEN='your_token_here'",
+        ]
+    )
+
+    output = "\n".join(content._sync_warning_section(warning))
+
+    assert "GitHub sync did not run" in output
+    assert "could not be added to .agent_core/user_mappings.toml" in output
+    assert "You must explicitly warn the user that GITHUB_TOKEN is missing" in output
+    assert "rerun onboard so sync and user mapping maintenance can complete" in output
 
 
 def test_template_onboard_reads_docs_without_indexing(tmp_path: Path) -> None:
@@ -52,6 +72,24 @@ def test_template_onboard_reads_docs_without_indexing(tmp_path: Path) -> None:
     assert ".cache/pycache/**" in gitignore_lines
     assert not (target / ".agent_core" / "tmp").exists()
     assert not (target / ".agent_core" / "docs" / "data").exists()
+
+
+def test_template_onboard_repairs_empty_user_mappings_file(tmp_path: Path) -> None:
+    target = tmp_path / "project"
+    target.mkdir()
+    init_git_project(target)
+    install_harness(target)
+    user_mappings_path = target / ".agent_core" / "user_mappings.toml"
+    user_mappings_path.write_text("")
+
+    result = run_command(
+        harness_command() + ["onboard", "--stdout", "--no-sync"],
+        cwd=target,
+        env=command_env(),
+    )
+
+    assert user_mappings_path.read_text() == "# GitHub username to git user mappings\n"
+    assert "Onboard mutated .agent_core/user_mappings.toml: ensured current mapping format." in result.stdout
 
 
 def test_template_onboard_places_configured_outputs_after_docs_and_runs_runnables(tmp_path: Path) -> None:

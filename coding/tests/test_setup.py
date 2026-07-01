@@ -64,6 +64,7 @@ def test_template_setup_preserves_state_and_avoids_removed_surfaces(tmp_path: Pa
     (target / ".agent_core" / "docs" / "coding_general.md").write_text("retired general doc\n")
     (target / ".agent_core" / "docs" / "coding_testing.md").write_text("retired testing doc\n")
     (target / ".agent_core" / "README.md").write_text("stale readme\n")
+    (target / ".agent_core" / "user_mappings.toml").write_text("")
     (target / ".agent_core" / "patches.toml").unlink()
     config_path = target / ".agent_core" / "config.toml"
     run_command(["git", "branch", "prod"], cwd=target)
@@ -88,6 +89,7 @@ def test_template_setup_preserves_state_and_avoids_removed_surfaces(tmp_path: Pa
     assert not (target / ".agent_core" / "docs" / "coding_general.md").exists()
     assert not (target / ".agent_core" / "docs" / "coding_testing.md").exists()
     assert (target / ".agent_core" / "README.md").read_text() == (HARNESS_ROOT / "README.md").read_text()
+    assert (target / ".agent_core" / "user_mappings.toml").read_text() == "# GitHub username to git user mappings\n"
     gitignore_lines = (target / ".gitignore").read_text().splitlines()
     assert gitignore_lines.count(".claude") == 1
     assert gitignore_lines.count(".claude/") == 1

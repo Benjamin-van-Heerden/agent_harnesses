@@ -121,11 +121,12 @@ def run(
                 typer.echo(f"Missing or empty {PROJECT_PATHS.config_file_display}", err=True)
             raise typer.Exit(code=1)
 
-        try:
-            if ensure_user_mappings_file():
-                typer.echo(f"Onboard mutated {PROJECT_PATHS.user_mappings_file_display}: ensured current mapping format.")
-        except Exception as error:
-            typer.echo(f"Warning: could not ensure {PROJECT_PATHS.user_mappings_file_display}: {error}", err=True)
+        if no_sync:
+            try:
+                if ensure_user_mappings_file():
+                    typer.echo(f"Onboard mutated {PROJECT_PATHS.user_mappings_file_display}: ensured current mapping format.")
+            except Exception as error:
+                typer.echo(f"Warning: could not ensure {PROJECT_PATHS.user_mappings_file_display}: {error}", err=True)
 
         try:
             missing_ignores = ensure_symlink_paths_ignored(

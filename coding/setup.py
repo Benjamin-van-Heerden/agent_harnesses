@@ -1081,8 +1081,13 @@ def ensure_user_mappings(state_dir: Path) -> None:
         print("Created managed file: .agent_core/user_mappings.toml")
         return
 
+    existing_content = path.read_text()
     with open(path, "rb") as f:
         raw = tomllib.load(f)
+    if not raw and not existing_content.strip():
+        path.write_text("# GitHub username to git user mappings\n")
+        print("Updated managed file: .agent_core/user_mappings.toml")
+        return
     if not any(isinstance(value, str) for value in raw.values()):
         return
 

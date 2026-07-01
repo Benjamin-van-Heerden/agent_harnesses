@@ -8,6 +8,7 @@ from src.config.branches import get_branch_names
 from src.config.paths import PROJECT_PATHS
 from src.models.frontmatter import SpecStatus, TodoStatus, create_spec_frontmatter, create_todo_frontmatter
 from src.state import specs, todos
+from src.state.user_mappings import ensure_current_user_mapping, require_mapped_user
 from src.utils import git, worktrees
 from src.utils.errors import GitError, GitHubError
 from src.utils.github import (
@@ -53,6 +54,15 @@ def _issue_needs_update(
     return False
 
 
+def _sync_assignees(assigned_to: str | None, authenticated_user: str | None) -> list[str] | None:
+    if assigned_to is None:
+        return None
+    if assigned_to == authenticated_user:
+        return [assigned_to]
+    require_mapped_user(assigned_to)
+    return [assigned_to]
+
+
 @app.command("branches")
 def branches() -> None:
     try:
@@ -81,7 +91,7 @@ def github_user() -> None:
         raise typer.Exit(code=1) from error
 
 
-def _sync_specs(repo: Repository) -> int:
+def _sync_specs(repo: Repository, authenticated_user: str | None = None) -> int:
     actions = 0
     remote_by_number = {issue.number: issue for issue in list_issues(repo, SPEC_LABEL, state="open")}
     local_by_issue = {
@@ -92,12 +102,14 @@ def _sync_specs(repo: Repository) -> int:
 
     for record in specs.list_all():
         if record.issue_id is None:
+            if record.status in {"completed", "abandoned"}:
+                continue
             issue = create_issue(
                 repo,
                 record.title,
                 record.body,
                 issue_labels("spec", record.status),
-                [record.assigned_to] if record.assigned_to else None,
+                _sync_assignees(record.assigned_to, authenticated_user),
             )
             specs.update_issue(record.slug, issue.number, issue.html_url)
             actions += 1
@@ -185,13 +197,17 @@ def _sync_todos(repo: Repository) -> int:
     return actions
 
 
+def _sync_issues(repo: Repository, authenticated_user: str | None = None) -> int:
+    ensure_labels(repo)
+    return _sync_specs(repo, authenticated_user) + _sync_todos(repo)
+
+
 @app.command("issues")
 def issues() -> None:
     try:
         repo = repository()
-        ensure_labels(repo)
-        count = _sync_specs(repo) + _sync_todos(repo)
-    except GitHubError as error:
+        count = _sync_issues(repo, authenticated_username())
+    except (GitHubError, ValueError) as error:
         typer.echo(str(error), err=True)
         raise typer.Exit(code=1) from error
     typer.echo(f"Issue sync complete. Actions: {count}")
@@ -378,9 +394,17 @@ def sync_all(
             typer.echo(str(error), err=True)
             raise typer.Exit(code=1) from error
         status()
-    issues()
     try:
         repo = repository()
+        current_user = authenticated_username()
+        count = _sync_issues(repo, current_user)
+        if not no_git and ensure_current_user_mapping(current_user):
+            typer.echo("Updated managed file: .agent_core/user_mappings.toml")
+    except (GitHubError, ValueError) as error:
+        typer.echo(str(error), err=True)
+        raise typer.Exit(code=1) from error
+    typer.echo(f"Issue sync complete. Actions: {count}")
+    try:
         completed = _complete_merged_specs(repo)
         if completed:
             typer.echo(f"Completed merged specs: {completed}")
