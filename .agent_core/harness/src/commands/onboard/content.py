@@ -657,6 +657,17 @@ def _sync_warning_section(sync_warning: str) -> list[str]:
         "The default sync step failed, but onboard context was still generated."
     )
     lines.append(f"Reason: {sync_warning}")
+    if "GITHUB_TOKEN is not set" in sync_warning:
+        lines.append("")
+        lines.append(
+            "This means GitHub sync did not run and the authenticated GitHub user could not be added to .agent_core/user_mappings.toml."
+        )
+        lines.append(
+            "You must explicitly warn the user that GITHUB_TOKEN is missing before doing any other work."
+        )
+        lines.append(
+            "Tell the user they must configure a GitHub token with repo and read:user scopes, then rerun onboard so sync and user mapping maintenance can complete."
+        )
     lines.append("")
     lines.append("Report this warning to the user before doing any other work.")
     lines.append("")

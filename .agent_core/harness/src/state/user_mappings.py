@@ -48,8 +48,12 @@ def ensure_user_mappings_file() -> bool:
         PROJECT_PATHS.user_mappings_file.write_text("# GitHub username to git user mappings\n")
         return True
 
+    existing_content = PROJECT_PATHS.user_mappings_file.read_text()
     with open(PROJECT_PATHS.user_mappings_file, "rb") as f:
         raw = tomllib.load(f)
+    if not raw and not existing_content.strip():
+        PROJECT_PATHS.user_mappings_file.write_text("# GitHub username to git user mappings\n")
+        return True
     if not any(isinstance(value, str) for value in raw.values()):
         return False
 
@@ -78,6 +82,21 @@ def require_mapped_user(username: str) -> UserMapping:
     return mapping
 
 
+def _git_user_email() -> str | None:
+    try:
+        result = subprocess.run(
+            ["git", "config", "user.email"],
+            cwd=PROJECT_PATHS.project_root,
+            check=True,
+            capture_output=True,
+            text=True,
+        )
+        email = result.stdout.strip()
+        return email or None
+    except Exception:
+        return None
+
+
 def _git_user_name() -> str:
     try:
         result = subprocess.run(
@@ -90,6 +109,17 @@ def _git_user_name() -> str:
         return result.stdout.strip() or "unknown"
     except Exception:
         return "unknown"
+
+
+def ensure_current_user_mapping(username: str) -> bool:
+    ensure_user_mappings_file()
+    mappings = load_all()
+    if username in mappings:
+        return False
+
+    mappings[username] = UserMapping(name=_git_user_name(), email=_git_user_email())
+    PROJECT_PATHS.user_mappings_file.write_text(_render_mappings(mappings))
+    return True
 
 
 def current_username() -> str:
