@@ -42,6 +42,8 @@ Implementation errors and barriers encountered that have not been resolved yet. 
 {
 If there are next steps or logical progressions from where we were, mention/list them here.
 
+Be explicit about work done and expectations for follow up sessions. Remember that future sessions won't have any context about what was discussed.
+
 If we were on an active spec, mention which parts of the spec were completed and which parts need further work.
 
 Do not mention "obvious things" here such as harness commands that need to be ran or tasks that still need completion.
