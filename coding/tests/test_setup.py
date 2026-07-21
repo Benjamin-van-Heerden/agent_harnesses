@@ -241,6 +241,33 @@ def test_setup_installs_commits_pushes_and_checks_out_dev_with_origin(tmp_path: 
     assert run_command(["git", "show", "origin/dev:.agent_core/config.toml"], cwd=target).stdout
 
 
+def test_setup_uses_origin_default_branch_as_configured_main(tmp_path: Path) -> None:
+    remote = tmp_path / "remote.git"
+    run_command(["git", "init", "--bare", remote.as_posix()], cwd=tmp_path)
+
+    target = tmp_path / "project"
+    target.mkdir()
+    run_command(["git", "init", "-b", "production"], cwd=target)
+    run_command(["git", "config", "user.name", "Harness Test User"], cwd=target)
+    run_command(["git", "config", "user.email", "harness@example.com"], cwd=target)
+    run_command(["git", "commit", "--allow-empty", "-m", "initial commit"], cwd=target)
+    run_command(["git", "remote", "add", "origin", remote.as_posix()], cwd=target)
+    run_command(["git", "push", "-u", "origin", "production"], cwd=target)
+    run_command(["git", "symbolic-ref", "HEAD", "refs/heads/production"], cwd=remote)
+    run_command(["git", "remote", "set-head", "origin", "--auto"], cwd=target)
+
+    result = run_command([sys.executable, str(HARNESS_ROOT / "setup.py")], cwd=target)
+
+    assert result.returncode == 0
+    config = read_toml(target / ".agent_core" / "config.toml")
+    assert config["branches"] == {"dev": "dev", "main": "production", "test": "test"}
+    assert 'Created commit on production: "install agent harness"' in result.stdout
+    assert "Pushed production to origin." in result.stdout
+    assert "Checked out mission-control branch: dev" in result.stdout
+    assert run_command(["git", "branch", "--show-current"], cwd=target).stdout.strip() == "dev"
+    assert run_command(["git", "status", "--porcelain"], cwd=target).stdout == ""
+
+
 def test_setup_refuses_dirty_fresh_install_before_writing_files(tmp_path: Path) -> None:
     target = tmp_path / "project"
     target.mkdir()

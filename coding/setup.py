@@ -201,7 +201,7 @@ def ensure_clean_worktree(target_root: Path, action: str) -> None:
     raise SetupError("Working tree is dirty.")
 
 
-def default_config(project_name: str) -> str:
+def default_config(project_name: str, main_branch: str = "main") -> str:
     return f'''[project]
 name = "{project_name}"
 description = """
@@ -236,7 +236,7 @@ update_interval_days = 3
 
 [branches]
 dev = "dev"
-main = "main"
+main = "{main_branch}"
 test = "test"
 # [branches.noswitch_branches]
 # company_xyz = "main"
@@ -295,10 +295,10 @@ def insert_key(content: str, section: str, line: str) -> str:
     return append_if_missing(content, f"{section_header}\n{line}")
 
 
-def upsert_config(path: Path, project_name: str) -> None:
+def upsert_config(path: Path, project_name: str, main_branch: str = "main") -> None:
     if not path.exists():
         path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_text(default_config(project_name))
+        path.write_text(default_config(project_name, main_branch))
         print("Created managed file: .agent_core/config.toml")
         return
 
@@ -394,9 +394,9 @@ def ensure_state_dirs(state_dir: Path) -> None:
             print(f"Created managed directory: {display_path}")
 
 
-def ensure_config(config_file: Path, target_root: Path) -> bool:
+def ensure_config(config_file: Path, target_root: Path, main_branch: str = "main") -> bool:
     created = not config_file.exists()
-    upsert_config(config_file, target_root.name)
+    upsert_config(config_file, target_root.name, main_branch)
     return created
 
 
@@ -923,14 +923,38 @@ def complete_initial_install_git_flow(target_root: Path, config_file: Path) -> N
         fail(f"Error: local '{main}' and origin/{main} must be aligned before installing the harness.")
 
 
-def preflight_initial_install_git_flow(target_root: Path, config_file: Path) -> None:
+def origin_default_branch(target_root: Path) -> str | None:
+    result = run_git(
+        target_root,
+        ["symbolic-ref", "--quiet", "--short", "refs/remotes/origin/HEAD"],
+        check=False,
+    )
+    branch = result.stdout.strip()
+    if result.returncode != 0 or not branch.startswith("origin/"):
+        return None
+    return branch.removeprefix("origin/")
+
+
+def initial_main_branch(target_root: Path) -> str:
+    remote_default = origin_default_branch(target_root)
+    if remote_default:
+        return remote_default
+
+    current = current_branch(target_root)
+    if current not in {"dev", "test"}:
+        return current
+    return "main"
+
+
+def preflight_initial_install_git_flow(target_root: Path, config_file: Path) -> str:
     ensure_git_repository(target_root)
     ensure_clean_worktree(target_root, "install the agent harness")
-    main = branch_names(config_file)[2] if config_file.exists() else "main"
     origin_exists = fetch_origin_if_available(target_root)
+    main = branch_names(config_file)[2] if config_file.exists() else initial_main_branch(target_root)
     ensure_current_branch(target_root, main, "agent harness install")
     if origin_exists and remote_branch_exists(target_root, main) and not branches_are_aligned(target_root, main):
         fail(f"Error: local '{main}' and origin/{main} must be aligned before installing the harness.")
+    return main
 
 
 def finalize_initial_install_git_flow(target_root: Path, config_file: Path) -> None:
@@ -1513,13 +1537,14 @@ def install(template_root: Path, target_root: Path, update: bool) -> None:
     config_file = state_dir / "config.toml"
     optional_docs_dir = template_root / "optional_docs"
     selected_docs: list[str] | None = None
+    main_branch = "main"
 
     if not update:
-        preflight_initial_install_git_flow(target_root, config_file)
+        main_branch = preflight_initial_install_git_flow(target_root, config_file)
     if not update and sys.stdin.isatty():
         selected_docs = prompt_optional_docs(optional_docs_dir)
     ensure_state_dirs(state_dir)
-    config_created = ensure_config(config_file, target_root)
+    config_created = ensure_config(config_file, target_root, main_branch)
     if config_created and not update and sys.stdin.isatty():
         prompt_branch_mapping(target_root, config_file)
     if not update:
