@@ -83,9 +83,7 @@ def test_template_setup_preserves_state_and_avoids_removed_surfaces(tmp_path: Pa
     assert not stale_file.exists()
     assert (target / ".agent_core" / "specs" / "keep.md").read_text() == "state\n"
     assert (target / ".agent_core" / "docs" / "project_notes.md").read_text() == "project notes\n"
-    assert (target / ".agent_core" / "docs" / "coding_python.md").read_text() == (
-        HARNESS_ROOT / "optional_docs" / "coding_python.md"
-    ).read_text()
+    assert (target / ".agent_core" / "docs" / "coding_python.md").read_text() == "stale python doc\n"
     assert not (target / ".agent_core" / "docs" / "coding_general.md").exists()
     assert not (target / ".agent_core" / "docs" / "coding_testing.md").exists()
     assert (target / ".agent_core" / "README.md").read_text() == (HARNESS_ROOT / "README.md").read_text()

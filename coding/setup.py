@@ -1050,11 +1050,15 @@ def sync_managed_directory(source: Path, target: Path, display_path: str) -> Non
 
 
 def install_harness(template_root: Path, state_dir: Path) -> None:
-    sync_managed_directory(
-        template_root / ".agent_core" / "harness",
-        state_dir / "harness",
-        ".agent_core/harness",
-    )
+    with tempfile.TemporaryDirectory(prefix="agent-harness-runtime-") as temp_dir:
+        runtime_source = Path(temp_dir) / "harness"
+        shutil.copytree(template_root / ".agent_core" / "harness", runtime_source)
+        shutil.copytree(template_root / "optional_docs", runtime_source / "optional_docs")
+        sync_managed_directory(
+            runtime_source,
+            state_dir / "harness",
+            ".agent_core/harness",
+        )
 
 
 def install_harness_readme(template_root: Path, state_dir: Path) -> None:
@@ -1559,9 +1563,7 @@ def install(template_root: Path, target_root: Path, update: bool) -> None:
     ensure_user_mappings(state_dir)
     install_agents_file(template_root, target_root)
     ensure_claude_file(target_root)
-    if update:
-        docs_update(optional_docs_dir, state_dir, [])
-    else:
+    if not update:
         install_default_docs(optional_docs_dir, state_dir, selected_docs)
     upsert_last_updated_at(config_file)
     if not update:

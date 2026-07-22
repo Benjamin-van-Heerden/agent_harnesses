@@ -64,5 +64,13 @@ class ProjectPaths:
     def docs_dir(self) -> Path:
         return self.state_root / "docs"
 
+    @property
+    def optional_docs_file(self) -> Path:
+        return self.state_root / "optional_docs.toml"
+
+    @property
+    def optional_docs_catalog_dir(self) -> Path:
+        return self.harness_root / "optional_docs"
+
 
 PROJECT_PATHS = ProjectPaths()

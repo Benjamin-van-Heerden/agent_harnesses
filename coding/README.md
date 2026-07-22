@@ -140,6 +140,17 @@ Memories are short, atomic notes about durable project patterns and preferences.
 
 Docs are durable project context under `.agent_core/docs/`. They are included in onboard output. The harness can scaffold some docs, but project-specific docs remain project-owned state.
 
+Harness-provided optional docs are managed locally after installation:
+
+```bash
+python -B .agent_core/harness/main.py docs list
+python -B .agent_core/harness/main.py docs add coding_python coding_uv
+python -B .agent_core/harness/main.py docs update coding_python
+python -B .agent_core/harness/main.py docs remove coding_uv
+```
+
+The optional-doc catalog is refreshed with the harness. Installed selections and source hashes are tracked in `.agent_core/optional_docs.toml`. Update and removal refuse to overwrite or delete locally modified managed docs unless `--force` is passed. Unknown or invalid slugs are rejected before any requested document is changed.
+
 Work logs record what happened in a session, what changed, blockers, and useful next steps. They are end-of-session artifacts. The `log new` command creates a template and tells the agent what must be filled in before committing or completing a spec.
 
 ## Introspection
@@ -189,7 +200,7 @@ The setup update flow:
 
 - refreshes `.agent_core/harness/`;
 - refreshes the managed `AGENTS.md` core block;
-- refreshes installed optional docs that still match harness-provided docs;
+- refreshes the installed optional-doc catalog without overwriting project docs;
 - copies this human README to `.agent_core/README.md`;
 - applies source-side harness patches that have not yet been recorded in `.agent_core/patches.toml`;
 - updates managed config comments and missing required config keys without resetting project-specific values;
