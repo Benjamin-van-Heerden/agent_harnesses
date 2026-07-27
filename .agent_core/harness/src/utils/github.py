@@ -200,12 +200,11 @@ def create_pull_request(repo: Repository, title: str, body: str, head: str, base
         raise GitHubError(f"Could not create pull request: {error}") from error
 
 
-def merge_pull_request(repo: Repository, number: int, commit_message: str) -> PullRequestMergeStatus:
+def squash_pull_request(pull_request: PullRequest, commit_message: str) -> PullRequestMergeStatus:
     try:
-        pull_request = repo.get_pull(number)
         return pull_request.merge(commit_message=commit_message, merge_method="squash")
     except GithubException as error:
-        raise GitHubError(f"Could not merge pull request #{number}: {error}") from error
+        raise GitHubError(f"Could not merge pull request #{pull_request.number}: {error}") from error
 
 
 def delete_remote_branch(repo: Repository, branch: str) -> bool:
