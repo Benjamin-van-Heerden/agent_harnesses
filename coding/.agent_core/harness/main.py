@@ -10,8 +10,9 @@ from src.commands.docs.main import app as docs_app  # noqa: E402
 from src.commands.introspect.main import app as introspect_app  # noqa: E402
 from src.commands.log.main import app as log_app  # noqa: E402
 from src.commands.memory.main import app as memory_app  # noqa: E402
-from src.commands.merge.main import app as merge_app  # noqa: E402
 from src.commands.onboard.main import app as onboard_app  # noqa: E402
+from src.commands.pr.main import app as pr_app  # noqa: E402
+from src.commands.promotion.main import app as promotion_app  # noqa: E402
 from src.commands.report.main import app as report_app  # noqa: E402
 from src.commands.spec.main import app as spec_app  # noqa: E402
 from src.commands.sync.main import app as sync_app  # noqa: E402
@@ -34,10 +35,11 @@ app.add_typer(report_app, name="report", hidden=True)
 app.add_typer(spec_app, name="spec")
 app.add_typer(task_app, name="task")
 app.add_typer(onboard_app, name="onboard")
+app.add_typer(pr_app, name="pr")
+app.add_typer(promotion_app, name="promotion")
 app.add_typer(sync_app, name="sync")
 app.add_typer(worktree_app, name="worktree")
 app.add_typer(cleanup_app, name="cleanup")
-app.add_typer(merge_app, name="merge")
 
 
 @app.command()

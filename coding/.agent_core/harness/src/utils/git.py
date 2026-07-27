@@ -48,6 +48,17 @@ def merge_ff_only(branch: str, cwd: Path | None = None) -> None:
     run_git(["merge", "--ff-only", branch], cwd=cwd)
 
 
+def is_ancestor(ancestor: str, descendant: str, cwd: Path | None = None) -> bool:
+    result = run_git(["merge-base", "--is-ancestor", ancestor, descendant], cwd=cwd, check=False)
+    return result.returncode == 0
+
+
+def same_commit(first: str, second: str, cwd: Path | None = None) -> bool:
+    first_result = run_git(["rev-parse", first], cwd=cwd)
+    second_result = run_git(["rev-parse", second], cwd=cwd)
+    return first_result.stdout.strip() == second_result.stdout.strip()
+
+
 def checkout(branch: str, cwd: Path | None = None) -> None:
     run_git(["checkout", branch], cwd=cwd)
 

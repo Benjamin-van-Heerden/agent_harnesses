@@ -423,7 +423,7 @@ def _available_specs_section(
         lines.append("")
         if branch == branches.dev:
             lines.append(
-                "Run `python -B .agent_core/harness/main.py merge pr` to merge a PR."
+                "Run `python -B .agent_core/harness/main.py pr review` to select and review a ready pull request."
             )
         else:
             lines.append(

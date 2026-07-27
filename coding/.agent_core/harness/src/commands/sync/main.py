@@ -1,6 +1,7 @@
 from typing import cast
 
 import typer
+from github.GithubException import GithubException
 from github.Issue import Issue
 from github.Repository import Repository
 
@@ -376,6 +377,28 @@ def _cleanup_completed_spec_branches(repo: Repository) -> int:
     return cleaned
 
 
+def _cleanup_closed_promotion_branches(repo: Repository) -> int:
+    cleaned = 0
+    owner = repo.owner.login
+    try:
+        refs = list(repo.get_git_matching_refs("heads/promotion/"))
+    except GithubException as error:
+        raise GitHubError(f"Could not list remote promotion branches: {error}") from error
+
+    for ref in refs:
+        branch = ref.ref.removeprefix("refs/heads/")
+        try:
+            if list(repo.get_pulls(state="open", head=f"{owner}:{branch}")):
+                continue
+            if not list(repo.get_pulls(state="closed", head=f"{owner}:{branch}")):
+                continue
+            ref.delete()
+            cleaned += 1
+        except GithubException as error:
+            raise GitHubError(f"Could not clean promotion branch '{branch}': {error}") from error
+    return cleaned
+
+
 @app.command("all")
 def sync_all(
     no_git: bool = typer.Option(
@@ -411,8 +434,11 @@ def sync_all(
         cleaned = _cleanup_completed_spec_branches(repo)
         if cleaned:
             typer.echo(f"Cleaned completed spec branches: {cleaned}")
+        cleaned_promotions = _cleanup_closed_promotion_branches(repo)
+        if cleaned_promotions:
+            typer.echo(f"Cleaned closed promotion branches: {cleaned_promotions}")
     except GitHubError as error:
-        typer.echo(f"Warning: could not check merged specs: {error}", err=True)
+        typer.echo(f"Warning: could not reconcile merged work: {error}", err=True)
 
     if not no_git:
         try:

@@ -148,11 +148,11 @@ def run(
     typer.echo("")
     typer.echo("Next steps:")
     typer.echo(f"1. Return to the main repository `{branches.dev}` branch.")
-    typer.echo("2. Merge the PR with:")
+    typer.echo("2. Begin the PR review workflow with:")
     typer.echo(
-        f"   python -B .agent_core/harness/main.py merge pr {pull_request.html_url}"
+        f"   python -B .agent_core/harness/main.py pr review {pull_request.html_url}"
     )
     typer.echo("")
     typer.echo(
-        f"You must tell the user to return to the main repository's mission-control branch (`{branches.dev}`) and run the merge command above to bring in these changes. Relay the full command."
+        f"You must tell the user to return to the main repository's mission-control branch (`{branches.dev}`) and run the review command above. Relay the full command."
     )

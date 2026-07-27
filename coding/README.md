@@ -32,8 +32,10 @@ The main command groups are:
 - `todo`: create, list, show, claim, and delete standalone follow-up items.
 - `memory`: create, list, show, update, and delete durable project notes.
 - `log`: create, list, and show session work logs.
+- `promotion`: prepare documented, remote-only promotions from `dev` to `test` and from `test` to `main`.
+- `pr`: discover, review, respond to, and merge pull requests through the standardized workflow.
 - `sync`: reconcile local spec and todo state with linked GitHub issues.
-- `worktree`, `merge`, and `cleanup`: manage implementation worktrees, completed pull requests, and local branch/worktree hygiene.
+- `worktree` and `cleanup`: manage implementation worktrees and local branch/worktree hygiene.
 - `introspect`: scaffold durable project reference documents for agents to complete.
 - `config`: inspect or print default project configuration.
 - `paths`: print resolved harness paths for debugging.
@@ -129,6 +131,37 @@ The normal spec lifecycle is:
    Spec completion commits and pushes work, rebases onto `origin/dev`, creates the pull request, records the PR in spec state, updates GitHub issue labels, and tells the user how to merge from mission control.
 
 The key distinction is isolation. Mission control coordinates. Spec worktrees implement. This prevents a shared dev checkout from accumulating feature-branch state and makes it clear which agent session owns which branch.
+
+## Promotions And Pull Request Reviews
+
+Protected branches remain on one shared linear history: `main` is behind `test`, and `test` is behind `dev`. A promotion advances a protected branch to an already existing point on that history. Direct `dev` to `test` and `test` to `main` branch updates are not part of the normal workflow.
+
+Promotion creation is deliberately two-step:
+
+```bash
+python -B .agent_core/harness/main.py promotion create test
+python -B .agent_core/harness/main.py promotion create test --execute
+```
+
+The first command fetches, checks out, and synchronizes the promotion source branch: `dev` for a test promotion or `test` for a production promotion. It then creates an ignored temporary promotion-description draft under `.agent_core/tmp/`. It does not push anything or create a branch or pull request. The agent remains on the source branch and treats its tracked code as read-only while investigating, testing, and documenting the promotion. The execution command validates the completed description, creates a remote-only snapshot branch from that inspected source checkout, opens the promotion PR with the description as its body, removes the temporary draft, and returns to `dev`.
+
+An explicit direct-promotion request can begin with `promotion create <test|main> --no-pr`. The first invocation only explains what review protections would be bypassed and requires separate confirmation. If confirmed, the follow-up command printed by the harness fast-forwards the destination directly without creating a description, snapshot branch, or pull request. Direct promotion still enforces ancestry and refuses to proceed while a promotion PR is open for the destination.
+
+Promotion PRs are completed through a fast-forward rather than a GitHub squash, rebase, or merge commit:
+
+```bash
+python -B .agent_core/harness/main.py pr merge <pr_ref>
+```
+
+PRs targeting the configured `main` branch require `--force` after separate explicit user confirmation. Completed and closed promotion branches are deleted immediately when possible and reconciled during normal sync to prevent remote branch accumulation.
+
+PR review can start without full onboarding:
+
+```bash
+python -B .agent_core/harness/main.py pr review
+```
+
+With no reference, the command queries GitHub, lists open PRs, explains the available actions, and instructs the agent to ask which PR the user means. Once identified, `pr review <pr_ref>` generates the context the agent must inspect. Review comments, approvals, change requests, and merges use explicit PR references so no hidden local selection state is required.
 
 ## Tasks, Todos, Memories, Docs, And Logs
 

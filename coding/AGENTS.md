@@ -47,6 +47,21 @@ Specs are high-level feature or change specifications linked to GitHub issues. T
 - `python -B .agent_core/harness/main.py spec assign <slug>` - Assign the spec and create its worktree. DO NOT ASSIGN SPECS WITHOUT EXPLICIT CONSENT.
 - `python -B .agent_core/harness/main.py spec complete <slug> "detailed commit message"` - Create the PR and mark the spec merge-ready.
 
+**Promotions (advancing protected branches):**
+A promotion advances the shared linear history from `dev` to `test`, or from `test` to `main`. Treat requests such as "merge dev into test", "promote test to main", or equivalent language as promotion requests. Do not use raw `git merge`, direct pushes, or legacy merge commands for them.
+
+The normal workflow is reviewed through a pull request:
+
+- `python -B .agent_core/harness/main.py promotion create <test|main>` synchronizes and checks out the source branch (`dev` for a test promotion or `test` for a production promotion), then creates an ignored temporary Markdown draft for the promotion's pull request description. It does not push anything or create a branch or pull request. Remain on that source branch, treat the tracked code as read-only, inspect and test the complete promotion scope there, and fill in the ignored draft identified by the command.
+- After the description is complete, run the execution command printed by the harness from the source branch. It validates the draft, creates a remote-only snapshot branch from the exact source checkout that was inspected, opens the promotion pull request with the completed description, removes the temporary draft, and returns to `dev`.
+
+Do not interpret an ordinary request to merge or promote into a protected branch as permission to bypass review. If the user explicitly asks to skip the pull request or promote directly, run `python -B .agent_core/harness/main.py promotion create <test|main> --no-pr` without adding any other options, explain the warning printed by the harness, and stop for the required confirmation.
+
+**Pull request reviews:**
+When the user says "Let's review the PR", "Let's review the promotion", "There is an open PR", or similar, this workflow replaces normal onboarding. Run `python -B .agent_core/harness/main.py pr review` without a PR reference. It queries open pull requests and prints the authoritative discovery and selection instructions. Do not choose a pull request on the user's behalf.
+
+After the user identifies the pull request, run the review command printed by the harness, read the generated context in full, and report findings before taking any PR action. The review command surfaces the available response and merge commands when they become relevant. Follow confirmation instructions exactly and never add options that the harness has not instructed you to use.
+
 **Tasks (concrete work inside a spec):**
 Tasks are actionable work items that belong to a spec. When run from a spec worktree, task commands infer the active spec. Use `--spec <slug>` only when managing a specific spec from outside its worktree (this will be the case most of the time, since planning and spec creation happens in non spec branches - where specs are not yet "active").
 
@@ -86,7 +101,7 @@ Harness-provided optional docs can be managed after the user gives explicit cons
 - `python -B .agent_core/harness/main.py docs update [slug ...]` - Update installed optional docs.
 - `python -B .agent_core/harness/main.py docs remove <slug> [slug ...]` - Remove installed optional docs.
 
-Update and removal refuse locally modified managed docs unless `--force` is passed. Never use `--force` without explicit user consent.
+Update and removal refuse to overwrite or delete locally modified managed docs. Follow the command's recovery instructions and never authorize an override without explicit user consent.
 
 **Repair Commands (manual reconciliation):**
 Repair commands are for explicit recovery or reconciliation. Do not run them as part of normal onboarding; `onboard` already syncs version control and issue state before building context. Any repair command should be a last resort.
