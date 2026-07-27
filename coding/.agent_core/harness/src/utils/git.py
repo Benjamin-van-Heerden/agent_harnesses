@@ -199,6 +199,10 @@ def push_ref(source: str, branch: str, cwd: Path | None = None) -> None:
     run_git(["push", "origin", f"{source}:refs/heads/{branch}"], cwd=cwd)
 
 
+def update_local_branch(branch: str, revision: str, cwd: Path | None = None) -> None:
+    run_git(["branch", "--force", branch, revision], cwd=cwd)
+
+
 def push_force_with_lease(branch: str, cwd: Path | None = None) -> None:
     run_git(["push", "--force-with-lease", "origin", branch], cwd=cwd)
 

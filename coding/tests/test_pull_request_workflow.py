@@ -292,14 +292,46 @@ def test_confirmed_direct_promotion_fast_forwards_without_pr(
     monkeypatch.setattr(create.git, "has_uncommitted_changes", lambda: False)
     monkeypatch.setattr(create.git, "fetch", lambda: None)
     monkeypatch.setattr(create.git, "is_ancestor", lambda _ancestor, _descendant: True)
-    monkeypatch.setattr(create.git, "same_commit", lambda _first, _second: False)
+    monkeypatch.setattr(
+        create.git,
+        "same_commit",
+        lambda first, second: first in {"dev", "test", "main"} and second == f"origin/{first}",
+    )
     monkeypatch.setattr(create.git, "push_ref", lambda source, branch: pushed.append((source, branch)))
+    monkeypatch.setattr(create.git, "update_local_branch", lambda _branch, _revision: None)
     monkeypatch.setattr(create, "repository", lambda: cast(Repository, _Repo()))
 
     create.run("test", no_pr=True, force=True)
 
     assert pushed == [("origin/dev", "test")]
-    assert "No promotion description, snapshot branch, or pull request was created." in capsys.readouterr().out
+    output = capsys.readouterr().out
+    assert "Local 'test' now matches 'origin/test'." in output
+    assert "No promotion description, snapshot branch, or pull request was created." in output
+
+
+def test_direct_promotion_refuses_mismatched_local_protected_branch(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    create = _load_module(monkeypatch, "src.commands.promotion.create")
+    pushed: list[tuple[str, str]] = []
+    monkeypatch.setattr(create, "get_branch_names", lambda: _branches(monkeypatch))
+    monkeypatch.setattr(create.git, "current_branch", lambda: "dev")
+    monkeypatch.setattr(create.git, "has_uncommitted_changes", lambda: False)
+    monkeypatch.setattr(create.git, "fetch", lambda: None)
+    monkeypatch.setattr(
+        create.git,
+        "same_commit",
+        lambda first, second: first != "test" and second == f"origin/{first}",
+    )
+    monkeypatch.setattr(create.git, "push_ref", lambda source, branch: pushed.append((source, branch)))
+
+    with pytest.raises(typer.Exit) as error:
+        create.run("test", no_pr=True, force=True)
+
+    assert error.value.exit_code == 1
+    assert pushed == []
+    assert "'test' and 'origin/test'" in capsys.readouterr().err
 
 
 def test_pr_discovery_requires_user_to_choose(

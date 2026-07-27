@@ -350,8 +350,21 @@ def _direct_confirmation(target: str, source: str, destination: str) -> None:
 
 
 def _promote_directly(source: str, destination: str) -> None:
+    remote_advanced = False
     try:
         git.fetch()
+        branches = get_branch_names()
+        mismatched = [
+            branch
+            for branch in branches.protected
+            if not git.same_commit(branch, f"origin/{branch}")
+        ]
+        if mismatched:
+            joined = ", ".join(f"'{branch}' and 'origin/{branch}'" for branch in mismatched)
+            raise GitError(
+                f"Direct promotion requires all local protected branches to match their remote copies. Mismatched: {joined}."
+            )
+
         source_ref = f"origin/{source}"
         destination_ref = f"origin/{destination}"
         if not git.is_ancestor(destination_ref, source_ref):
@@ -372,13 +385,24 @@ def _promote_directly(source: str, destination: str) -> None:
             typer.echo("Review, merge, or close that promotion before attempting a direct promotion.", err=True)
             raise typer.Exit(code=1)
         git.push_ref(source_ref, destination)
+        remote_advanced = True
+        git.fetch()
+        git.update_local_branch(destination, f"origin/{destination}")
+        if not git.same_commit(destination, f"origin/{destination}"):
+            raise GitError(f"Local '{destination}' does not match 'origin/{destination}' after promotion.")
     except typer.Exit:
         raise
     except (GitError, GitHubError) as error:
+        if remote_advanced:
+            typer.echo(
+                f"Remote promotion succeeded, but the local '{destination}' branch could not be synchronized.",
+                err=True,
+            )
         typer.echo(str(error), err=True)
         raise typer.Exit(code=1) from error
 
     typer.echo(f"Fast-forwarded '{destination}' directly to 'origin/{source}'.")
+    typer.echo(f"Local '{destination}' now matches 'origin/{destination}'.")
     typer.echo("No promotion description, snapshot branch, or pull request was created.")
 
 
