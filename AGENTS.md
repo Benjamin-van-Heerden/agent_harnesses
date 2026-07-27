@@ -204,6 +204,15 @@ Memories are short, atomic notes about patterns, conventions, or preferences in 
 **Documents (durable project context):**
 Documents are durable project context files that appear during onboard. They belong in `.agent_core/docs/`. Their creation and management is done manually by the user. DO NOT create or update files in `.agent_core/docs` without explicit consent.
 
+Harness-provided optional docs can be managed after the user gives explicit consent:
+
+- `python -B .agent_core/harness/main.py docs list` - List available docs and their installation state.
+- `python -B .agent_core/harness/main.py docs add <slug> [slug ...]` - Install optional docs.
+- `python -B .agent_core/harness/main.py docs update [slug ...]` - Update installed optional docs.
+- `python -B .agent_core/harness/main.py docs remove <slug> [slug ...]` - Remove installed optional docs.
+
+Update and removal refuse locally modified managed docs unless `--force` is passed. Never use `--force` without explicit user consent.
+
 **Repair Commands (manual reconciliation):**
 Repair commands are for explicit recovery or reconciliation. Do not run them as part of normal onboarding; `onboard` already syncs version control and issue state before building context. Any repair command should be a last resort.
 
