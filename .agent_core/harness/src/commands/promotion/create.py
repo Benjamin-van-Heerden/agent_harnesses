@@ -12,6 +12,7 @@ from src.config.paths import PROJECT_PATHS
 from src.utils import git
 from src.utils.errors import GitError, GitHubError
 from src.utils.github import create_pull_request, delete_remote_branch, repository
+from src.utils.promotion_reunify import ensure_destination_is_ancestor
 
 PROMOTION_BRANCH_PREFIX = "promotion"
 DESCRIPTION_PLACEHOLDER_PATTERN = re.compile(r"\{PROMOTION_DESCRIPTION:[^{}\n]+\}")
@@ -278,6 +279,14 @@ def _execute(target: str, source: str, destination: str) -> None:
         git.fetch()
         source_ref = source
         destination_ref = f"origin/{destination}"
+        reunify = ensure_destination_is_ancestor(
+            source_ref,
+            destination_ref,
+            reunify_branch=source,
+        )
+        if reunify is not None and reunify.performed:
+            typer.echo(reunify.message)
+            typer.echo("")
         if not git.is_ancestor(destination_ref, source_ref):
             raise GitError(
                 f"Cannot promote '{source}' into '{destination}' with a fast-forward. "
@@ -367,6 +376,19 @@ def _promote_directly(source: str, destination: str) -> None:
 
         source_ref = f"origin/{source}"
         destination_ref = f"origin/{destination}"
+        reunify = ensure_destination_is_ancestor(
+            source_ref,
+            destination_ref,
+            reunify_branch=source,
+            start_point=source_ref,
+        )
+        if reunify is not None and reunify.performed:
+            typer.echo(reunify.message)
+            typer.echo("")
+            git.fetch()
+            source_ref = f"origin/{source}"
+            if not git.same_commit(source, source_ref):
+                git.update_local_branch(source, source_ref)
         if not git.is_ancestor(destination_ref, source_ref):
             raise GitError(
                 f"Cannot promote '{source}' directly into '{destination}' with a fast-forward. "
