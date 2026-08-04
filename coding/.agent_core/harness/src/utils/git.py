@@ -59,8 +59,64 @@ def same_commit(first: str, second: str, cwd: Path | None = None) -> bool:
     return first_result.stdout.strip() == second_result.stdout.strip()
 
 
+def rev_parse(ref: str, cwd: Path | None = None) -> str:
+    return run_git(["rev-parse", ref], cwd=cwd).stdout.strip()
+
+
+def commit_subject(ref: str, cwd: Path | None = None) -> str:
+    return run_git(["log", "-1", "--format=%s", ref], cwd=cwd).stdout.strip()
+
+
+def parent_count(ref: str, cwd: Path | None = None) -> int:
+    result = run_git(["log", "-1", "--format=%P", ref], cwd=cwd, check=False)
+    if result.returncode != 0:
+        return 0
+    parents = result.stdout.strip().split()
+    return len(parents)
+
+
+def is_merge_commit(ref: str, cwd: Path | None = None) -> bool:
+    return parent_count(ref, cwd=cwd) >= 2
+
+
+def commits_reachable_from(included: str, excluded: str, cwd: Path | None = None) -> list[str]:
+    result = run_git(
+        ["rev-list", "--reverse", f"{excluded}..{included}"],
+        cwd=cwd,
+        check=False,
+    )
+    if result.returncode != 0:
+        message = result.stderr.strip() or result.stdout.strip() or f"Could not list commits for {excluded}..{included}."
+        raise GitError(message)
+    return [line.strip() for line in result.stdout.splitlines() if line.strip()]
+
+
+def commit_onelines(included: str, excluded: str, cwd: Path | None = None) -> list[str]:
+    result = run_git(
+        ["log", "--oneline", "--no-decorate", f"{excluded}..{included}"],
+        cwd=cwd,
+        check=False,
+    )
+    if result.returncode != 0:
+        message = result.stderr.strip() or result.stdout.strip() or f"Could not log commits for {excluded}..{included}."
+        raise GitError(message)
+    return [line.strip() for line in result.stdout.splitlines() if line.strip()]
+
+
 def checkout(branch: str, cwd: Path | None = None) -> None:
     run_git(["checkout", branch], cwd=cwd)
+
+
+def checkout_new_branch(branch: str, start_point: str, cwd: Path | None = None) -> None:
+    run_git(["checkout", "-B", branch, start_point], cwd=cwd)
+
+
+def merge_no_ff(revision: str, message: str, cwd: Path | None = None) -> None:
+    run_git(["merge", "--no-ff", "-m", message, revision], cwd=cwd)
+
+
+def merge_abort(cwd: Path | None = None) -> None:
+    run_git(["merge", "--abort"], cwd=cwd, check=False)
 
 
 def local_branch_exists(branch: str, cwd: Path | None = None) -> bool:

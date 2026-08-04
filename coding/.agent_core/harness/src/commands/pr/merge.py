@@ -21,6 +21,7 @@ from src.utils.github import (
     squash_pull_request,
     update_issue,
 )
+from src.utils.promotion_reunify import ensure_destination_is_ancestor
 
 
 def _require_clean_worktree() -> None:
@@ -143,6 +144,17 @@ def _merge_promotion(repo: Repository, pull_request: PullRequest) -> None:
         git.fetch()
         remote_base = f"origin/{base}"
         remote_head = f"origin/{head}"
+        reunify = ensure_destination_is_ancestor(
+            remote_head,
+            remote_base,
+            reunify_branch=head,
+            start_point=remote_head,
+        )
+        if reunify is not None and reunify.performed:
+            typer.echo(reunify.message)
+            typer.echo("")
+            git.fetch()
+            remote_head = f"origin/{head}"
         if not git.is_ancestor(remote_base, remote_head):
             raise GitError(
                 f"Promotion is no longer a fast-forward: {remote_base} is not an ancestor of {remote_head}."

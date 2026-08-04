@@ -153,6 +153,10 @@ Promotion PRs are completed through a fast-forward rather than a GitHub squash, 
 python -B .agent_core/harness/main.py pr merge <pr_ref>
 ```
 
+Do not complete promotion pull requests with GitHub's Merge, Squash, or Rebase buttons. Those create destination tips that leave the shared linear spine and break later pure fast-forward promotions.
+
+If a protected destination tip has already diverged with merge-only commits (the usual result of a GitHub merge button on a promotion PR), promotion create/execute, direct promotion, and promotion `pr merge` automatically reunify by merging that destination tip into the promotion source (or snapshot head), push the reunified source, then continue with the normal fast-forward. Unique non-merge commits on the destination are refused with a divergence report instead of a silent rewrite.
+
 PRs targeting the configured `main` branch require `--force` after separate explicit user confirmation. Completed and closed promotion branches are deleted immediately when possible and reconciled during normal sync to prevent remote branch accumulation.
 
 PR review can start without full onboarding:

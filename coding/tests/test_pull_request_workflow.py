@@ -240,6 +240,7 @@ def test_promotion_execute_creates_remote_only_branch_and_pr(
     monkeypatch.setattr(create.git, "same_commit", lambda _first, _second: False)
     monkeypatch.setattr(create.git, "push_ref", lambda source, branch: pushed.append((source, branch)))
     monkeypatch.setattr(create.git, "checkout", lambda _branch: None)
+    monkeypatch.setattr(create, "ensure_destination_is_ancestor", lambda *_args, **_kwargs: None)
     monkeypatch.setattr(create, "repository", lambda: cast(Repository, repo))
     monkeypatch.setattr(
         create,
@@ -299,6 +300,7 @@ def test_confirmed_direct_promotion_fast_forwards_without_pr(
     )
     monkeypatch.setattr(create.git, "push_ref", lambda source, branch: pushed.append((source, branch)))
     monkeypatch.setattr(create.git, "update_local_branch", lambda _branch, _revision: None)
+    monkeypatch.setattr(create, "ensure_destination_is_ancestor", lambda *_args, **_kwargs: None)
     monkeypatch.setattr(create, "repository", lambda: cast(Repository, _Repo()))
 
     create.run("test", no_pr=True, force=True)
@@ -393,6 +395,46 @@ def test_main_pr_merge_without_force_requires_explicit_confirmation(
     assert "pr merge 42 --force" in output
 
 
+def test_direct_promotion_reunifies_then_fast_forwards(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    create = _load_module(monkeypatch, "src.commands.promotion.create")
+    reunify = _load_module(monkeypatch, "src.utils.promotion_reunify")
+    pushed: list[tuple[str, str]] = []
+    monkeypatch.setattr(create, "get_branch_names", lambda: _branches(monkeypatch))
+    monkeypatch.setattr(create.git, "current_branch", lambda: "dev")
+    monkeypatch.setattr(create.git, "has_uncommitted_changes", lambda: False)
+    monkeypatch.setattr(create.git, "fetch", lambda: None)
+    monkeypatch.setattr(
+        create.git,
+        "same_commit",
+        lambda first, second: first in {"dev", "test", "main"} and second == f"origin/{first}",
+    )
+    monkeypatch.setattr(create.git, "is_ancestor", lambda _ancestor, _descendant: True)
+    monkeypatch.setattr(create.git, "push_ref", lambda source, branch: pushed.append((source, branch)))
+    monkeypatch.setattr(create.git, "update_local_branch", lambda _branch, _revision: None)
+    monkeypatch.setattr(
+        create,
+        "ensure_destination_is_ancestor",
+        lambda *_args, **_kwargs: reunify.ReunifyResult(
+            performed=True,
+            reunify_branch="dev",
+            destination_ref="origin/test",
+            tip="abc123def456",
+            message="Reunified promotion history by merging 'origin/test' into 'dev' (abc123def456). Fast-forward promotion can proceed.",
+        ),
+    )
+    monkeypatch.setattr(create, "repository", lambda: cast(Repository, _Repo()))
+
+    create.run("test", no_pr=True, force=True)
+
+    assert pushed == [("origin/dev", "test")]
+    output = capsys.readouterr().out
+    assert "Reunified promotion history by merging 'origin/test' into 'dev'" in output
+    assert "Fast-forwarded 'test' directly to 'origin/dev'." in output
+
+
 def test_promotion_merge_fast_forwards_and_deletes_remote_branch(
     monkeypatch: pytest.MonkeyPatch,
     capsys: pytest.CaptureFixture[str],
@@ -405,6 +447,7 @@ def test_promotion_merge_fast_forwards_and_deletes_remote_branch(
     monkeypatch.setattr(merge.git, "fetch", lambda: None)
     monkeypatch.setattr(merge.git, "is_ancestor", lambda _ancestor, _descendant: True)
     monkeypatch.setattr(merge.git, "push_ref", lambda source, target: pushed.append((source, target)))
+    monkeypatch.setattr(merge, "ensure_destination_is_ancestor", lambda *_args, **_kwargs: None)
     monkeypatch.setattr(
         merge,
         "delete_remote_branch",
