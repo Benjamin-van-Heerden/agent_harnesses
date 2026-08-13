@@ -58,7 +58,7 @@ class HarnessConfig(BaseModel):
         description="Last successful harness update timestamp",
     )
     update_interval_days: int = Field(
-        default=3,
+        default=1,
         ge=0,
         description="Number of days before onboard checks for a harness update",
     )

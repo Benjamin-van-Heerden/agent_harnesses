@@ -17,3 +17,8 @@ description = "Refresh the worktree symlink config comment without changing conf
 id = "0004_remove_retired_default_docs"
 file = "0004_remove_retired_default_docs.py"
 description = "Remove retired default coding docs from installed project docs"
+
+[[patches]]
+id = "0005_daily_update_interval"
+file = "0005_daily_update_interval.py"
+description = "Set harness auto-update interval to 1 day"

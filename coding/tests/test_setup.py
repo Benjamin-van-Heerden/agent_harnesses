@@ -56,7 +56,9 @@ def test_template_setup_preserves_state_and_avoids_removed_surfaces(tmp_path: Pa
         "0002_optional_onboard_config_scaffolds",
         "0003_worktree_symlink_comment",
         "0004_remove_retired_default_docs",
+        "0005_daily_update_interval",
     }
+    assert config["harness"]["update_interval_days"] == 1
 
     (target / ".agent_core" / "specs" / "keep.md").write_text("state\n")
     (target / ".agent_core" / "docs" / "project_notes.md").write_text("project notes\n")
@@ -610,6 +612,44 @@ main = "main"
     applied = patches["applied"]
     assert isinstance(applied, list)
     assert any(isinstance(record, dict) and record.get("id") == "0003_worktree_symlink_comment" for record in applied)
+
+
+def test_setup_source_patch_sets_daily_update_interval(tmp_path: Path) -> None:
+    target = tmp_path / "project"
+    target.mkdir()
+    init_git_project(target)
+
+    config_path = target / ".agent_core" / "config.toml"
+    config_path.parent.mkdir(parents=True)
+    config_path.write_text(
+        '''[project]
+name = "Interval"
+description = "Project description."
+
+[worktree]
+symlink_paths = [".claude"]
+
+[harness]
+update_interval_days = 3
+
+[branches]
+dev = "dev"
+test = "test"
+main = "main"
+'''
+    )
+    run_command(["git", "add", ".agent_core/config.toml"], cwd=target)
+    run_command(["git", "commit", "-m", "add agent config"], cwd=target)
+
+    result = run_command([sys.executable, str(HARNESS_ROOT / "setup.py")], cwd=target)
+
+    config = read_toml(config_path)
+    assert config["harness"]["update_interval_days"] == 1
+    assert "Applied config patch: set harness update interval to 1 day." in result.stdout
+    patches = read_toml(target / ".agent_core" / "patches.toml")
+    applied = patches["applied"]
+    assert isinstance(applied, list)
+    assert any(isinstance(record, dict) and record.get("id") == "0005_daily_update_interval" for record in applied)
 
 
 def test_setup_skips_recorded_source_patches(tmp_path: Path) -> None:

@@ -232,7 +232,7 @@ Add your project description here.
 symlink_paths = [".claude"]
 
 [harness]
-update_interval_days = 3
+update_interval_days = 1
 
 [branches]
 dev = "dev"
@@ -344,14 +344,14 @@ symlink_paths = [".claude"]''',
         content = append_if_missing(
             content,
             '''[harness]
-update_interval_days = 3''',
+update_interval_days = 1''',
         )
     elif section_exists(content, "harness") and not key_declared(
         content,
         "harness",
         "update_interval_days",
     ):
-        content = insert_key(content, "harness", "update_interval_days = 3")
+        content = insert_key(content, "harness", "update_interval_days = 1")
 
     if not section_declared(content, "branches"):
         content = append_if_missing(
