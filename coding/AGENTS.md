@@ -57,6 +57,14 @@ The normal workflow is reviewed through a pull request:
 
 Do not interpret an ordinary request to merge or promote into a protected branch as permission to bypass review. If the user explicitly asks to skip the pull request or promote directly, run `python -B .agent_core/harness/main.py promotion create <test|main> --no-pr` without adding any other options, explain the warning printed by the harness, and stop for the required confirmation.
 
+A full-deployment request is a separate path. Treat only explicit phrases such as "full deployment", "full deploy", or "deploy everything" as this path. Do not infer it from an ordinary promote, merge, or skip-the-PR request.
+
+When that request is made, advance both hops without pull requests, in order: first `test`, then `main`. For each hop, run `python -B .agent_core/harness/main.py promotion create <test|main> --no-pr` and immediately continue with the confirmation command printed by the harness. Do not stop for a second confirmation. The full-deployment request itself is the confirmation.
+
+If a hop reports that nothing is available to promote, continue with the remaining hop. Report what was advanced and what was already current.
+
+Do not mention or invent extra flags. Use only the follow-up command the harness prints.
+
 Promotion pull requests must be completed with the harness `pr merge` path (pure fast-forward). Do not use GitHub's Merge, Squash, or Rebase buttons on promotion PRs. If destination history has already diverged through merge-only commits, the promotion commands automatically reunify by merging the destination tip into the promotion source, then continue the fast-forward. Report reunify output to the user when it happens.
 
 **Pull request reviews:**
