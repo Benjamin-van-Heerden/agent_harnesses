@@ -16,7 +16,7 @@ from src.utils.errors import GitError
 
 SETUP_URL = "https://raw.githubusercontent.com/Benjamin-van-Heerden/agent_harnesses/main/coding/setup.py"
 SKIP_ENV_VAR = "AGENT_CORE_SKIP_AUTO_UPDATE"
-DEFAULT_UPDATE_INTERVAL_DAYS = 3
+DEFAULT_UPDATE_INTERVAL_DAYS = 1
 
 
 class AutoUpdateError(Exception):

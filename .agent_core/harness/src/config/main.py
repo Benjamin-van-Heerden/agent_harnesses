@@ -246,7 +246,7 @@ def generate_default_config_toml(
             f"# {_description(HarnessConfig, 'last_updated_at')}",
             '# last_updated_at = "1970-01-01T00:00:00Z"',
             f"# {_description(HarnessConfig, 'update_interval_days')}",
-            "update_interval_days = 3",
+            "update_interval_days = 1",
             "",
             "[branches]",
             f"# {_description(BranchConfig, 'dev')}",
