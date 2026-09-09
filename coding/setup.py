@@ -21,6 +21,7 @@ from typing import Callable, NoReturn, cast
 
 
 REPO_ARCHIVE_URL = "https://github.com/Benjamin-van-Heerden/agent_harnesses/archive/refs/heads/main.zip"
+REPO_ARCHIVE_FALLBACK_URL = "https://codeload.github.com/Benjamin-van-Heerden/agent_harnesses/zip/refs/heads/main"
 TEMPLATE_SUBPATH = "coding"
 CORE_START_TAG = "<core_instructions>"
 CORE_END_TAG = "</core_instructions>"
@@ -77,6 +78,15 @@ class SetupError(Exception):
     pass
 
 
+class DownloadError(SetupError):
+    pass
+
+
+DOWNLOAD_TIMEOUT_SECONDS = 8
+DOWNLOAD_FAILED_EXIT_CODE = 2
+DOWNLOAD_USER_AGENT = "AgentCoreHarness"
+
+
 def eprint(message: str) -> None:
     print(message, file=sys.stderr)
 
@@ -105,6 +115,27 @@ match a document in the harness optional_docs directory.
 """
 
 
+def download_bytes(url: str, headers: dict[str, str] | None = None) -> bytes:
+    request = urllib.request.Request(url, headers=headers or {"User-Agent": DOWNLOAD_USER_AGENT})
+    try:
+        with urllib.request.urlopen(request, timeout=DOWNLOAD_TIMEOUT_SECONDS) as response:
+            return response.read()
+    except urllib.error.HTTPError as error:
+        raise DownloadError(f"Error: could not download {url}: HTTP {error.code}") from error
+    except (urllib.error.URLError, TimeoutError) as error:
+        raise DownloadError(f"Error: could not download {url}: {error}") from error
+
+
+def download_template_archive() -> bytes:
+    errors: list[str] = []
+    for url in (REPO_ARCHIVE_URL, REPO_ARCHIVE_FALLBACK_URL):
+        try:
+            return download_bytes(url)
+        except DownloadError as error:
+            errors.append(str(error))
+    raise DownloadError("Error: could not download harness templates. " + " ".join(errors))
+
+
 def resolve_template_root() -> tuple[Path, tempfile.TemporaryDirectory[str] | None]:
     script_file = globals().get("__file__")
     if script_file:
@@ -113,18 +144,20 @@ def resolve_template_root() -> tuple[Path, tempfile.TemporaryDirectory[str] | No
             return script_dir, None
 
     temp_dir = tempfile.TemporaryDirectory(prefix="agent-harnesses-setup-")
-    eprint("Fetching latest agent harness templates...")
-    with urllib.request.urlopen(REPO_ARCHIVE_URL) as response:
-        archive = response.read()
+    try:
+        eprint("Fetching latest agent harness templates...")
+        archive = download_template_archive()
+        with zipfile.ZipFile(io.BytesIO(archive)) as repo_zip:
+            repo_zip.extractall(temp_dir.name)
 
-    with zipfile.ZipFile(io.BytesIO(archive)) as repo_zip:
-        repo_zip.extractall(temp_dir.name)
-
-    root = Path(temp_dir.name)
-    for candidate in root.iterdir():
-        template_root = candidate / TEMPLATE_SUBPATH
-        if (template_root / ".agent_core" / "harness").is_dir():
-            return template_root, temp_dir
+        root = Path(temp_dir.name)
+        for candidate in root.iterdir():
+            template_root = candidate / TEMPLATE_SUBPATH
+            if (template_root / ".agent_core" / "harness").is_dir():
+                return template_root, temp_dir
+    except Exception:
+        temp_dir.cleanup()
+        raise
 
     temp_dir.cleanup()
     fail(f"Error: template subdirectory '{TEMPLATE_SUBPATH}' not found in repository archive.")
@@ -1336,20 +1369,33 @@ def uninstall_local_files(target_root: Path) -> None:
     uninstall_claude_file(target_root)
 
 
-def parse_github_repo(remote_url: str) -> tuple[str, str] | None:
-    remote_url = remote_url.strip()
-    if remote_url.startswith("git@github.com:"):
-        path = remote_url.removeprefix("git@github.com:")
-    elif remote_url.startswith("https://github.com/"):
-        path = urllib.parse.urlparse(remote_url).path.lstrip("/")
-    else:
-        return None
-    if path.endswith(".git"):
-        path = path[:-4]
+def _owner_and_repo_from_path(path: str) -> tuple[str, str] | None:
+    path = path.strip().strip("/").removesuffix(".git")
     owner, separator, repo = path.partition("/")
-    if not owner or not separator or not repo:
+    if not owner or not separator or not repo or "/" in repo:
         return None
     return owner, repo
+
+
+def parse_github_repo(remote_url: str) -> tuple[str, str] | None:
+    remote_url = remote_url.strip()
+    if not remote_url:
+        return None
+
+    if "://" not in remote_url and "@" in remote_url:
+        rest = remote_url.split("@", 1)[1]
+        if ":" not in rest:
+            return None
+        return _owner_and_repo_from_path(rest.split(":", 1)[1])
+
+    parsed = urllib.parse.urlparse(remote_url)
+    if parsed.scheme == "https":
+        if (parsed.hostname or "").lower() != "github.com":
+            return None
+        return _owner_and_repo_from_path(parsed.path)
+    if parsed.scheme == "ssh":
+        return _owner_and_repo_from_path(parsed.path)
+    return None
 
 
 def github_request(method: str, url: str, token: str, payload: dict[str, object] | None = None) -> tuple[int, object | None, dict[str, str]]:
@@ -1612,6 +1658,9 @@ def main(argv: list[str] | None = None) -> int:
 if __name__ == "__main__":
     try:
         raise SystemExit(main())
+    except DownloadError as error:
+        eprint(str(error))
+        raise SystemExit(DOWNLOAD_FAILED_EXIT_CODE) from error
     except SetupError as error:
         eprint(str(error))
         raise SystemExit(1) from error
