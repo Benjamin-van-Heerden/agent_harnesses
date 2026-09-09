@@ -1,7 +1,12 @@
+import io
 import os
 import shutil
 import subprocess
 import sys
+import tempfile
+import urllib.error
+import urllib.request
+import zipfile
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
@@ -13,13 +18,22 @@ from src.config.paths import PROJECT_PATHS
 from src.utils import git, worktrees
 from src.utils.errors import GitError
 
-
-SETUP_URL = "https://raw.githubusercontent.com/Benjamin-van-Heerden/agent_harnesses/main/coding/setup.py"
+ARCHIVE_URLS = (
+    "https://github.com/Benjamin-van-Heerden/agent_harnesses/archive/refs/heads/main.zip",
+    "https://codeload.github.com/Benjamin-van-Heerden/agent_harnesses/zip/refs/heads/main",
+)
 SKIP_ENV_VAR = "AGENT_CORE_SKIP_AUTO_UPDATE"
 DEFAULT_UPDATE_INTERVAL_DAYS = 1
+DOWNLOAD_TIMEOUT_SECONDS = 8
+DOWNLOAD_FAILED_EXIT_CODE = 2
+DOWNLOAD_USER_AGENT = "AgentCoreHarness"
 
 
 class AutoUpdateError(Exception):
+    pass
+
+
+class TransientDownloadError(AutoUpdateError):
     pass
 
 
@@ -94,18 +108,53 @@ def _remove_python_cache_artifacts(root: Path) -> None:
         print(f"Removed Python cache file: {cache_file.relative_to(PROJECT_PATHS.project_root)}")
 
 
+def _describe_download_error(url: str, error: Exception) -> str:
+    if isinstance(error, urllib.error.HTTPError):
+        return f"{url} -> HTTP {error.code}"
+    return f"{url} -> {error}"
+
+
+def _read_url(url: str) -> bytes:
+    request = urllib.request.Request(url, headers={"User-Agent": DOWNLOAD_USER_AGENT})
+    with urllib.request.urlopen(request, timeout=DOWNLOAD_TIMEOUT_SECONDS) as response:
+        return response.read()
+
+
+def _download_template_archive() -> bytes:
+    errors: list[str] = []
+    for url in ARCHIVE_URLS:
+        try:
+            return _read_url(url)
+        except (urllib.error.URLError, TimeoutError) as error:
+            errors.append(_describe_download_error(url, error))
+    detail = "; ".join(errors) if errors else "no download sources"
+    raise TransientDownloadError(f"could not download the harness template archive from GitHub ({detail})")
+
+
+def _find_setup_script(extract_root: Path) -> Path:
+    for candidate in sorted(extract_root.iterdir()):
+        setup_path = candidate / "coding" / "setup.py"
+        harness_root = candidate / "coding" / ".agent_core" / "harness"
+        if setup_path.is_file() and harness_root.is_dir():
+            return setup_path
+    raise TransientDownloadError("downloaded archive did not contain coding/setup.py")
+
+
 def _run_remote_setup_update() -> None:
-    code = (
-        "import urllib.request; "
-        f"exec(urllib.request.urlopen({SETUP_URL!r}).read())"
-    )
-    result = subprocess.run(
-        [sys.executable, "-B", "-c", code, "--", "--update"],
-        cwd=PROJECT_PATHS.project_root,
-        capture_output=True,
-        text=True,
-        check=False,
-    )
+    archive = _download_template_archive()
+    with tempfile.TemporaryDirectory(prefix="agent-core-update-") as temp_name:
+        extract_root = Path(temp_name)
+        with zipfile.ZipFile(io.BytesIO(archive)) as repo_zip:
+            repo_zip.extractall(extract_root)
+        setup_path = _find_setup_script(extract_root)
+        result = subprocess.run(
+            [sys.executable, "-B", str(setup_path), "--update"],
+            cwd=PROJECT_PATHS.project_root,
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+
     if result.returncode == 0:
         if result.stdout.strip():
             print(result.stdout.strip())
@@ -114,6 +163,8 @@ def _run_remote_setup_update() -> None:
         return
 
     output = "\n".join(part for part in (result.stdout.strip(), result.stderr.strip()) if part)
+    if result.returncode == DOWNLOAD_FAILED_EXIT_CODE:
+        raise TransientDownloadError(output or "could not download harness templates from GitHub")
     raise AutoUpdateError(output or "harness update failed")
 
 
@@ -131,7 +182,7 @@ def _commit_update_changes() -> None:
         raise AutoUpdateError(f"could not commit and push harness update: {error}") from error
 
 
-def update(force: bool = False) -> AutoUpdateResult:
+def update(force: bool = False, *, continue_on_download_failure: bool = False) -> AutoUpdateResult:
     _remove_python_cache_artifacts(PROJECT_PATHS.harness_root)
 
     if os.environ.get(SKIP_ENV_VAR):
@@ -154,13 +205,24 @@ def update(force: bool = False) -> AutoUpdateResult:
     else:
         print("Harness auto-update: force update requested; updating.")
 
-    _run_remote_setup_update()
+    try:
+        _run_remote_setup_update()
+    except TransientDownloadError as error:
+        if not continue_on_download_failure:
+            raise AutoUpdateError(str(error)) from error
+        return AutoUpdateResult(
+            updated=False,
+            skipped_reason=(
+                f"{error}. Continuing with the installed harness. "
+                "The next onboard will retry because last_updated_at was not changed."
+            ),
+        )
     _commit_update_changes()
     return AutoUpdateResult(updated=True, reexec_required=True)
 
 
 def maybe_update() -> AutoUpdateResult:
-    return update(force=False)
+    return update(force=False, continue_on_download_failure=True)
 
 
 def reexec_current_command() -> None:

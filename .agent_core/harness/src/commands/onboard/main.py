@@ -159,7 +159,7 @@ def run(
                 typer.echo(f"Harness auto-update failed: {error}", err=True)
                 typer.echo("", err=True)
                 typer.echo(
-                    "You must resolve the harness update failure, or set AGENT_CORE_SKIP_AUTO_UPDATE=1 and rerun onboard.",
+                    "You must resolve the harness update failure and rerun onboard.",
                     err=True,
                 )
                 raise typer.Exit(code=1) from error

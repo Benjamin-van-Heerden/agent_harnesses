@@ -1,5 +1,6 @@
 import os
 import re
+import urllib.parse
 
 from github import Auth, Github, GithubException
 from github.GithubObject import NotSet, Opt
@@ -53,15 +54,32 @@ def authenticated_username() -> str:
         raise GitHubError(f"Could not read GitHub user: {error}") from error
 
 
+def _owner_and_repo_from_path(path: str) -> tuple[str, str] | None:
+    path = path.strip().strip("/").removesuffix(".git")
+    owner, separator, repo = path.partition("/")
+    if not owner or not separator or not repo or "/" in repo:
+        return None
+    return owner, repo
+
+
 def parse_repo_url(url: str) -> tuple[str, str] | None:
-    patterns = [
-        r"https://(?:[^@]+@)?github\.com/([^/]+)/([^/.]+)(?:\.git)?",
-        r"git@github\.com:([^/]+)/([^/.]+)(?:\.git)?",
-    ]
-    for pattern in patterns:
-        match = re.match(pattern, url)
-        if match:
-            return match.group(1), match.group(2)
+    url = url.strip()
+    if not url:
+        return None
+
+    if "://" not in url and "@" in url:
+        rest = url.split("@", 1)[1]
+        if ":" not in rest:
+            return None
+        return _owner_and_repo_from_path(rest.split(":", 1)[1])
+
+    parsed = urllib.parse.urlparse(url)
+    if parsed.scheme == "https":
+        if (parsed.hostname or "").lower() != "github.com":
+            return None
+        return _owner_and_repo_from_path(parsed.path)
+    if parsed.scheme == "ssh":
+        return _owner_and_repo_from_path(parsed.path)
     return None
 
 
@@ -70,7 +88,10 @@ def repo_name() -> str:
     url = result.stdout.strip()
     parsed = parse_repo_url(url)
     if parsed is None:
-        raise GitHubError(f"Origin remote is not a GitHub repository: {url}")
+        raise GitHubError(
+            f"Could not parse origin as a GitHub repository URL: {url or '(empty)'}.\n"
+            "Expected git@<host>:owner/repo.git, ssh://git@<host>/owner/repo.git, or https://github.com/owner/repo.git."
+        )
     return f"{parsed[0]}/{parsed[1]}"
 
 
