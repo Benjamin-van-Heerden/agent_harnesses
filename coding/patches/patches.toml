@@ -22,3 +22,8 @@ description = "Remove retired default coding docs from installed project docs"
 id = "0005_daily_update_interval"
 file = "0005_daily_update_interval.py"
 description = "Set harness auto-update interval to 1 day"
+
+[[patches]]
+id = "0006_agent_core_ds_store_gitignore"
+file = "0006_agent_core_ds_store_gitignore.py"
+description = "Ignore macOS Finder metadata throughout Agent Core state"

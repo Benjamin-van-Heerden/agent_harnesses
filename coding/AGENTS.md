@@ -140,7 +140,7 @@ Repair commands are for explicit recovery or reconciliation. Do not run them as 
     > - The *user* gives an instruction.
     > (loop)
     >   - *You* do research, establish and understand the problem.
-    >   - *You* provide context and diagnostics. to the user and ask clarifying questions
+    >   - *You* provide context and diagnostics to the user and clarify material ambiguity using the Think Before Coding guidelines below.
     >   - The *user* gives feedback.
     > (end loop if feedback intends for implementation to proceed)
     > - *You* implement the changes/updates as discussed with the *user*.
@@ -159,11 +159,10 @@ Remember: "Whenever I'm about to do something, I think, 'Would an idiot do that?
 - Be conversational but professional
 - Think through considerations and requirements before writing code
 - Planning first, then execution - we discuss the problem before implementing
-- Don't be afraid to ask for help or input
-- If you are unsure or need to guess about something, please ask
+- Surface uncertainty and tradeoffs clearly, following the Think Before Coding guidelines below.
 
 ## Code Quality Standards
-- Code should be self-explanatory - NEVER add comments unless absolutely necessary
+- Prefer self-explanatory code. Use comments to explain non-obvious reasoning, constraints, or tradeoffs; avoid comments that merely narrate what the code does.
 - Avoid print statements apart from ad-hoc testing, when necessary defer to formal logging
 - Follow established patterns and conventions in the codebase
 - Prioritize clarity and maintainability over cleverness
@@ -173,9 +172,25 @@ Remember: "Whenever I'm about to do something, I think, 'Would an idiot do that?
 - Database query optimization with proper indexing
 - Memory management for large batch processing
 
-## Modular Design
-- Separate concerns into focused modules
-- Robust error handling wherever applicable
+## File and Folder Structure
+
+- Follow the project's established layout and framework conventions. For new areas, organize files and folders around cohesive domains or features.
+- Give each source file a focused responsibility. Keep related code together and separate concerns that change for different reasons.
+- Start with a shallow structure. Introduce subfolders when they clarify meaningful boundaries, not merely to categorize a few files.
+- Keep helpers and types close to the domain that owns them. Move code into shared modules only when it serves multiple areas; avoid catch-all `utils`, `helpers`, or `common` files.
+- Prefer descriptive names that make a file's purpose clear without opening it.
+- Keep dependencies between modules explicit. Avoid circular imports and splits that require unrelated modules to coordinate through shared mutable state.
+- Use robust error handling wherever applicable.
+
+### File Size and Refactoring
+
+If a source file grows past 500 lines, treat that as a strong signal to split or refactor. Large files often accumulate mixed concerns, duplicated helpers, and hard-to-reason-about state. When your changes push a file past this threshold, or substantially extend an already oversized file, identify a cohesive part to extract before adding more.
+
+Prefer extracting by domain or responsibility: domain-specific types, cohesive helpers, or a focused submodule. Do not split files mechanically to meet the line count, compress code to hide its size, or introduce unnecessary indirection. A useful split should make each module easier to understand and change independently.
+
+Exceptions should be exceedingly rare, such as generated code or externally maintained vendored components. Explain why an exception is justified; compilation and passing tests alone do not justify keeping a file whole.
+
+Keep refactoring within the requested scope. If an existing oversized file needs a broader restructuring than the task warrants, flag it and propose a follow-up rather than silently expanding the task.
 
 ## Functional Approach
 - Prefer functional and procedural programming patterns over heavy OOP
@@ -195,20 +210,20 @@ Remember: "Whenever I'm about to do something, I think, 'Would an idiot do that?
 
 ### 1. Think Before Coding
 
-**Don't assume. Don't hide confusion. Surface tradeoffs.**
+**Make assumptions explicit. Surface material uncertainty and tradeoffs.**
 
 Before implementing:
-- State your assumptions explicitly. If uncertain, ask.
-- If multiple interpretations exist, present them - don't pick silently.
+- Check the available project context before asking for clarification.
+- Ask when ambiguity would materially affect scope, behavior, architecture, or the consequences of an action. Explain the uncertainty and pause the affected work until it is resolved; continue independent work where useful.
+- For routine, low-risk implementation choices within the authorized scope, follow established conventions and use judgment. State assumptions that affect the result without requiring confirmation for every minor decision.
 - If a simpler approach exists, say so. Push back when warranted.
-- If something is unclear, stop. Name what's confusing. Ask.
 
 ### 2. Simplicity First
 
 **Minimum code that solves the problem. Nothing speculative.**
 
 - No features beyond what was asked.
-- No abstractions for single-use code.
+- Introduce abstractions only when they clarify responsibilities or remove meaningful duplication. A focused function or module can be worthwhile with one caller; do not add layers solely for hypothetical reuse.
 - No "flexibility" or "configurability" that wasn't requested.
 - No error handling for impossible scenarios.
 - If you write 200 lines and it could be 50, rewrite it.
@@ -257,7 +272,7 @@ Strong success criteria let you loop independently. Weak criteria like "make it 
 Testing is critical to maintaining software quality, but not all tests are created equal. Focus on testing meaningful functionality that could actually break and impact the application.
 
 ### Test Structure
-- Tests live in `tests/` directory with mirrored source structure
+- Follow the project's established test layout and framework conventions. When establishing a new layout, default to a `tests/` directory that mirrors the source structure.
 - Focus on meaningful functionality that could realistically break
 - Avoid "idiot tests" that test framework behavior or trivial logic
 
@@ -284,9 +299,7 @@ Testing is critical to maintaining software quality, but not all tests are creat
 - "Does this test validate critical business logic or user-facing behavior?"
 - "Could this functionality realistically break in the way it is being tested?"
 
-If the answer is no, delete the test and focus on more valuable testing efforts.
-
-DELETE tests that don't follow these principles. NO 'IDIOT TESTS'!
+Apply this review to tests introduced or changed in the current task. Revise or remove those tests when they do not verify meaningful behavior, while preserving coverage required by the task. If an unrelated existing test appears unhelpful, flag it rather than deleting it without an explicit request.
 
 NEVER run a full test suite unless specifically asked to. focus on specific tests related to the feature/functionality you are working on.
 </core_instructions>

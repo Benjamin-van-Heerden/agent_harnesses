@@ -57,6 +57,7 @@ def test_template_setup_preserves_state_and_avoids_removed_surfaces(tmp_path: Pa
         "0003_worktree_symlink_comment",
         "0004_remove_retired_default_docs",
         "0005_daily_update_interval",
+        "0006_agent_core_ds_store_gitignore",
     }
     assert config["harness"]["update_interval_days"] == 1
 
@@ -543,7 +544,7 @@ def test_setup_applies_agent_core_state_gitignore_patch_after_broad_ignores(tmp_
     result = run_command([sys.executable, str(HARNESS_ROOT / "setup.py")], cwd=target)
 
     lines = (target / ".gitignore").read_text().splitlines()
-    assert lines[-7:] == [
+    assert lines[-8:] == [
         "# Agent Core state",
         "!.agent_core/",
         "!.agent_core/**",
@@ -551,6 +552,7 @@ def test_setup_applies_agent_core_state_gitignore_patch_after_broad_ignores(tmp_
         ".agent_core/tmp/**",
         ".cache/pycache/",
         ".cache/pycache/**",
+        ".agent_core/**/.DS_Store",
     ]
     assert "Applied .gitignore patch: ensured Agent Core state is tracked except .agent_core/tmp/ and .cache/pycache/ is ignored." in result.stdout
     assert run_command(["git", "check-ignore", "--no-index", ".agent_core/config.toml"], cwd=target, check=False).returncode == 1
